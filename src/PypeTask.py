@@ -57,13 +57,7 @@ class PypeTaskBase(object):
     def setReferenceMD5(self, md5Str):
         self._referenceMD5 = md5Str
 
-    def __call__(self, *argv, **kwargv):
-        print "__call__", argv
-        print "__call__", kwargv
-        argv = list(argv)
-        argv.extend(self._argv)
-        kwargv.update(self._kwargv)
-
+    def _getRunFlag(self):
         runFlag = False
 
         inputFiles = self.inputFiles
@@ -83,7 +77,7 @@ class PypeTaskBase(object):
                 break
             else:
                 outputFilesTS.append( os.stat(f.localFileName).st_mtime )
-                
+
         if runFlag == False:                
             if min(outputFilesTS) < max(inputFilesTS):
                 runFlag = True
@@ -93,26 +87,24 @@ class PypeTaskBase(object):
         if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
             runFlag = True
-            
-        if runFlag == True:
-            #self._taskFun(*argv, **kwargv)
-            argspec = inspect.getargspec(self._taskFun)
-            print argspec
-            if argspec.keywords != None:
-                self._taskFun(*argv, **kwargv)
-            elif argspec.varargs != None:
-                self._taskFun(*argv)
-            elif len(argspec.args) != 0:
-                nkwarg = {}
-                defaultArg = argspec.args[-len(argspec.defaults):]
-                for a in defaultArg:
-                    nkwarg[a] = kwargv[a]
-                self._taskFun(*argv, **nkwarg)
-            else:
-                self._taskFun()
-            if self.inputFiles != inputFiles or self.parameters != parameters:
-                raise TaskFunctionError("The 'inputFiles' and 'parameters' should not be modified in %s" % self.URL)
-            self._updateRDFGraph() #allow the task function to modify the output list if necessary
+
+        return runFlag
+
+    def _runTask(self, *argv, **kwargv):
+        argspec = inspect.getargspec(self._taskFun)
+        print argspec
+        if argspec.keywords != None:
+            self._taskFun(*argv, **kwargv)
+        elif argspec.varargs != None:
+            self._taskFun(*argv)
+        elif len(argspec.args) != 0:
+            nkwarg = {}
+            defaultArg = argspec.args[-len(argspec.defaults):]
+            for a in defaultArg:
+                nkwarg[a] = kwargv[a]
+            self._taskFun(*argv, **nkwarg)
+        else:
+            self._taskFun()
 
     def _updateRDFGraph(self):
         graph = self._RDFGraph = Graph()
@@ -143,10 +135,39 @@ class PypeTaskBase(object):
     def RDFXML(self):
         return self._RDFGraph.serialize()                       
 
+    def __call__(self, *argv, **kwargv):
+        print "__call__", argv
+        print "__call__", kwargv
+        argv = list(argv)
+        argv.extend(self._argv)
+        kwargv.update(self._kwargv)
+
+        inputFiles = self.inputFiles
+        outputFiles = self.outputFiles
+        parameters = self.parameters
+
+        runFlag = self._getRunFlag()
+            
+        if runFlag == True:
+            #self._taskFun(*argv, **kwargv)
+
+            self._runTask(*argv, **kwargv)
+
+            if self.inputFiles != inputFiles or self.parameters != parameters:
+                raise TaskFunctionError("The 'inputFiles' and 'parameters' should not be modified in %s" % self.URL)
+
+            self._updateRDFGraph() #allow the task function to modify the output list if necessary
+
+class PypeTaskBase2(PypeTaskBase):
+    pass
 
 def PypeTask(*argv, **kwargv):
 
     def f(taskFun):
+        TaskType = kwargv.get("TaskType", PypeTaskBase)
+        if "TaskType" in kwargv:
+            del kwargv["TaskType"]
+
         kwargv["_taskFun"] = taskFun
 
         if kwargv.get("URL",None) == None:
@@ -155,7 +176,7 @@ def PypeTask(*argv, **kwargv):
         #print func.func_name, self._codeMD5digest
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
-        return PypeTaskBase(*argv, **kwargv) 
+        return TaskType(*argv, **kwargv) 
 
     return f
 
