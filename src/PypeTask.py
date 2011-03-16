@@ -92,7 +92,7 @@ class PypeTaskBase(object):
 
     def _runTask(self, *argv, **kwargv):
         argspec = inspect.getargspec(self._taskFun)
-        print argspec
+        #print argspec
         if argspec.keywords != None:
             self._taskFun(*argv, **kwargv)
         elif argspec.varargs != None:
@@ -136,8 +136,8 @@ class PypeTaskBase(object):
         return self._RDFGraph.serialize()                       
 
     def __call__(self, *argv, **kwargv):
-        print "__call__", argv
-        print "__call__", kwargv
+        #print "__call__", argv
+        #print "__call__", kwargv
         argv = list(argv)
         argv.extend(self._argv)
         kwargv.update(self._kwargv)

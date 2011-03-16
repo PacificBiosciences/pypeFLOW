@@ -1,8 +1,10 @@
-from urlparse import urlparse
+import threading
+from threading import Thread
 import inspect
 import hashlib
 import os
 from cStringIO import StringIO
+from urlparse import urlparse
 
 from rdflib.Graph import ConjunctiveGraph as Graph
 from rdflib import Namespace
@@ -10,7 +12,7 @@ from rdflib import Literal
 from rdflib import URIRef
 from rdflib.TripleStore import TripleStore
 
-from PypeCommon import pypeNS, URLSchemeNotSupportYet
+from PypeCommon import pypeNS, URLSchemeNotSupportYet, runShellCmd
 from PypeTask import PypeTask, PypeTaskBase
 
 class dNode(object):
@@ -184,7 +186,9 @@ class PypeWorkflow(object):
             if not isinstance(obj, PypeTaskBase):
                 continue
             else:
-                obj()
+                t = Thread(target=obj)
+                t.start()
+                t.join()
 
             
     @property
@@ -201,6 +205,7 @@ def test():
     f2 = makeLocalPypeFile("ref.fa")
     f3 = makeLocalPypeFile("aln.txt", readOnly=False)
     f4 = makeLocalPypeFile("aln2.txt", readOnly=False)
+
     os.system("touch %s" % f1.localFileName)
     os.system("touch %s" % f2.localFileName)
     
@@ -210,7 +215,8 @@ def test():
     def testTask(*argv, **kwargv):
         print("testTask is running")
         for ft, f in testTask.outputFiles.iteritems():
-            os.system("touch %s" % f.localFileName)
+            #os.system("touch %s" % f.localFileName)
+            runShellCmd(["touch", "%s" % f.localFileName])
 
     @PypeTask(inputFiles={"fasta":f1, "aln":f3},
               outputFiles={"aln2":f4},
@@ -218,7 +224,8 @@ def test():
     def testTask2(*argv, **kwargv):
         print("testTask2 is running")
         for ft, f in testTask2.outputFiles.iteritems():
-            os.system("touch %s" % f.localFileName)
+            #os.system("touch %s" % f.localFileName)
+            runShellCmd(["touch", "%s" % f.localFileName])
         
     #wf.addObjects([f1,f2,f3,f4])
     #wf.addObjects([testTask, testTask2])
