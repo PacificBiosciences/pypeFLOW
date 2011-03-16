@@ -3,6 +3,8 @@ from threading import Thread
 import inspect
 import hashlib
 import os
+import time
+from Queue import Queue
 from cStringIO import StringIO
 from urlparse import urlparse
 
@@ -13,9 +15,9 @@ from rdflib import URIRef
 from rdflib.TripleStore import TripleStore
 
 from PypeCommon import pypeNS, URLSchemeNotSupportYet, runShellCmd
-from PypeTask import PypeTask, PypeTaskBase
+from PypeTask import PypeTask, PypeThreadTaskBase, PypeTaskBase
 
-class dNode(object):
+class PypeNode(object):
     def __init__(self, obj):
         self.obj = obj
         self._outNodes = set()
@@ -41,7 +43,7 @@ class dNode(object):
     def outDegree(self):
         return len(self._outNodes)
 
-class dGraph(object):
+class PypeGraph(object):
     def __init__(self, RDFGraph, subGraphNodes=None):
         self._RDFGraph = RDFGraph
         self._allEdges = set()
@@ -52,8 +54,8 @@ class dGraph(object):
                 if row[0] not in subGraphNodes: continue
                 if row[1] not in subGraphNodes: continue
 
-            obj2Node[row[0]] = obj2Node.get( row[0], dNode(str(row[0])) )
-            obj2Node[row[1]] = obj2Node.get( row[1], dNode(str(row[1])) )
+            obj2Node[row[0]] = obj2Node.get( row[0], PypeNode(str(row[0])) )
+            obj2Node[row[1]] = obj2Node.get( row[1], PypeNode(str(row[1])) )
 
             n1 = obj2Node[row[1]]
             n2 = obj2Node[row[0]]
@@ -66,7 +68,7 @@ class dGraph(object):
             self._allNodes.add( n2 )
             self._allEdges.add( anEdge )
             
-    def tSort(self, connectedNode = None): #return a topoloical sort node list
+    def tSort(self, connectePypeNode = None): #return a topoloical sort node list
         edges = self._allEdges.copy()
         nodes = self._allNodes.copy()
         
@@ -173,13 +175,36 @@ class PypeWorkflow(object):
      
     def refreshTargets(self, objs = []):
         if len(objs) != 0:
-            connectedNodes = set()
+            connectedPypeNodes = set()
             for obj in objs:
                 for x in self._RDFGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
-                    connectedNodes.add(x)
-            tSortedURLs = dGraph(self._RDFGraph, connectedNodes).tSort(connectedNodes)
+                    connectedPypeNodes.add(x)
+            tSortedURLs = PypeGraph(self._RDFGraph, connectePypeNodes).tSort(connectedPypeNodes)
         else:
-            tSortedURLs = dGraph(self._RDFGraph).tSort(connectedNodes)
+            tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
+
+        for URL in tSortedURLs:
+            obj = self._pypeObjects[URL]
+            if not isinstance(obj, PypeTaskBase):
+                continue
+            else:
+                obj()
+            
+    @property
+    def RDFXML(self):
+        return self._RDFGraph.serialize() 
+
+class PypeThreadWorklow(PypeWorkflow):
+
+    def refreshTargets(self, objs = []):
+        if len(objs) != 0:
+            connectedPypeNodes = set()
+            for obj in objs:
+                for x in self._RDFGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
+                    connectedPypeNodes.add(x)
+            tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort(connectedPypeNodes)
+        else:
+            tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
 
         for URL in tSortedURLs:
             obj = self._pypeObjects[URL]
@@ -188,12 +213,14 @@ class PypeWorkflow(object):
             else:
                 t = Thread(target=obj)
                 t.start()
-                t.join()
-
-            
-    @property
-    def RDFXML(self):
-        return self._RDFGraph.serialize() 
+                #t.join()
+        while 1:
+            time.sleep(0.5)
+            print "number of running tasks", threading.active_count()-1
+            while not self.messageQueue.empty(): 
+                print self.messageQueue.get()
+            if threading.active_count() == 1:
+                break
 
 def test():
 
@@ -217,6 +244,7 @@ def test():
         for ft, f in testTask.outputFiles.iteritems():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
+            runShellCmd(["sleep", "5" ])
 
     @PypeTask(inputFiles={"fasta":f1, "aln":f3},
               outputFiles={"aln2":f4},
@@ -235,7 +263,7 @@ def test():
     print (wf.RDFXML)
     print (wf.graphvizDot)
 
-    #aGraph = dGraph(wf._RDFGraph)
+    #aGraph = PypeGraph(wf._RDFGraph)
     #print(aGraph.tSort())
 
     wf.refreshTargets([f4])
@@ -253,5 +281,35 @@ def test():
     wf.refreshTargets([f3])
 
     
+def test4Threading():
+
+    from PypeFile import PypeFile, makeLocalPypeFile
+
+    mq = Queue()
+    wf = PypeThreadWorklow(messageQueue=mq)
+    allTasks = []
+    for i in range(10):
+        f1 = makeLocalPypeFile("test%02d_in" % i )
+        f2 = makeLocalPypeFile("test%02d_out" % i)
+        os.system("touch %s" % f1.localFileName)
+
+        def f(self):
+            self._queue.put( self.infile.localFileName)
+            self._queue.put( self.outfile.localFileName)
+            runShellCmd(["sleep", "5" ])
+
+        task = PypeTask(inputFiles={"infile":f1},
+                        outputFiles={"outfile":f2},
+                        URL="task://pype/./task%d" %i,
+                        TaskType=PypeThreadTaskBase) ( f )
+
+        task.setMessageQueue(mq)
+         
+        wf.addObjects([f1,f2])
+        wf.addTask(task)
+        allTasks.append(task)
+    wf.refreshTargets(allTasks)
+
 if __name__ == "__main__":
-    test()
+    #test()
+    test4Threading()

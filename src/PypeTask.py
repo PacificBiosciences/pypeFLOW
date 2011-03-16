@@ -92,17 +92,19 @@ class PypeTaskBase(object):
 
     def _runTask(self, *argv, **kwargv):
         argspec = inspect.getargspec(self._taskFun)
-        #print argspec
         if argspec.keywords != None:
             self._taskFun(*argv, **kwargv)
         elif argspec.varargs != None:
             self._taskFun(*argv)
         elif len(argspec.args) != 0:
             nkwarg = {}
-            defaultArg = argspec.args[-len(argspec.defaults):]
-            for a in defaultArg:
-                nkwarg[a] = kwargv[a]
-            self._taskFun(*argv, **nkwarg)
+            if argspec.defaults != None:
+                defaultArg = argspec.args[-len(argspec.defaults):]
+                for a in defaultArg:
+                    nkwarg[a] = kwargv[a]
+                self._taskFun(*argv, **nkwarg)
+            else:
+                self._taskFun(self)
         else:
             self._taskFun()
 
@@ -160,6 +162,16 @@ class PypeTaskBase(object):
 
 class PypeTaskBase2(PypeTaskBase):
     pass
+
+class PypeThreadTaskBase(PypeTaskBase):
+    def __init__(self, *argv, **kwargv):
+        PypeTaskBase.__init__(self, *argv, **kwargv)
+    def setMessageQueue(self, q):
+        self._queue = q
+    def __call__(self, *argv, **kwargv):
+        self._queue.put( (self.URL, "started") )
+        PypeTaskBase.__call__(self, *argv, **kwargv)
+        self._queue.put( (self.URL, "done") )
 
 def PypeTask(*argv, **kwargv):
 

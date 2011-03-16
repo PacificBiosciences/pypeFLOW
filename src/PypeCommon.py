@@ -19,3 +19,13 @@ def runShellCmd(args):
         if pStatus != None:
             break
     return pStatus
+
+def runClusterCmd(args):
+    p = Popen(args)
+    pStatus = None
+    while 1:
+        time.sleep(0.1)
+        pStatus = p.poll()
+        if pStatus != None:
+            break
+    return pStatus
