@@ -193,7 +193,7 @@ class PypeWorkflow(PypeObject):
         return self._RDFGraph.serialize() 
 
 class PypeThreadWorklow(PypeWorkflow):
-    CONCURRENT_THREAD_ALLOWED = 4
+    CONCURRENT_THREAD_ALLOWED = 24
 
     #@classmethod
     #def setNumThreadAllowed(cls,nT)
@@ -228,6 +228,10 @@ class PypeThreadWorklow(PypeWorkflow):
                 elif all( ( jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and jobStatusMap[URL] == None:
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
+            print jobsReadyToBeSubmitted
+            if threading.active_count() == 1 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
+                break
+
 
             for URL, taskObj in jobsReadyToBeSubmitted:
                 if nSubmittedJob < PypeThreadWorklow.CONCURRENT_THREAD_ALLOWED:
@@ -237,10 +241,6 @@ class PypeThreadWorklow(PypeWorkflow):
                 else:
                     break
 
-
-            #t = Thread(target=taskObj)
-            #t.start()
-            #t.join()
             time.sleep(0.5)
             print
             print
@@ -251,11 +251,13 @@ class PypeThreadWorklow(PypeWorkflow):
 
                 if message in ["done", "continue"]:
                     nSubmittedJob -= 1
-            for u,s in jobStatusMap.items():
+
+            for u,s in sorted(jobStatusMap.items()):
                 print u, s
 
-            if threading.active_count() == 1 and len(jobsReadyToBeSubmitted) == 0:
-                break
+        print
+        for u,s in sorted(jobStatusMap.items()):
+            print u, s
 
 def test():
 
@@ -346,6 +348,54 @@ def test4Threading():
 
     wf.refreshTargets(allTasks)
 
+def test4Threading2():
+
+    from PypeData import PypeLocalFile, makePypeLocalFile
+
+    mq = Queue()
+    wf = PypeThreadWorklow(messageQueue=mq)
+    allTasks = []
+    for i in range(3):
+        f1 = makePypeLocalFile("test%02d_in" % i )
+        f2 = makePypeLocalFile("test%02d_out" % i)
+        f3 = makePypeLocalFile("test%02d_out2" % i)
+        os.system("touch %s" % f1.localFileName)
+
+        def t1(self):
+            #self._queue.put( self.infile.localFileName)
+            #self._queue.put( self.outfile.localFileName)
+            runShellCmd(["sleep", "2" ])
+            runShellCmd(["touch", self.outfile.localFileName])
+
+        task = PypeTask(inputFiles={"infile":f1},
+                        outputFiles={"outfile":f2},
+                        URL="task://pype/./task%d_1" %i,
+                        TaskType=PypeThreadTaskBase) ( t1 )
+
+        task.setMessageQueue(mq)
+         
+        def t2(self):
+            #self._queue.put( self.infile.localFileName)
+            #self._queue.put( self.outfile.localFileName)
+            runShellCmd(["sleep", "2" ])
+            runShellCmd(["touch", self.outfile.localFileName])
+
+        task2 = PypeTask(inputFiles={"infile":f2},
+                        outputFiles={"outfile":f3},
+                        URL="task://pype/./task%d_2" %i,
+                        TaskType=PypeThreadTaskBase) ( t2 )
+        task2.setMessageQueue(mq)
+
+        wf.addObjects([f1,f2,f3])
+        wf.addTasks([task, task2])
+        allTasks.append(task)
+        allTasks.append(task2)
+
+    wf.refreshTargets(allTasks)
+    print wf.graphvizDot
+
 if __name__ == "__main__":
     #test()
-    test4Threading()
+    #test4Threading()
+    test4Threading2()
+
