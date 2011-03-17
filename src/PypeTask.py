@@ -192,12 +192,37 @@ def PypeTask(*argv, **kwargv):
 
     return f
 
+def makeShellPypeTask(*argv, **kwargv):
+
+    def f(shellTemplate):
+        def taskFun():
+            """make shell script using the template"""
+            """run shell command"""
+            pass
+
+        TaskType = kwargv.get("TaskType", PypeTaskBase)
+        if "TaskType" in kwargv:
+            del kwargv["TaskType"]
+
+        kwargv["_taskFun"] = taskFun
+
+        if kwargv.get("URL",None) == None:
+            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
+        #print func.func_name, self._codeMD5digest
+        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
+
+        return TaskType(*argv, **kwargv) 
+
+    return f
+
+
 
 def test():
-    from PypeFile import PypeFile, makeLocalPypeFile, fn
-    f1 = makeLocalPypeFile("test.fa")
-    f2 = makeLocalPypeFile("ref.fa")
-    f3 = makeLocalPypeFile("aln.txt", readOnly=False)
+    from PypeData import PypeLocalFile, makePypeLocalFile, fn
+    f1 = makePypeLocalFile("test.fa")
+    f2 = makePypeLocalFile("ref.fa")
+    f3 = makePypeLocalFile("aln.txt", readOnly=False)
     os.system('touch test.fa')
     os.system('touch ref.fa')
 

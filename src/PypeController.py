@@ -179,7 +179,7 @@ class PypeWorkflow(object):
             for obj in objs:
                 for x in self._RDFGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
                     connectedPypeNodes.add(x)
-            tSortedURLs = PypeGraph(self._RDFGraph, connectePypeNodes).tSort(connectedPypeNodes)
+            tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort(connectedPypeNodes)
         else:
             tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
 
@@ -224,14 +224,14 @@ class PypeThreadWorklow(PypeWorkflow):
 
 def test():
 
-    from PypeFile import PypeFile, makeLocalPypeFile
+    from PypeData import PypeLocalFile, makePypeLocalFile
 
     wf = PypeWorkflow()
 
-    f1 = makeLocalPypeFile("test.fa")
-    f2 = makeLocalPypeFile("ref.fa")
-    f3 = makeLocalPypeFile("aln.txt", readOnly=False)
-    f4 = makeLocalPypeFile("aln2.txt", readOnly=False)
+    f1 = makePypeLocalFile("test.fa")
+    f2 = makePypeLocalFile("ref.fa")
+    f3 = makePypeLocalFile("aln.txt", readOnly=False)
+    f4 = makePypeLocalFile("aln2.txt", readOnly=False)
 
     os.system("touch %s" % f1.localFileName)
     os.system("touch %s" % f2.localFileName)
@@ -283,14 +283,14 @@ def test():
     
 def test4Threading():
 
-    from PypeFile import PypeFile, makeLocalPypeFile
+    from PypeData import PypeLocalFile, makePypeLocalFile
 
     mq = Queue()
     wf = PypeThreadWorklow(messageQueue=mq)
     allTasks = []
     for i in range(10):
-        f1 = makeLocalPypeFile("test%02d_in" % i )
-        f2 = makeLocalPypeFile("test%02d_out" % i)
+        f1 = makePypeLocalFile("test%02d_in" % i )
+        f2 = makePypeLocalFile("test%02d_out" % i)
         os.system("touch %s" % f1.localFileName)
 
         def f(self):
@@ -311,5 +311,5 @@ def test4Threading():
     wf.refreshTargets(allTasks)
 
 if __name__ == "__main__":
-    #test()
-    test4Threading()
+    test()
+    #test4Threading()
