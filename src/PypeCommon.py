@@ -22,7 +22,6 @@ class PypeObject(object):
     we might remove it in the furture. 
     """
     def __init__(self, URL, **attributes):
-        print attributes
         self._RDFGraph = None
         URLParseResult = urlparse(URL)
         if URLParseResult.scheme not in self.__class__.supportedURLScheme:

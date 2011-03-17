@@ -80,6 +80,7 @@ class PypeTaskBase(PypeObject):
         return runFlag
 
     def _runTask(self, *argv, **kwargv):
+        """ TODO: the arg porcessing is still a mess, need to find a better way to do this """
         argspec = inspect.getargspec(self._taskFun)
         if argspec.keywords != None:
             self._taskFun(*argv, **kwargv)

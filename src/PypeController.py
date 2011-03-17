@@ -193,7 +193,11 @@ class PypeWorkflow(PypeObject):
         return self._RDFGraph.serialize() 
 
 class PypeThreadWorklow(PypeWorkflow):
-    CONCURRENT_THREAD_ALLOWED = 2
+    CONCURRENT_THREAD_ALLOWED = 4
+
+    #@classmethod
+    #def setNumThreadAllowed(cls,nT)
+    #    cls.CONCURRENT_THREAD_ALLOWED = nT
 
     def refreshTargets(self, objs = []):
         if len(objs) != 0:
@@ -205,20 +209,52 @@ class PypeThreadWorklow(PypeWorkflow):
         else:
             tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
 
-        for URL in tSortedURLs:
-            obj = self._pypeObjects[URL]
-            if not isinstance(obj, PypeTaskBase):
-                continue
-            else:
-                t = Thread(target=obj)
-                t.start()
-                #t.join()
+        sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs if isinstance(self._pypeObjects[u], PypeTaskBase) ]
+        jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) ) 
+        prereqJobURLMap = {}
+        for URL, taskObj, tStatus in sortedTaskList:
+            prereqJobURLs = [str(u) for u in self._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"]) 
+                                    if isinstance(self._pypeObjects[str(u)], PypeTaskBase) and str(u) != URL ]
+            prereqJobURLMap[URL] = prereqJobURLs
+
+        nSubmittedJob = 0
+
         while 1:
+            jobsReadyToBeSubmitted = []
+            for URL, taskObj, tStatus in sortedTaskList:
+                prereqJobURLs = prereqJobURLMap[URL]
+                if len(prereqJobURLs) == 0 and jobStatusMap[URL] == None:
+                    jobsReadyToBeSubmitted.append( (URL, taskObj) )
+                elif all( ( jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and jobStatusMap[URL] == None:
+                    jobsReadyToBeSubmitted.append( (URL, taskObj) )
+
+
+            for URL, taskObj in jobsReadyToBeSubmitted:
+                if nSubmittedJob < PypeThreadWorklow.CONCURRENT_THREAD_ALLOWED:
+                    t = Thread(target = taskObj)
+                    t.start()
+                    nSubmittedJob += 1
+                else:
+                    break
+
+
+            #t = Thread(target=taskObj)
+            #t.start()
+            #t.join()
             time.sleep(0.5)
+            print
+            print
             print "number of running tasks", threading.active_count()-1
             while not self.messageQueue.empty(): 
-                print self.messageQueue.get()
-            if threading.active_count() == 1:
+                URL, message = self.messageQueue.get()
+                jobStatusMap[str(URL)] = message
+
+                if message in ["done", "continue"]:
+                    nSubmittedJob -= 1
+            for u,s in jobStatusMap.items():
+                print u, s
+
+            if threading.active_count() == 1 and len(jobsReadyToBeSubmitted) == 0:
                 break
 
 def test():
@@ -293,9 +329,9 @@ def test4Threading():
         os.system("touch %s" % f1.localFileName)
 
         def f(self):
-            self._queue.put( self.infile.localFileName)
-            self._queue.put( self.outfile.localFileName)
-            runShellCmd(["sleep", "5" ])
+            #self._queue.put( self.infile.localFileName)
+            #self._queue.put( self.outfile.localFileName)
+            runShellCmd(["sleep", "2" ])
 
         task = PypeTask(inputFiles={"infile":f1},
                         outputFiles={"outfile":f2},
@@ -307,6 +343,7 @@ def test4Threading():
         wf.addObjects([f1,f2])
         wf.addTask(task)
         allTasks.append(task)
+
     wf.refreshTargets(allTasks)
 
 if __name__ == "__main__":
