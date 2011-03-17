@@ -8,7 +8,7 @@ from rdflib.Graph import ConjunctiveGraph as Graph
 from rdflib import Namespace
 from rdflib import Literal
 from rdflib import URIRef
-from PypeCommon import pypeNS, URLSchemeNotSupportYet
+from PypeCommon import PypeObject, pypeNS, URLSchemeNotSupportYet
 
 
 
@@ -18,31 +18,20 @@ class TaskFunctionError(Exception):
     def __str__(self):
         return repr(self.msg)
 
-class PypeTaskBase(object):
+class PypeTaskBase(PypeObject):
 
     supportedURLScheme = ["task"]
 
-    def __init__(self, *argv, **kwargv):
+    def __init__(self, URL, *argv, **kwargv):
+
+        PypeObject.__init__(self, URL, **kwargv)
 
         self._argv = argv
         self._kwargv = kwargv
         self._taskFun = kwargv['_taskFun']
-
-        self.URL = None
-        self._RDFGraph = None
         self._referenceMD5 = None
 
-        taskURL = kwargv.get("taskURL", None)
 
-        if taskURL != None:
-            URLParseResult = urlparse(taskURL)
-            if URLParseResult.scheme not in PypeTask.supportedURLScheme:
-                raise URLSchemeNotSupportYet("%s schema is not supported yet for PypeTask")
-            else:
-                self.URL = taskURL
-            
-        self.__dict__.update(kwargv)
-                    
         for defaultAttr in ["inputFiles", "outputFiles", "parameters"]:
             if defaultAttr not in self.__dict__:
                 self.__dict__[defaultAttr] = {}
@@ -164,8 +153,8 @@ class PypeTaskBase2(PypeTaskBase):
     pass
 
 class PypeThreadTaskBase(PypeTaskBase):
-    def __init__(self, *argv, **kwargv):
-        PypeTaskBase.__init__(self, *argv, **kwargv)
+    def __init__(self, URL, *argv, **kwargv):
+        PypeTaskBase.__init__(self, URL, *argv, **kwargv)
     def setMessageQueue(self, q):
         self._queue = q
     def __call__(self, *argv, **kwargv):
@@ -206,13 +195,15 @@ def makeShellPypeTask(*argv, **kwargv):
 
         kwargv["_taskFun"] = taskFun
 
-        if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+        if kwargv.get("taskURL",None) == None:
+            kwargv["taskURL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
         kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
         #print func.func_name, self._codeMD5digest
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
-
-        return TaskType(*argv, **kwargv) 
+                    
+        URL = kwargv["taskURL"]
+        
+        return TaskType(URL, *argv, **kwargv) 
 
     return f
 

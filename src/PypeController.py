@@ -14,7 +14,7 @@ from rdflib import Literal
 from rdflib import URIRef
 from rdflib.TripleStore import TripleStore
 
-from PypeCommon import pypeNS, URLSchemeNotSupportYet, runShellCmd
+from PypeCommon import pypeNS, URLSchemeNotSupportYet, runShellCmd, PypeObject
 from PypeTask import PypeTask, PypeThreadTaskBase, PypeTaskBase
 
 class PypeNode(object):
@@ -44,11 +44,13 @@ class PypeNode(object):
         return len(self._outNodes)
 
 class PypeGraph(object):
+
     def __init__(self, RDFGraph, subGraphNodes=None):
         self._RDFGraph = RDFGraph
         self._allEdges = set()
         self._allNodes = set()
         obj2Node ={}
+
         for row in self._RDFGraph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
             if subGraphNodes != None:
                 if row[0] not in subGraphNodes: continue
@@ -97,25 +99,21 @@ class PypeGraph(object):
             return [x.obj for x in L]
                     
 
-class PypeWorkflow(object):
+class PypeWorkflow(PypeObject):
+
     supportedURLScheme = ["workflow"]
-    def __init__(self, workflowURL = None,  **attributes ):
-        self.URL = "workflow://pype/./" + __file__ 
-        self._RDFGraph = None
-        self._referenceRDFGraph = None #place holder for a reference RDF
-        
-        if workflowURL != None:
-            URLParseResult = urlparse(workflowURL)
-            if URLParseResult.scheme not in PypeWorkflow.supportedURLScheme:
-                raise URLSchemeNotSupportYet("%s schema is not supported yet for PypeTask")
-            else:
-                self.URL = workflowURL
-            
-        for k,v in attributes.iteritems():
-            if k not in self.__dict__:
-                self.__dict__[k] = v
+
+    def __init__(self, URL = None,  **attributes ):
+
+        if URL == None:
+            URL = "workflow://pype/./" + __file__+"/%d" % id(self)
 
         self._pypeObjects = {}
+
+        PypeObject.__init__(self, URL, **attributes)
+
+        self._referenceRDFGraph = None #place holder for a reference RDF
+
         
     def addObject(self, obj):
         self.addObjects([obj])
@@ -195,6 +193,7 @@ class PypeWorkflow(object):
         return self._RDFGraph.serialize() 
 
 class PypeThreadWorklow(PypeWorkflow):
+    CONCURRENT_THREAD_ALLOWED = 2
 
     def refreshTargets(self, objs = []):
         if len(objs) != 0:
@@ -311,5 +310,5 @@ def test4Threading():
     wf.refreshTargets(allTasks)
 
 if __name__ == "__main__":
-    test()
-    #test4Threading()
+    #test()
+    test4Threading()
