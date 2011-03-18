@@ -3,12 +3,13 @@ import inspect
 import hashlib
 import json
 import os
+import shlex
 
 from rdflib.Graph import ConjunctiveGraph as Graph
 from rdflib import Namespace
 from rdflib import Literal
 from rdflib import URIRef
-from PypeCommon import PypeObject, pypeNS, URLSchemeNotSupportYet
+from PypeCommon import PypeObject, pypeNS, URLSchemeNotSupportYet, runShellCmd
 
 
 
@@ -115,6 +116,14 @@ class PypeTaskBase(PypeObject):
             
                 continue
 
+            if k in self.inputFiles:
+                graph.add( ( URIRef(self.URL), pypeNS["inputFile"], URIRef(v.URL) ) )
+                continue
+
+            if k in self.outputFiles:
+                graph.add( ( URIRef(self.URL), pypeNS["outputFile"], URIRef(v.URL) ) )
+                continue
+
             if hasattr(v, "URL"):
                 graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
             else:
@@ -190,29 +199,30 @@ def PypeTask(*argv, **kwargv):
 
     return f
 
-def makeShellPypeTask(*argv, **kwargv):
+def PypeShellTask(*argv, **kwargv):
 
-    def f(shellTemplate):
+    def f(shellCmd):
         def taskFun():
             """make shell script using the template"""
             """run shell command"""
-            pass
+            runShellCmd(shlex.split(shellCmd))
+
 
         TaskType = kwargv.get("TaskType", PypeTaskBase)
         if "TaskType" in kwargv:
             del kwargv["TaskType"]
 
         kwargv["_taskFun"] = taskFun
+        kwargv["shellCmd"] = shellCmd
 
-        if kwargv.get("taskURL",None) == None:
-            kwargv["taskURL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+        if kwargv.get("URL",None) == None:
+            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
         kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
         #print func.func_name, self._codeMD5digest
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
                     
-        URL = kwargv["taskURL"]
         
-        return TaskType(URL, *argv, **kwargv) 
+        return TaskType(*argv, **kwargv) 
 
     return f
 
