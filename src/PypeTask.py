@@ -159,8 +159,15 @@ class PypeThreadTaskBase(PypeTaskBase):
     def setMessageQueue(self, q):
         self._queue = q
     def __call__(self, *argv, **kwargv):
-        runFlag = self._getRunFlag()
+        #runFlag = self._getRunFlag()
+        try:
+            runFlag = self._getRunFlag()
+        except TaskFunctionError:
+            pass
+            self._queue.put( (self.URL, "fail") )
+            return
         self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
+
         PypeTaskBase.__call__(self, *argv, **kwargv)
         self._queue.put( (self.URL, "done") )
 

@@ -193,7 +193,7 @@ class PypeWorkflow(PypeObject):
         return self._RDFGraph.serialize() 
 
 class PypeThreadWorklow(PypeWorkflow):
-    CONCURRENT_THREAD_ALLOWED = 24
+    CONCURRENT_THREAD_ALLOWED = 3
 
     #@classmethod
     #def setNumThreadAllowed(cls,nT)
@@ -218,8 +218,10 @@ class PypeThreadWorklow(PypeWorkflow):
             prereqJobURLMap[URL] = prereqJobURLs
 
         nSubmittedJob = 0
-
+        loopN  = 0
         while 1:
+            loopN += 1
+            print loopN
             jobsReadyToBeSubmitted = []
             for URL, taskObj, tStatus in sortedTaskList:
                 prereqJobURLs = prereqJobURLMap[URL]
@@ -241,7 +243,7 @@ class PypeThreadWorklow(PypeWorkflow):
                 else:
                     break
 
-            time.sleep(0.5)
+            time.sleep(0.1)
             print
             print
             print "number of running tasks", threading.active_count()-1
@@ -394,8 +396,58 @@ def test4Threading2():
     wf.refreshTargets(allTasks)
     print wf.graphvizDot
 
+def test4Threading3():
+    import random
+    from PypeData import PypeLocalFile, makePypeLocalFile
+
+    mq = Queue()
+    wf = PypeThreadWorklow(messageQueue=mq)
+    allTasks = []
+    for layer in range(5):
+        fN = random.randint( 2,7)
+        fin = [None] * fN 
+        fout = [None] * fN 
+        for w in range(fN):
+            fin[w] = makePypeLocalFile("testfile_l%d_w%d" % (layer, w) )
+            fout[w] = makePypeLocalFile("testfile_l%d_w%d" % (layer+1, w) )
+            wf.addObjects([fin[w], fout[w]])
+
+        for w in range(random.randint(2,7)):
+            def t1(self):
+                #self._queue.put( self.infile.localFileName)
+                #self._queue.put( self.outfile.localFileName)
+                runShellCmd(["sleep", "%d" % random.randint(0,20) ])
+                for of in self.outputFiles.values():
+                    runShellCmd(["touch", of.localFileName])
+            inputFiles = {}
+            outputFiles = {}
+            for i in range(random.randint(1,5)):
+                inputFiles["infile%d" % i] = random.choice(fin)
+                outputFiles["outfile%d" % i] =  random.choice(fout)
+            task = PypeTask(inputFiles  = inputFiles,
+                            outputFiles = outputFiles,
+                            URL="task://pype/./task_l%d_w%d" % (layer, w),
+                            TaskType=PypeThreadTaskBase) ( t1 )
+
+            task.setMessageQueue(mq)
+
+
+
+
+            wf.addTasks([task])
+            allTasks.append(task)
+    for URL in wf._pypeObjects:
+        prereqJobURLs = [str(u) for u in wf._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"]) 
+                                        if isinstance(wf._pypeObjects[str(u)], PypeLocalFile) and str(u) != URL ]
+        if len(prereqJobURLs) == 0:
+            os.system("touch %s" % wf._pypeObjects[URL].localFileName)
+    with open("test.dot","w") as dotFile:
+        print >>dotFile, wf.graphvizDot
+    wf.refreshTargets(allTasks)
+
 if __name__ == "__main__":
     #test()
     #test4Threading()
-    test4Threading2()
+    #test4Threading2()
+    test4Threading3()
 
