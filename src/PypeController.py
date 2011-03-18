@@ -196,9 +196,9 @@ class PypeWorkflow(PypeObject):
 class PypeThreadWorklow(PypeWorkflow):
     CONCURRENT_THREAD_ALLOWED = 8
 
-    #@classmethod
-    #def setNumThreadAllowed(cls,nT)
-    #    cls.CONCURRENT_THREAD_ALLOWED = nT
+    @classmethod
+    def setNumThreadAllowed(cls, nT):
+        cls.CONCURRENT_THREAD_ALLOWED = nT
 
     def refreshTargets(self, objs = []):
         if len(objs) != 0:
@@ -220,6 +220,7 @@ class PypeThreadWorklow(PypeWorkflow):
 
         nSubmittedJob = 0
         loopN  = 0
+        task2thread = {}
         while 1:
             loopN += 1
             print
@@ -242,6 +243,7 @@ class PypeThreadWorklow(PypeWorkflow):
                 if nSubmittedJob < PypeThreadWorklow.CONCURRENT_THREAD_ALLOWED:
                     t = Thread(target = taskObj)
                     t.start()
+                    task2thread[URL] = t
                     nSubmittedJob += 1
                 else:
                     break
@@ -403,6 +405,7 @@ def test4Threading3():
     from PypeData import PypeLocalFile, makePypeLocalFile
 
     mq = Queue()
+    PypeThreadWorklow.setNumThreadAllowed(2)
     wf = PypeThreadWorklow(messageQueue=mq)
     allTasks = []
     for layer in range(5):
