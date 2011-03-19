@@ -15,6 +15,31 @@ import shlex
 
 from PypeCommon import * 
 
+def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
+
+    runFlag = False
+
+    inputDataObjsTS = []
+    for ft, f in inputDataObjs.iteritems():
+        inputDataObjsTS.append( f.timeStamp )
+
+    outputDataObjsTS = []
+
+    for ft, f in outputDataObjs.iteritems():
+        if not f.isExist:
+            runFlag = True
+            break
+        else:
+            outputDataObjsTS.append( f.timeStamp )
+
+    if runFlag == False:                
+        if min(outputDataObjsTS) < max(inputDataObjsTS):
+            runFlag = True
+
+
+    return runFlag
+
+
 class TaskFunctionError(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -43,40 +68,23 @@ class PypeTaskBase(PypeObject):
         self._codeMD5digest = kwargv["_codeMD5digest"]
         #print func.func_name, self._codeMD5digest
         self._paramMD5digest = kwargv["_paramMD5digest"]
+        self._compareFuntions = [ timeStampCompare ]
 
         self._updateRDFGraph()
 
     def setReferenceMD5(self, md5Str):
         self._referenceMD5 = md5Str
 
+
     def _getRunFlag(self):
-        runFlag = False
-
-        inputDataObjs = self.inputDataObjs
-        outputDataObjs = self.outputDataObjs
-        parameters = self.parameters
-
-        inputDataObjsTS = []
-        for ft, f in inputDataObjs.iteritems():
-            inputDataObjsTS.append( f.timeStamp )
-   
-        outputDataObjsTS = []
-        for ft, f in outputDataObjs.iteritems():
-            if not f.isExist:
-                runFlag = True
-                break
-            else:
-                outputDataObjsTS.append( f.timeStamp )
-
-        if runFlag == False:                
-            if min(outputDataObjsTS) < max(inputDataObjsTS):
-                runFlag = True
-
         #print self._referenceMD5
         #print self._codeMD5digest
+        runFlag = False
         if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
             runFlag = True
+
+        runFlag = any( [runFlag] + [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFuntions] )
 
         return runFlag
 
