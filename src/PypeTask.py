@@ -1,7 +1,15 @@
+
 from urlparse import urlparse
 import inspect
 import hashlib
-import json
+
+import sys
+PYTHONVERSION = sys.version_info[:2]
+if PYTHONVERSION == (2,5):
+    import simplejson as json
+else:
+    import json
+
 import os
 import shlex
 
@@ -74,15 +82,20 @@ class PypeTaskBase(PypeObject):
 
     def _runTask(self, *argv, **kwargv):
         """ TODO: the arg porcessing is still a mess, need to find a better way to do this """
-        argspec = inspect.getargspec(self._taskFun)
-        if argspec.keywords != None:
+        if PYTHONVERSION == (2,5):
+            (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
+        else:
+            argspec = inspect.getargspec(self._taskFun)
+            (args, varargs, varkw, defaults) = argspec.args, argspec.varargs, argspec.keywords, argspec.defaults
+
+        if varkw != None:
             self._taskFun(*argv, **kwargv)
-        elif argspec.varargs != None:
+        elif varargs != None:
             self._taskFun(*argv)
-        elif len(argspec.args) != 0:
+        elif len(args) != 0:
             nkwarg = {}
-            if argspec.defaults != None:
-                defaultArg = argspec.args[-len(argspec.defaults):]
+            if defaults != None:
+                defaultArg = args[-len(defaults):]
                 for a in defaultArg:
                     nkwarg[a] = kwargv[a]
                 self._taskFun(*argv, **nkwarg)
@@ -90,6 +103,8 @@ class PypeTaskBase(PypeObject):
                 self._taskFun(self)
         else:
             self._taskFun()
+        self._taskFun()
+
 
     def _updateRDFGraph(self):
         graph = self._RDFGraph = Graph()
@@ -234,7 +249,7 @@ def PypeSGETask(*argv, **kwargv):
             del kwargv["TaskType"]
 
         kwargv["_taskFun"] = taskFun
-        kwargv["shellCmd"] = shellCmd
+        kwargv["shellCmd"] = scriptToRun
 
         if kwargv.get("URL",None) == None:
             kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name

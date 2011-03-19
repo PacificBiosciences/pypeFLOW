@@ -79,7 +79,7 @@ def runShellCmd(args):
     return pStatus
 
 def runSgeSyncJob(args):
-    p = Popen(arg:s)
+    p = Popen(args)
     pStatus = None
     while 1:
         time.sleep(0.1)

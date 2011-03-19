@@ -10,7 +10,7 @@ from cStringIO import StringIO
 from urlparse import urlparse
 
 from PypeCommon import *
-from PypeTask import PypeTask, PypeShellTask, PypeThreadTaskBase, PypeTaskBase
+from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase
 
 class PypeNode(object):
     def __init__(self, obj):
@@ -229,7 +229,7 @@ class PypeThreadWorklow(PypeWorkflow):
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
             print "jobReadyToBeSubmitted:", len(jobsReadyToBeSubmitted)
-            if threading.active_count() == 1 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
+            if threading.activeCount() == 1 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
                 break
 
 
@@ -243,7 +243,7 @@ class PypeThreadWorklow(PypeWorkflow):
                     break
 
             time.sleep(0.25)
-            print "number of running tasks", threading.active_count()-1
+            print "number of running tasks", threading.activeCount()-1
             while not self.messageQueue.empty(): 
                 URL, message = self.messageQueue.get()
                 jobStatusMap[str(URL)] = message
@@ -399,11 +399,11 @@ def test4Threading3():
     from PypeData import PypeLocalFile, makePypeLocalFile
 
     mq = Queue()
-    PypeThreadWorklow.setNumThreadAllowed(2)
+    PypeThreadWorklow.setNumThreadAllowed(20)
     wf = PypeThreadWorklow(messageQueue=mq)
     allTasks = []
     for layer in range(5):
-        fN = random.randint( 2,7)
+        fN = random.randint(2,7)
         fin = [None] * fN 
         fout = [None] * fN 
         for w in range(fN):
@@ -431,13 +431,19 @@ def test4Threading3():
 
             shellCmd = "sleep 5;" + ";".join([ "touch %s" % of.localFileName for of in outputDataObjs.values() ])
             shellFileName = "./testdata/task_l%d_w%d.sh" % (layer, w)
-            with open(shellFileName, 'w') as shfile:
-                print >> shfile, shellCmd
+            shfile = open(shellFileName, 'w') 
+            print >> shfile, shellCmd
+            shfile.close()
 
-            task = PypeShellTask(inputDataObjs  = inputDataObjs,
+            #task = PypeShellTask(inputDataObjs  = inputDataObjs,
+            #                     outputDataObjs = outputDataObjs,
+            #                     URL="task://pype/./task_l%d_w%d" % (layer, w),
+            #                     TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
+            
+            task = PypeSGETask(inputDataObjs  = inputDataObjs,
                                  outputDataObjs = outputDataObjs,
                                  URL="task://pype/./task_l%d_w%d" % (layer, w),
-                                 TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
+                                 TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
             task.setMessageQueue(mq)
 
             wf.addTasks([task])
@@ -449,10 +455,12 @@ def test4Threading3():
         if len(prereqJobURLs) == 0:
             os.system("touch %s" % wf._pypeObjects[URL].localFileName)
             pass
-    with open("test.dot","w") as dotFile:
-        print >>dotFile, wf.graphvizDot
-    with open("test.rdf","w") as rdfFile:
-        print >>rdfFile, wf.RDFXML
+    dotFile = open("test.dot","w") 
+    print >>dotFile, wf.graphvizDot
+    dotFile.close()
+    rdfFile = open("test.rdf","w") 
+    print >>rdfFile, wf.RDFXML
+    rdfFile.close()
     wf.refreshTargets(allTasks)
 
 if __name__ == "__main__":
