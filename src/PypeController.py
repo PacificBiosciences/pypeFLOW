@@ -426,15 +426,15 @@ def test4Threading3():
             shfile.close()
 
 
-            #task = PypeShellTask(inputDataObjs = inputDataObjs,
-            #                     outputDataObjs = outputDataObjs, 
-            #                     URL="task://pype/./task_l%d_w%d" % (layer, w), 
-            #                     TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
+            task = PypeShellTask(inputDataObjs = inputDataObjs,
+                                 outputDataObjs = outputDataObjs, 
+                                 URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                 TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
             
-            task = PypeSGETask(inputDataObjs = inputDataObjs,
-                               outputDataObjs = outputDataObjs, 
-                               URL="task://pype/./task_l%d_w%d" % (layer, w), 
-                               TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+            #task = PypeSGETask(inputDataObjs = inputDataObjs,
+            #                   outputDataObjs = outputDataObjs, 
+            #                   URL="task://pype/./task_l%d_w%d" % (layer, w), 
+            #                   TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
 
             #task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
             #                   outputDataObjs = outputDataObjs,

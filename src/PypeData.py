@@ -1,14 +1,20 @@
 from urlparse import urlparse
 
-import json
 import os
 from PypeCommon import * 
     
-class NotImplementedError(object):
-    pass
+class NotImplementedError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return repr(self.msg)
 
-class FileNotExistError(object):
-    pass
+
+class FileNotExistError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return repr(self.msg)
 
 def fn(obj):
     return obj.localFileName
@@ -19,11 +25,11 @@ class PypeDataObjectBase(PypeObject):
 
     @property
     def timeStamp(self):
-        raise NotImplementedError 
+        raise NotImplementedError
 
     @property
     def isExist(self):
-        raise NotImplementedError 
+        raise NotImplementedError
 
 class PypeLocalFile(PypeDataObjectBase):
     supportedURLScheme = ["file"]
@@ -35,7 +41,7 @@ class PypeLocalFile(PypeDataObjectBase):
     @property
     def timeStamp(self):
         if not os.path.exists(self.localFileName):
-            raise FileNotExistError 
+            raise FileNotExistError("No such file:"+self.localFileName)
         return os.stat(self.localFileName).st_mtime 
 
     @property

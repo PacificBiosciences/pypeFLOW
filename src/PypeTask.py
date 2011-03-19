@@ -80,11 +80,11 @@ class PypeTaskBase(PypeObject):
         #print self._referenceMD5
         #print self._codeMD5digest
         runFlag = False
-        if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
-            self._referenceMD5 = self._codeMD5digest
-            runFlag = True
-
-        runFlag = any( [runFlag] + [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFuntions] )
+        #if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
+        #    self._referenceMD5 = self._codeMD5digest
+        #    runFlag = True
+        if runFlag == False:
+            runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFuntions] )
 
         return runFlag
 
