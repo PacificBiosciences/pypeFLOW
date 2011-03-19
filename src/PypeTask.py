@@ -84,6 +84,7 @@ class PypeTaskBase(PypeObject):
         """ TODO: the arg porcessing is still a mess, need to find a better way to do this """
         if PYTHONVERSION == (2,5):
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
+            print  (args, varargs, varkw, defaults)
         else:
             argspec = inspect.getargspec(self._taskFun)
             (args, varargs, varkw, defaults) = argspec.args, argspec.varargs, argspec.keywords, argspec.defaults
@@ -103,7 +104,6 @@ class PypeTaskBase(PypeObject):
                 self._taskFun(self)
         else:
             self._taskFun()
-        self._taskFun()
 
 
     def _updateRDFGraph(self):
@@ -166,14 +166,33 @@ class PypeTaskBase(PypeObject):
 
             self._updateRDFGraph() #allow the task function to modify the output list if necessary
 
-class PypeTaskBase2(PypeTaskBase):
-    pass
-
 class PypeThreadTaskBase(PypeTaskBase):
     def __init__(self, URL, *argv, **kwargv):
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
     def setMessageQueue(self, q):
         self._queue = q
+    def __call__(self, *argv, **kwargv):
+        #runFlag = self._getRunFlag()
+        try:
+            runFlag = self._getRunFlag()
+        except TaskFunctionError:
+            self._queue.put( (self.URL, "fail") )
+            return
+
+        self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
+
+        PypeTaskBase.__call__(self, *argv, **kwargv)
+        self._queue.put( (self.URL, "done") )
+
+class PypeDistributiableTaskBase(PypeThreadTaskBase):
+
+    def __init__(self, URL, *argv, **kwargv):
+        PypeTaskBase.__init__(self, URL, *argv, **kwargv)
+        self.distributed = True
+
+    def setMessageQueue(self, q):
+        self._queue = q
+
     def __call__(self, *argv, **kwargv):
         #runFlag = self._getRunFlag()
         try:
@@ -245,6 +264,38 @@ def PypeSGETask(*argv, **kwargv):
 
 
         TaskType = kwargv.get("TaskType", PypeTaskBase)
+        if "TaskType" in kwargv:
+            del kwargv["TaskType"]
+
+        kwargv["_taskFun"] = taskFun
+        kwargv["shellCmd"] = scriptToRun
+
+        if kwargv.get("URL",None) == None:
+            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
+        #print func.func_name, self._codeMD5digest
+        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
+                    
+        
+        return TaskType(*argv, **kwargv) 
+
+    return f
+
+def PypeDistributibleTask(*argv, **kwargv):
+
+    def f(scriptToRun):
+        def taskFun(self):
+            """make shell script using the template"""
+            """run shell command"""
+            if self.distributed == True:
+                shellCmd = "qsub -sync y -S /bin/bash %s" % scriptToRun
+            else:
+                shellCmd = "/bin/bash %s" % scriptToRun
+
+            runShellCmd(shlex.split(shellCmd))
+
+
+        TaskType = PypeDistributiableTaskBase
         if "TaskType" in kwargv:
             del kwargv["TaskType"]
 

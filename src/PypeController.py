@@ -1,16 +1,16 @@
-import cPickle as pickle
-import threading
-from threading import Thread
-import inspect
-import hashlib
-import os
-import time
-from Queue import Queue
-from cStringIO import StringIO
+import cPickle as pickle 
+import threading 
+from threading import Thread 
+import inspect 
+import hashlib 
+import os 
+import time 
+from Queue import Queue 
+from cStringIO import StringIO 
 from urlparse import urlparse
 
-from PypeCommon import *
-from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase
+from PypeCommon import * 
+from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase, PypeDistributibleTask
 
 class PypeNode(object):
     def __init__(self, obj):
@@ -60,7 +60,7 @@ class PypeGraph(object):
             n1.addAnOutNode(n2)
             n2.addAnInNode(n1)
             
-            anEdge = (n1, n2) 
+            anEdge = (n1, n2)
             self._allNodes.add( n1 )
             self._allNodes.add( n2 )
             self._allEdges.add( anEdge )
@@ -84,8 +84,7 @@ class PypeGraph(object):
                 #print("2:",len(edges))
                 if m.inDegree == 0:
                     S.append(m)
-            #print ("len(edges):",len(edges))
-            #print ("len(S):", len(S))
+            #print ("len(edges):",len(edges)) print ("len(S):", len(S))
         
         if len(edges) != 0:
             print( "circle detected" )
@@ -98,7 +97,7 @@ class PypeWorkflow(PypeObject):
 
     supportedURLScheme = ["workflow"]
 
-    def __init__(self, URL = None,  **attributes ):
+    def __init__(self, URL = None, **attributes ):
 
         if URL == None:
             URL = "workflow://pype/./" + __file__+"/%d" % id(self)
@@ -115,7 +114,7 @@ class PypeWorkflow(PypeObject):
 
     def addObjects(self, objs):
         for obj in objs:
-            if obj.URL in self._pypeObjects: 
+            if obj.URL in self._pypeObjects:
                 continue
             self._pypeObjects[obj.URL] = obj
         self._updateRDFGraph()
@@ -142,9 +141,9 @@ class PypeWorkflow(PypeObject):
         refMD5s = self._referenceRDFGraph.subject_objects(pypeNS["codeMD5digest"])
         for URL, md5digest in refMD5s:
             obj = self._pypeObjects[str(URL)]
-            obj.setReferenceMD5(md5digest)        
+            obj.setReferenceMD5(md5digest)
 
-    @property 
+    @property
     def graphvizDot(self):
         graph = self._RDFGraph
         dotStr = StringIO()
@@ -155,13 +154,12 @@ class PypeWorkflow(PypeObject):
             if URLParseResult.scheme not in shapeMap:
                 continue
             else:
-                shape = shapeMap[URLParseResult.scheme]          
+                shape = shapeMap[URLParseResult.scheme]
                 dotStr.write( '"%s" [shape=%s];\n' % (URL, shape))
 
         for row in graph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
             s, o = row
-            #s = urlparse(s).path.split("/")[-1]
-            #o = urlparse(o).path.split("/")[-1]
+            #s = urlparse(s).path.split("/")[-1] o = urlparse(o).path.split("/")[-1]
             dotStr.write( '"%s" -> "%s";\n' % (o, s))
         dotStr.write ("}")
         return dotStr.getvalue()
@@ -185,7 +183,7 @@ class PypeWorkflow(PypeObject):
             
     @property
     def RDFXML(self):
-        return self._RDFGraph.serialize() 
+        return self._RDFGraph.serialize()
 
 class PypeThreadWorklow(PypeWorkflow):
     CONCURRENT_THREAD_ALLOWED = 8
@@ -205,15 +203,15 @@ class PypeThreadWorklow(PypeWorkflow):
             tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
 
         sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs if isinstance(self._pypeObjects[u], PypeTaskBase) ]
-        jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) ) 
+        jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
         prereqJobURLMap = {}
         for URL, taskObj, tStatus in sortedTaskList:
-            prereqJobURLs = [str(u) for u in self._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"]) 
+            prereqJobURLs = [str(u) for u in self._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"])
                                     if isinstance(self._pypeObjects[str(u)], PypeTaskBase) and str(u) != URL ]
             prereqJobURLMap[URL] = prereqJobURLs
 
         nSubmittedJob = 0
-        loopN  = 0
+        loopN = 0
         task2thread = {}
         while 1:
             loopN += 1
@@ -244,7 +242,7 @@ class PypeThreadWorklow(PypeWorkflow):
 
             time.sleep(0.25)
             print "number of running tasks", threading.activeCount()-1
-            while not self.messageQueue.empty(): 
+            while not self.messageQueue.empty():
                 URL, message = self.messageQueue.get()
                 jobStatusMap[str(URL)] = message
 
@@ -291,16 +289,14 @@ def test():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
         
-    #wf.addObjects([f1,f2,f3,f4])
-    #wf.addObjects([testTask, testTask2])
+    #wf.addObjects([f1,f2,f3,f4]) wf.addObjects([testTask, testTask2])
     
     wf.addTasks([testTask, testTask2])
 
     print (wf.RDFXML)
     print (wf.graphvizDot)
 
-    #aGraph = PypeGraph(wf._RDFGraph)
-    #print(aGraph.tSort())
+    #aGraph = PypeGraph(wf._RDFGraph) print(aGraph.tSort())
 
     wf.refreshTargets([f4])
 
@@ -330,8 +326,7 @@ def test4Threading():
         os.system("touch %s" % f1.localFileName)
 
         def f(self):
-            #self._queue.put( self.infile.localFileName)
-            #self._queue.put( self.outfile.localFileName)
+            #self._queue.put( self.infile.localFileName) self._queue.put( self.outfile.localFileName)
             runShellCmd(["sleep", "2" ])
 
         task = PypeTask(inputDataObjs={"infile":f1},
@@ -361,8 +356,7 @@ def test4Threading2():
         os.system("touch %s" % f1.localFileName)
 
         def t1(self):
-            #self._queue.put( self.infile.localFileName)
-            #self._queue.put( self.outfile.localFileName)
+            #self._queue.put( self.infile.localFileName) self._queue.put( self.outfile.localFileName)
             runShellCmd(["sleep", "2" ])
             runShellCmd(["touch", self.outfile.localFileName])
 
@@ -374,8 +368,7 @@ def test4Threading2():
         task.setMessageQueue(mq)
          
         def t2(self):
-            #self._queue.put( self.infile.localFileName)
-            #self._queue.put( self.outfile.localFileName)
+            #self._queue.put( self.infile.localFileName) self._queue.put( self.outfile.localFileName)
             runShellCmd(["sleep", "2" ])
             runShellCmd(["touch", self.outfile.localFileName])
 
@@ -404,8 +397,8 @@ def test4Threading3():
     allTasks = []
     for layer in range(5):
         fN = random.randint(2,7)
-        fin = [None] * fN 
-        fout = [None] * fN 
+        fin = [None] * fN
+        fout = [None] * fN
         for w in range(fN):
             fin[w] = makePypeLocalFile("./testdata/testfile_l%d_w%d" % (layer, w) )
             fout[w] = makePypeLocalFile("./testdata/testfile_l%d_w%d" % (layer+1, w) )
@@ -413,8 +406,7 @@ def test4Threading3():
 
         for w in range(random.randint(2,7)):
             def t1(self):
-                #self._queue.put( self.infile.localFileName)
-                #self._queue.put( self.outfile.localFileName)
+                #self._queue.put( self.infile.localFileName) self._queue.put( self.outfile.localFileName)
                 runShellCmd(["sleep", "%d" % random.randint(0,20) ])
                 for of in self.outputDataObjs.values():
                     runShellCmd(["touch", of.localFileName])
@@ -422,50 +414,55 @@ def test4Threading3():
             outputDataObjs = {}
             for i in range(random.randint(1,5)):
                 inputDataObjs["infile%d" % i] = random.choice(fin)
-                outputDataObjs["outfile%d" % i] =  random.choice(fout)
+                outputDataObjs["outfile%d" % i] = random.choice(fout)
 
-            #task = PypeTask(inputDataObjs  = inputDataObjs,
-            #                outputDataObjs = outputDataObjs,
-            #                URL="task://pype/./task_l%d_w%d" % (layer, w),
-            #                TaskType=PypeThreadTaskBase) ( t1 )
+            #task = PypeTask(inputDataObjs = inputDataObjs,
+            #                outputDataObjs = outputDataObjs, URL="task://pype/./task_l%d_w%d" % (layer, w), TaskType=PypeThreadTaskBase) ( t1 )
 
             shellCmd = "sleep 5;" + ";".join([ "touch %s" % of.localFileName for of in outputDataObjs.values() ])
             shellFileName = "./testdata/task_l%d_w%d.sh" % (layer, w)
-            shfile = open(shellFileName, 'w') 
+            shfile = open(shellFileName, 'w')
             print >> shfile, shellCmd
             shfile.close()
 
-            #task = PypeShellTask(inputDataObjs  = inputDataObjs,
-            #                     outputDataObjs = outputDataObjs,
-            #                     URL="task://pype/./task_l%d_w%d" % (layer, w),
+
+            #task = PypeShellTask(inputDataObjs = inputDataObjs,
+            #                     outputDataObjs = outputDataObjs, 
+            #                     URL="task://pype/./task_l%d_w%d" % (layer, w), 
             #                     TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
             
-            task = PypeSGETask(inputDataObjs  = inputDataObjs,
-                                 outputDataObjs = outputDataObjs,
-                                 URL="task://pype/./task_l%d_w%d" % (layer, w),
-                                 TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+            task = PypeSGETask(inputDataObjs = inputDataObjs,
+                               outputDataObjs = outputDataObjs, 
+                               URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                               TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+
+            #task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
+            #                   outputDataObjs = outputDataObjs,
+            #                   URL="task://pype/./task_l%d_w%d" % (layer, w)) ( "%s" % shellFileName )
+            
+            #if w % 3 != 0:
+            #    task.distributed = False
+
             task.setMessageQueue(mq)
 
             wf.addTasks([task])
             allTasks.append(task)
 
     for URL in wf._pypeObjects:
-        prereqJobURLs = [str(u) for u in wf._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"]) 
+        prereqJobURLs = [str(u) for u in wf._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"])
                                         if isinstance(wf._pypeObjects[str(u)], PypeLocalFile) and str(u) != URL ]
         if len(prereqJobURLs) == 0:
             os.system("touch %s" % wf._pypeObjects[URL].localFileName)
             pass
-    dotFile = open("test.dot","w") 
+    dotFile = open("test.dot","w")
     print >>dotFile, wf.graphvizDot
     dotFile.close()
-    rdfFile = open("test.rdf","w") 
+    rdfFile = open("test.rdf","w")
     print >>rdfFile, wf.RDFXML
     rdfFile.close()
     wf.refreshTargets(allTasks)
 
 if __name__ == "__main__":
-    #test()
-    #test4Threading()
-    #test4Threading2()
+    #test() test4Threading() test4Threading2()
     test4Threading3()
 
