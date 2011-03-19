@@ -1,8 +1,15 @@
 from urlparse import urlparse
 
 import json
+import os
 from PypeCommon import * 
     
+class NotImplementedError(object):
+    pass
+
+class FileNotExistError(object):
+    pass
+
 def fn(obj):
     return obj.localFileName
 
@@ -10,6 +17,13 @@ class PypeDataObjectBase(PypeObject):
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
 
+    @property
+    def timeStamp(self):
+        raise NotImplementedError 
+
+    @property
+    def isExist(self):
+        raise NotImplementedError 
 
 class PypeLocalFile(PypeDataObjectBase):
     supportedURLScheme = ["file"]
@@ -17,6 +31,16 @@ class PypeLocalFile(PypeDataObjectBase):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
+
+    @property
+    def timeStamp(self):
+        if not os.path.exists(self.localFileName):
+            raise FileNotExistError 
+        return os.stat(self.localFileName).st_mtime 
+
+    @property
+    def isExist(self):
+        return os.path.exists(self.localFileName)
 
 class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
     supportedURLScheme = ["hdf5ds"]
@@ -38,13 +62,13 @@ def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     return PypeLocalFile("file://localhost/./%s" % aLocalFileName, readOnly, **attributes)
 
 def test():
-    f = PypeLocalFile.gc("file://localhost/./test.txt")
+    f = PypeLocalFile("file://localhost/./test.txt")
     assert f.localFileName == "./test.txt"
     
-    f = PypeLocalFile.gc("file://localhost/./test.txt", False)
+    f = PypeLocalFile("file://localhost/./test.txt", False)
     assert f.readOnly == False
 
-    f = PypeLocalFile.gc("file://localhost/./test.txt", False, isFasta = True)
+    f = PypeLocalFile("file://localhost/./test.txt", False, isFasta = True)
     assert f.isFasta == True
 
     f.generateBy = "test"

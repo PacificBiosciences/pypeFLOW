@@ -1,3 +1,6 @@
+
+
+
 from urlparse import urlparse
 
 import rdflib
@@ -6,10 +9,10 @@ try:
 except:
     from rdflib import ConjunctiveGraph as Graph #work for rdflib-3.0.0, need to patch rdflib.graph.query to support initNs
     """
-    patch needed 
-    in rdflib.graph:
-    + def query(..., initNs={}, initBindings={})
-    + return result(processor.query(query_object, initBindings, initNs))
+    in order to work with rdflib-3.0.0, patch to rdflib-3.0.0 source code needed 
+    in rdflib.graph: one needs to add the initNs and initBindings to the following two line
+    1) def query(..., initNs={}, initBindings={})
+    2) return result(processor.query(query_object, initBindings, initNs))
     """
     # need to install rdfextras for rdflib-3.0.0
     rdflib.plugin.register('sparql', rdflib.query.Processor,

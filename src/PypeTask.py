@@ -7,8 +7,6 @@ import shlex
 
 from PypeCommon import * 
 
-
-
 class TaskFunctionError(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -29,7 +27,7 @@ class PypeTaskBase(PypeObject):
         self._referenceMD5 = None
 
 
-        for defaultAttr in ["inputFiles", "outputFiles", "parameters"]:
+        for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
             if defaultAttr not in self.__dict__:
                 self.__dict__[defaultAttr] = {}
             vars(self).update(self.__dict__[defaultAttr])
@@ -46,26 +44,24 @@ class PypeTaskBase(PypeObject):
     def _getRunFlag(self):
         runFlag = False
 
-        inputFiles = self.inputFiles
-        outputFiles = self.outputFiles
+        inputDataObjs = self.inputDataObjs
+        outputDataObjs = self.outputDataObjs
         parameters = self.parameters
 
-        inputFilesTS = []
-        for ft, f in inputFiles.iteritems():
-            if not os.path.exists(f.localFileName):
-                raise TaskFunctionError("Input file does not exist: task = %s, input file= %s" % (self.URL, f.URL))
-            inputFilesTS.append( os.stat(f.localFileName).st_mtime )
+        inputDataObjsTS = []
+        for ft, f in inputDataObjs.iteritems():
+            inputDataObjsTS.append( f.timeStamp )
    
-        outputFilesTS = []
-        for ft, f in outputFiles.iteritems():
-            if not os.path.exists(f.localFileName):
+        outputDataObjsTS = []
+        for ft, f in outputDataObjs.iteritems():
+            if not f.isExist:
                 runFlag = True
                 break
             else:
-                outputFilesTS.append( os.stat(f.localFileName).st_mtime )
+                outputDataObjsTS.append( f.timeStamp )
 
         if runFlag == False:                
-            if min(outputFilesTS) < max(inputFilesTS):
+            if min(outputDataObjsTS) < max(inputDataObjsTS):
                 runFlag = True
 
         #print self._referenceMD5
@@ -100,11 +96,11 @@ class PypeTaskBase(PypeObject):
         for k,v in self.__dict__.iteritems():
             if k == "URL": continue
             if k[0] == "_": continue
-            if k in ["inputFiles", "outputFiles", "parameters"]:
-                if k == "inputFiles":
+            if k in ["inputDataObjs", "outputDataObjs", "parameters"]:
+                if k == "inputDataObjs":
                     for ft, f in v.iteritems():
                         graph.add( (URIRef(self.URL), pypeNS["prereq"], URIRef(f.URL) ) )
-                elif k == "outputFiles":
+                elif k == "outputDataObjs":
                     for ft, f in v.iteritems():
                         graph.add( (URIRef(f.URL), pypeNS["prereq"], URIRef(self.URL) ) )
                 elif k == "parameters":
@@ -112,11 +108,11 @@ class PypeTaskBase(PypeObject):
             
                 continue
 
-            if k in self.inputFiles:
+            if k in self.inputDataObjs:
                 graph.add( ( URIRef(self.URL), pypeNS["inputFile"], URIRef(v.URL) ) )
                 continue
 
-            if k in self.outputFiles:
+            if k in self.outputDataObjs:
                 graph.add( ( URIRef(self.URL), pypeNS["outputFile"], URIRef(v.URL) ) )
                 continue
 
@@ -139,8 +135,8 @@ class PypeTaskBase(PypeObject):
         argv.extend(self._argv)
         kwargv.update(self._kwargv)
 
-        inputFiles = self.inputFiles
-        outputFiles = self.outputFiles
+        inputDataObjs = self.inputDataObjs
+        outputDataObjs = self.outputDataObjs
         parameters = self.parameters
 
         runFlag = self._getRunFlag()
@@ -150,8 +146,8 @@ class PypeTaskBase(PypeObject):
 
             self._runTask(*argv, **kwargv)
 
-            if self.inputFiles != inputFiles or self.parameters != parameters:
-                raise TaskFunctionError("The 'inputFiles' and 'parameters' should not be modified in %s" % self.URL)
+            if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
+                raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
 
             self._updateRDFGraph() #allow the task function to modify the output list if necessary
 
@@ -232,8 +228,8 @@ def test():
     os.system('touch test.fa')
     os.system('touch ref.fa')
 
-    @PypeTask(inputFiles={"fasta":f1, "ref":f2},
-              outputFiles={"aln":f3},
+    @PypeTask(inputDataObjs={"fasta":f1, "ref":f2},
+              outputDataObjs={"aln":f3},
               parameters={"a":10}, **{"b":12})
     #def test2(bb, a=2, **kwargv):
     def test2():
@@ -242,7 +238,7 @@ def test():
         print test2.ref.localFileName
         #print argv
         #print kwargv
-        #print kwargv["inputFiles"] 
+        #print kwargv["inputDataObjs"] 
         print "test2 is running"
         #print test2.a, kwargv['a']
         print test2.b

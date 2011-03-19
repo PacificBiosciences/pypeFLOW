@@ -125,8 +125,8 @@ class PypeWorkflow(PypeObject):
 
     def addTasks(self, taskObjs):
         for taskObj in taskObjs:
-            self.addObjects(taskObj.inputFiles.values())
-            self.addObjects(taskObj.outputFiles.values())
+            self.addObjects(taskObj.inputDataObjs.values())
+            self.addObjects(taskObj.outputDataObjs.values())
             self.addObject(taskObj)
 
     def _updateRDFGraph(self):
@@ -272,22 +272,22 @@ def test():
     os.system("touch %s" % f1.localFileName)
     os.system("touch %s" % f2.localFileName)
     
-    @PypeTask(inputFiles={"fasta":f1, "ref":f2},
-              outputFiles={"aln":f3},
+    @PypeTask(inputDataObjs={"fasta":f1, "ref":f2},
+              outputDataObjs={"aln":f3},
               parameters={"a":10}, **{"b":12})
     def testTask(*argv, **kwargv):
         print("testTask is running")
-        for ft, f in testTask.outputFiles.iteritems():
+        for ft, f in testTask.outputDataObjs.iteritems():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
             runShellCmd(["sleep", "5" ])
 
-    @PypeTask(inputFiles={"fasta":f1, "aln":f3},
-              outputFiles={"aln2":f4},
+    @PypeTask(inputDataObjs={"fasta":f1, "aln":f3},
+              outputDataObjs={"aln2":f4},
               parameters={"a":10}, **{"b":12})
     def testTask2(*argv, **kwargv):
         print("testTask2 is running")
-        for ft, f in testTask2.outputFiles.iteritems():
+        for ft, f in testTask2.outputDataObjs.iteritems():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
         
@@ -334,8 +334,8 @@ def test4Threading():
             #self._queue.put( self.outfile.localFileName)
             runShellCmd(["sleep", "2" ])
 
-        task = PypeTask(inputFiles={"infile":f1},
-                        outputFiles={"outfile":f2},
+        task = PypeTask(inputDataObjs={"infile":f1},
+                        outputDataObjs={"outfile":f2},
                         URL="task://pype/./task%d" %i,
                         TaskType=PypeThreadTaskBase) ( f )
 
@@ -366,8 +366,8 @@ def test4Threading2():
             runShellCmd(["sleep", "2" ])
             runShellCmd(["touch", self.outfile.localFileName])
 
-        task = PypeTask(inputFiles={"infile":f1},
-                        outputFiles={"outfile":f2},
+        task = PypeTask(inputDataObjs={"infile":f1},
+                        outputDataObjs={"outfile":f2},
                         URL="task://pype/./task%d_1" %i,
                         TaskType=PypeThreadTaskBase) ( t1 )
 
@@ -379,8 +379,8 @@ def test4Threading2():
             runShellCmd(["sleep", "2" ])
             runShellCmd(["touch", self.outfile.localFileName])
 
-        task2 = PypeTask(inputFiles={"infile":f2},
-                        outputFiles={"outfile":f3},
+        task2 = PypeTask(inputDataObjs={"infile":f2},
+                        outputDataObjs={"outfile":f3},
                         URL="task://pype/./task%d_2" %i,
                         TaskType=PypeThreadTaskBase) ( t2 )
         task2.setMessageQueue(mq)
@@ -416,26 +416,26 @@ def test4Threading3():
                 #self._queue.put( self.infile.localFileName)
                 #self._queue.put( self.outfile.localFileName)
                 runShellCmd(["sleep", "%d" % random.randint(0,20) ])
-                for of in self.outputFiles.values():
+                for of in self.outputDataObjs.values():
                     runShellCmd(["touch", of.localFileName])
-            inputFiles = {}
-            outputFiles = {}
+            inputDataObjs = {}
+            outputDataObjs = {}
             for i in range(random.randint(1,5)):
-                inputFiles["infile%d" % i] = random.choice(fin)
-                outputFiles["outfile%d" % i] =  random.choice(fout)
+                inputDataObjs["infile%d" % i] = random.choice(fin)
+                outputDataObjs["outfile%d" % i] =  random.choice(fout)
 
-            #task = PypeTask(inputFiles  = inputFiles,
-            #                outputFiles = outputFiles,
+            #task = PypeTask(inputDataObjs  = inputDataObjs,
+            #                outputDataObjs = outputDataObjs,
             #                URL="task://pype/./task_l%d_w%d" % (layer, w),
             #                TaskType=PypeThreadTaskBase) ( t1 )
 
-            shellCmd = "sleep 5;" + ";".join([ "touch %s" % of.localFileName for of in outputFiles.values() ])
+            shellCmd = "sleep 5;" + ";".join([ "touch %s" % of.localFileName for of in outputDataObjs.values() ])
             shellFileName = "./testdata/task_l%d_w%d.sh" % (layer, w)
             with open(shellFileName, 'w') as shfile:
                 print >> shfile, shellCmd
 
-            task = PypeShellTask(inputFiles  = inputFiles,
-                                 outputFiles = outputFiles,
+            task = PypeShellTask(inputDataObjs  = inputDataObjs,
+                                 outputDataObjs = outputDataObjs,
                                  URL="task://pype/./task_l%d_w%d" % (layer, w),
                                  TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
             task.setMessageQueue(mq)
