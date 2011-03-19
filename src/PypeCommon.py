@@ -78,8 +78,8 @@ def runShellCmd(args):
             break
     return pStatus
 
-def runClusterCmd(args):
-    p = Popen(args)
+def runSgeSyncJob(args):
+    p = Popen(arg:s)
     pStatus = None
     while 1:
         time.sleep(0.1)

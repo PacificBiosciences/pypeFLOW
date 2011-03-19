@@ -219,6 +219,33 @@ def PypeShellTask(*argv, **kwargv):
     return f
 
 
+def PypeSGETask(*argv, **kwargv):
+
+    def f(scriptToRun):
+        def taskFun():
+            """make shell script using the template"""
+            """run shell command"""
+            shellCmd = "qsub -sync y -S /bin/bash %s" % scriptToRun
+            runShellCmd(shlex.split(shellCmd))
+
+
+        TaskType = kwargv.get("TaskType", PypeTaskBase)
+        if "TaskType" in kwargv:
+            del kwargv["TaskType"]
+
+        kwargv["_taskFun"] = taskFun
+        kwargv["shellCmd"] = shellCmd
+
+        if kwargv.get("URL",None) == None:
+            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
+        #print func.func_name, self._codeMD5digest
+        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
+                    
+        
+        return TaskType(*argv, **kwargv) 
+
+    return f
 
 def test():
     from PypeData import PypeLocalFile, makePypeLocalFile, fn
