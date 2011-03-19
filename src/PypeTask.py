@@ -5,11 +5,7 @@ import json
 import os
 import shlex
 
-from rdflib.Graph import ConjunctiveGraph as Graph
-from rdflib import Namespace
-from rdflib import Literal
-from rdflib import URIRef
-from PypeCommon import PypeObject, pypeNS, URLSchemeNotSupportYet, runShellCmd
+from PypeCommon import * 
 
 
 

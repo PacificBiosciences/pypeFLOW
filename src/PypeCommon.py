@@ -1,8 +1,25 @@
 from urlparse import urlparse
-from rdflib.Graph import ConjunctiveGraph as Graph
+
+import rdflib
+try:
+    from rdflib.Graph import ConjunctiveGraph as Graph #work for rdflib-2.4.2
+except:
+    from rdflib import ConjunctiveGraph as Graph #work for rdflib-3.0.0, need to patch rdflib.graph.query to support initNs
+    """
+    patch needed 
+    in rdflib.graph:
+    + def query(..., initNs={}, initBindings={})
+    + return result(processor.query(query_object, initBindings, initNs))
+    """
+    # need to install rdfextras for rdflib-3.0.0
+    rdflib.plugin.register('sparql', rdflib.query.Processor,
+                           'rdfextras.sparql.processor', 'Processor')
+    rdflib.plugin.register('sparql', rdflib.query.Result,
+                           'rdfextras.sparql.query', 'SPARQLQueryResult')
 from rdflib import Namespace
 from rdflib import Literal
 from rdflib import URIRef
+
 from subprocess import Popen
 import time
 

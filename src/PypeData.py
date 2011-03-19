@@ -1,11 +1,7 @@
 from urlparse import urlparse
 
 import json
-from rdflib.Graph import ConjunctiveGraph as Graph
-from rdflib import Namespace
-from rdflib import Literal
-from rdflib import URIRef
-from PypeCommon import PypeObject, pypeNS, URLSchemeNotSupportYet
+from PypeCommon import * 
     
 def fn(obj):
     return obj.localFileName
@@ -21,6 +17,22 @@ class PypeLocalFile(PypeDataObjectBase):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
+
+class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
+    supportedURLScheme = ["hdf5ds"]
+    def __init__(self, URL, readOnly = True, **attributes):
+        PypeDataObjectBase.__init__(self, URL, **attributes)
+        URLParseResult = urlparse(URL)
+        self.localFileName = URLParseResult.path[1:]
+        #the rest of the URL goes to HDF5 DS
+
+class PypeLocalCompositeFile(PypeDataObjectBase):  #stub for now Mar 17, 2010
+    supportedURLScheme = ["compositeFile"]
+    def __init__(self, URL, readOnly = True, **attributes):
+        PypeDataObjectBase.__init__(self, URL, **attributes)
+        URLParseResult = urlparse(URL)
+        self.localFileName = URLParseResult.path[1:]
+        #the rest of the URL goes to HDF5 DS
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     return PypeLocalFile("file://localhost/./%s" % aLocalFileName, readOnly, **attributes)

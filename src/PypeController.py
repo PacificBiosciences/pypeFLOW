@@ -9,13 +9,7 @@ from Queue import Queue
 from cStringIO import StringIO
 from urlparse import urlparse
 
-from rdflib.Graph import ConjunctiveGraph as Graph
-from rdflib import Namespace
-from rdflib import Literal
-from rdflib import URIRef
-from rdflib.TripleStore import TripleStore
-
-from PypeCommon import pypeNS, URLSchemeNotSupportYet, runShellCmd, PypeObject
+from PypeCommon import *
 from PypeTask import PypeTask, PypeShellTask, PypeThreadTaskBase, PypeTaskBase
 
 class PypeNode(object):
@@ -163,7 +157,7 @@ class PypeWorkflow(PypeObject):
             else:
                 shape = shapeMap[URLParseResult.scheme]          
                 dotStr.write( '"%s" [shape=%s];\n' % (URL, shape))
-                
+
         for row in graph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
             s, o = row
             #s = urlparse(s).path.split("/")[-1]
