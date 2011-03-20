@@ -430,18 +430,6 @@ def test4Threading3(runmode, cleanup):
             print >> shfile, shellCmd
             shfile.close()
 
-<<<<<<< HEAD
-            task = PypeShellTask(inputDataObjs  = inputDataObjs,
-                                 outputDataObjs = outputDataObjs,
-                                 URL="task://pype/./task_l%d_w%d" % (layer, w),
-                                 TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
-            
-            #task = PypeSGETask(inputDataObjs  = inputDataObjs,
-            #                     outputDataObjs = outputDataObjs,
-            #                     URL="task://pype/./task_l%d_w%d" % (layer, w),
-            #                     TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-            task.setMessageQueue(mq)
-=======
             if runmode == "internal":
                 def t1(self):
                     #self._queue.put( self.infile.localFileName) 
@@ -481,8 +469,6 @@ def test4Threading3(runmode, cleanup):
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
                 task.setMessageQueue(mq)
                 
-
->>>>>>> 029e12be040e8d95db1a63ef68ee8b9d5a8664dd
 
             wf.addTasks([task])
             allTasks.append(task)
