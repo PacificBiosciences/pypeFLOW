@@ -58,6 +58,8 @@ def simpleTest():
     os.system("sleep 1;touch %s;" % f3.localFileName)
 
 def testDistributed(runmode, cleanup):
+    baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
+    baseDir = "/home/cschin/Sandbox/PypeEngine/src"
     import random
     random.seed(1984)
     mq = Queue()
@@ -71,8 +73,8 @@ def testDistributed(runmode, cleanup):
         fin = [None] * fN
         fout = [None] * fN
         for w in range(fN):
-            fin[w] = makePypeLocalFile("/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src/testdata/testfile_l%d_w%d.dat" % (layer, w) )
-            fout[w] = makePypeLocalFile("/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src/testdata/testfile_l%d_w%d.dat" % (layer+1, w) )
+            fin[w] = makePypeLocalFile(baseDir + "/testdata/testfile_l%d_w%d.dat" % (layer, w) )
+            fout[w] = makePypeLocalFile(baseDir + "/testdata/testfile_l%d_w%d.dat" % (layer+1, w) )
             wf.addObjects([fin[w], fout[w]])
 
         for w in range(fN):
@@ -85,8 +87,8 @@ def testDistributed(runmode, cleanup):
             outputDataObjs["outfile%d" % w] = fout[w] 
 
 
-            shellCmd = "cd /home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src\n sleep 1\n" + "\n".join([ "echo %d %d ...  > %s" % (layer, w, of.localFileName) for of in outputDataObjs.values() ]) + "\nsleep 10"
-            shellFileName = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src/testdata/task_l%d_w%d.sh" % (layer, w)
+            shellCmd = "sleep 1\n" + "\n".join([ "echo %d %d ...  > %s" % (layer, w, of.localFileName) for of in outputDataObjs.values() ]) + "\nsleep 10"
+            shellFileName = baseDir + "/testdata/task_l%d_w%d.sh" % (layer, w)
             shfile = open(shellFileName, 'w')
             print >> shfile, shellCmd
             shfile.close()
