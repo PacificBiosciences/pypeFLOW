@@ -72,7 +72,7 @@ def runShellCmd(args):
     p = Popen(args)
     pStatus = None
     while 1:
-        time.sleep(0.1)
+        time.sleep(0.2)
         pStatus = p.poll()
         if pStatus != None:
             break

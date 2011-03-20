@@ -1,5 +1,5 @@
 from urlparse import urlparse
-
+import platform
 import os
 from PypeCommon import * 
     
@@ -28,7 +28,7 @@ class PypeDataObjectBase(PypeObject):
         raise NotImplementedError
 
     @property
-    def isExist(self):
+    def exists(self):
         raise NotImplementedError
 
 class PypeLocalFile(PypeDataObjectBase):
@@ -41,11 +41,11 @@ class PypeLocalFile(PypeDataObjectBase):
     @property
     def timeStamp(self):
         if not os.path.exists(self.localFileName):
-            raise FileNotExistError("No such file:"+self.localFileName)
+            raise FileNotExistError("No such file:%s on %s" % (self.localFileName, platform.node()) )
         return os.stat(self.localFileName).st_mtime 
 
     @property
-    def isExist(self):
+    def exists(self):
         return os.path.exists(self.localFileName)
 
 class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
@@ -65,16 +65,16 @@ class PypeLocalCompositeFile(PypeDataObjectBase):  #stub for now Mar 17, 2010
         #the rest of the URL goes to HDF5 DS
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
-    return PypeLocalFile("file://localhost/./%s" % aLocalFileName, readOnly, **attributes)
+    return PypeLocalFile("file://localhost/%s" % aLocalFileName, readOnly, **attributes)
 
 def test():
-    f = PypeLocalFile("file://localhost/./test.txt")
+    f = PypeLocalFile("file://localhost/test.txt")
     assert f.localFileName == "./test.txt"
     
-    f = PypeLocalFile("file://localhost/./test.txt", False)
+    f = PypeLocalFile("file://localhost/test.txt", False)
     assert f.readOnly == False
 
-    f = PypeLocalFile("file://localhost/./test.txt", False, isFasta = True)
+    f = PypeLocalFile("file://localhost/test.txt", False, isFasta = True)
     assert f.isFasta == True
 
     f.generateBy = "test"

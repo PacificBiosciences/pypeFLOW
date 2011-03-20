@@ -3,6 +3,7 @@ import threading
 from threading import Thread 
 import inspect 
 import hashlib 
+import sys
 import os 
 import time 
 from Queue import Queue 
@@ -71,20 +72,16 @@ class PypeGraph(object):
         
         S = [x for x in self._allNodes if x.inDegree == 0]
         L = []
-        #print("len(S):",len(S))
         while len(S) != 0:
             n = S.pop()
             L.append(n)
             outNodes = n._outNodes.copy()
             for m in outNodes:
-                #print("1:",len(edges))
                 edges.remove( (n, m) )
                 n.removeAnOutNode(m)
                 m.removeAnInNode(n)
-                #print("2:",len(edges))
                 if m.inDegree == 0:
                     S.append(m)
-            #print ("len(edges):",len(edges)) print ("len(S):", len(S))
         
         if len(edges) != 0:
             print( "circle detected" )
@@ -185,7 +182,7 @@ class PypeWorkflow(PypeObject):
     def RDFXML(self):
         return self._RDFGraph.serialize()
 
-class PypeThreadWorklow(PypeWorkflow):
+class PypeThreadWorkflow(PypeWorkflow):
     CONCURRENT_THREAD_ALLOWED = 8
 
     @classmethod
@@ -232,7 +229,7 @@ class PypeThreadWorklow(PypeWorkflow):
 
 
             for URL, taskObj in jobsReadyToBeSubmitted:
-                if nSubmittedJob < PypeThreadWorklow.CONCURRENT_THREAD_ALLOWED:
+                if nSubmittedJob < PypeThreadWorkflow.CONCURRENT_THREAD_ALLOWED:
                     t = Thread(target = taskObj)
                     t.start()
                     task2thread[URL] = t
@@ -242,15 +239,27 @@ class PypeThreadWorklow(PypeWorkflow):
 
             time.sleep(0.25)
             print "number of running tasks", threading.activeCount()-1
+            faildJobCount = 0
+
             while not self.messageQueue.empty():
                 URL, message = self.messageQueue.get()
                 jobStatusMap[str(URL)] = message
 
                 if message in ["done", "continue"]:
                     nSubmittedJob -= 1
+                    task2thread[URL].join()
+
+                elif message in ["fail"]:
+                    failedTask = self._pypeObjects[str(URL)]
+
+                    task2thread[URL].join()
+                    faildJobCount += 1
 
             for u,s in sorted(jobStatusMap.items()):
                 print u, s
+
+            if faildJobCount != 0:
+                break
 
         print
         for u,s in sorted(jobStatusMap.items()):
@@ -318,7 +327,7 @@ def test4Threading():
     from PypeData import PypeLocalFile, makePypeLocalFile
 
     mq = Queue()
-    wf = PypeThreadWorklow(messageQueue=mq)
+    wf = PypeThreadWorkflow(messageQueue=mq)
     allTasks = []
     for i in range(10):
         f1 = makePypeLocalFile("test%02d_in" % i )
@@ -347,7 +356,7 @@ def test4Threading2():
     from PypeData import PypeLocalFile, makePypeLocalFile
 
     mq = Queue()
-    wf = PypeThreadWorklow(messageQueue=mq)
+    wf = PypeThreadWorkflow(messageQueue=mq)
     allTasks = []
     for i in range(3):
         f1 = makePypeLocalFile("test%02d_in" % i )
@@ -386,62 +395,71 @@ def test4Threading2():
     wf.refreshTargets(allTasks)
     print wf.graphvizDot
 
-def test4Threading3():
+def test4Threading3(runmode, cleanup):
     import random
     random.seed(1984)
     from PypeData import PypeLocalFile, makePypeLocalFile
 
     mq = Queue()
-    PypeThreadWorklow.setNumThreadAllowed(20)
-    wf = PypeThreadWorklow(messageQueue=mq)
+    PypeThreadWorkflow.setNumThreadAllowed(20)
+    wf = PypeThreadWorkflow(messageQueue=mq)
+    #wf = PypeWorkflow(messageQueue=mq)
     allTasks = []
     for layer in range(5):
-        fN = random.randint(2,7)
+        fN = random.randint(5,9)
         fin = [None] * fN
         fout = [None] * fN
         for w in range(fN):
-            fin[w] = makePypeLocalFile("./testdata/testfile_l%d_w%d" % (layer, w) )
-            fout[w] = makePypeLocalFile("./testdata/testfile_l%d_w%d" % (layer+1, w) )
+            fin[w] = makePypeLocalFile("/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src/testdata/testfile_l%d_w%d.dat" % (layer, w) )
+            fout[w] = makePypeLocalFile("/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src/testdata/testfile_l%d_w%d.dat" % (layer+1, w) )
             wf.addObjects([fin[w], fout[w]])
 
-        for w in range(random.randint(2,7)):
-            def t1(self):
-                #self._queue.put( self.infile.localFileName) self._queue.put( self.outfile.localFileName)
-                runShellCmd(["sleep", "%d" % random.randint(0,20) ])
-                for of in self.outputDataObjs.values():
-                    runShellCmd(["touch", of.localFileName])
+        for w in range(random.randint(5,8)):
             inputDataObjs = {}
             outputDataObjs = {}
             for i in range(random.randint(1,5)):
                 inputDataObjs["infile%d" % i] = random.choice(fin)
-                outputDataObjs["outfile%d" % i] = random.choice(fout)
 
-            #task = PypeTask(inputDataObjs = inputDataObjs,
-            #                outputDataObjs = outputDataObjs, URL="task://pype/./task_l%d_w%d" % (layer, w), TaskType=PypeThreadTaskBase) ( t1 )
+            outputDataObjs["outfile%d" % w] = fout[w] 
 
-            shellCmd = "sleep 5;" + ";".join([ "touch %s" % of.localFileName for of in outputDataObjs.values() ])
-            shellFileName = "./testdata/task_l%d_w%d.sh" % (layer, w)
+
+            shellCmd = "cd /home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src\n sleep 1\n" + "\n".join([ "echo %d %d ...  > %s" % (layer, w, of.localFileName) for of in outputDataObjs.values() ]) + "\nsleep 10"
+            shellFileName = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src/testdata/task_l%d_w%d.sh" % (layer, w)
             shfile = open(shellFileName, 'w')
             print >> shfile, shellCmd
             shfile.close()
 
+            if runmode == "internal":
+                def t1(self):
+                    #self._queue.put( self.infile.localFileName) 
+                    #self._queue.put( self.outfile.localFileName)
+                    runShellCmd(["sleep", "%d" % random.randint(0,20) ])
 
-            task = PypeShellTask(inputDataObjs = inputDataObjs,
-                                 outputDataObjs = outputDataObjs, 
-                                 URL="task://pype/./task_l%d_w%d" % (layer, w), 
-                                 TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
-            
-            #task = PypeSGETask(inputDataObjs = inputDataObjs,
-            #                   outputDataObjs = outputDataObjs, 
-            #                   URL="task://pype/./task_l%d_w%d" % (layer, w), 
-            #                   TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+                    for of in self.outputDataObjs.values():
+                        runShellCmd(["touch", of.localFileName])
 
-            #task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
-            #                   outputDataObjs = outputDataObjs,
-            #                   URL="task://pype/./task_l%d_w%d" % (layer, w)) ( "%s" % shellFileName )
-            
-            #if w % 3 != 0:
-            #    task.distributed = False
+                task = PypeTask(inputDataObjs = inputDataObjs,
+                                outputDataObjs = outputDataObjs, URL="task://pype/./task_l%d_w%d" % (layer, w), TaskType=PypeThreadTaskBase) ( t1 )
+            elif runmode == "localshell":
+                task = PypeShellTask(inputDataObjs = inputDataObjs,
+                                     outputDataObjs = outputDataObjs, 
+                                     URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                     TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
+
+            elif runmode == "sge": 
+                task = PypeSGETask(inputDataObjs = inputDataObjs,
+                                   outputDataObjs = outputDataObjs, 
+                                   URL="task://pype/task_l%d_w%d" % (layer, w), 
+                                   TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+
+            elif runmode == "mixed":
+                task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
+                                   outputDataObjs = outputDataObjs,
+                                   URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                   TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+                
+                if w % 3 != 0:
+                    task.distributed = False
 
             task.setMessageQueue(mq)
 
@@ -452,7 +470,8 @@ def test4Threading3():
         prereqJobURLs = [str(u) for u in wf._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"])
                                         if isinstance(wf._pypeObjects[str(u)], PypeLocalFile) and str(u) != URL ]
         if len(prereqJobURLs) == 0:
-            os.system("touch %s" % wf._pypeObjects[URL].localFileName)
+            if cleanup == "1":
+                os.system("touch %s" % wf._pypeObjects[URL].localFileName)
             pass
     dotFile = open("test.dot","w")
     print >>dotFile, wf.graphvizDot
@@ -463,6 +482,8 @@ def test4Threading3():
     wf.refreshTargets(allTasks)
 
 if __name__ == "__main__":
-    #test() test4Threading() test4Threading2()
-    test4Threading3()
+    #test() 
+    #test4Threading() 
+    #test4Threading2()
+    test4Threading3(sys.argv[1], sys.argv[2])
 
