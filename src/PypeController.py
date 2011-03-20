@@ -265,6 +265,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         for u,s in sorted(jobStatusMap.items()):
             print u, s
 
+<<<<<<< HEAD
 def test():
 
     from PypeData import PypeLocalFile, makePypeLocalFile
@@ -496,3 +497,5 @@ if __name__ == "__main__":
     #test4Threading2()
     test4Threading3(sys.argv[1], sys.argv[2])
 
+=======
+>>>>>>> ed25a623e277c04f4112e2194d716e85d5223563
