@@ -399,14 +399,14 @@ def test4Threading3(runmode, cleanup):
     import random
     random.seed(1984)
     from PypeData import PypeLocalFile, makePypeLocalFile
-
     mq = Queue()
     PypeThreadWorkflow.setNumThreadAllowed(20)
-    wf = PypeThreadWorkflow(messageQueue=mq)
     #wf = PypeWorkflow(messageQueue=mq)
+    wf = PypeThreadWorkflow(messageQueue=mq)
     allTasks = []
     for layer in range(5):
-        fN = random.randint(5,9)
+        #fN = random.randint(3,7)
+        fN = 5
         fin = [None] * fN
         fout = [None] * fN
         for w in range(fN):
@@ -414,10 +414,11 @@ def test4Threading3(runmode, cleanup):
             fout[w] = makePypeLocalFile("/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src/testdata/testfile_l%d_w%d.dat" % (layer+1, w) )
             wf.addObjects([fin[w], fout[w]])
 
-        for w in range(random.randint(5,8)):
+        for w in range(fN):
             inputDataObjs = {}
             outputDataObjs = {}
-            for i in range(random.randint(1,5)):
+            #for i in range(random.randint(1,5)):
+            for i in range(5):
                 inputDataObjs["infile%d" % i] = random.choice(fin)
 
             outputDataObjs["outfile%d" % w] = fout[w] 
@@ -439,29 +440,36 @@ def test4Threading3(runmode, cleanup):
                         runShellCmd(["touch", of.localFileName])
 
                 task = PypeTask(inputDataObjs = inputDataObjs,
-                                outputDataObjs = outputDataObjs, URL="task://pype/./task_l%d_w%d" % (layer, w), TaskType=PypeThreadTaskBase) ( t1 )
+                                outputDataObjs = outputDataObjs, 
+                                URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                TaskType=PypeThreadTaskBase) ( t1 )
+                task.setMessageQueue(mq)
+
             elif runmode == "localshell":
                 task = PypeShellTask(inputDataObjs = inputDataObjs,
                                      outputDataObjs = outputDataObjs, 
                                      URL="task://pype/./task_l%d_w%d" % (layer, w), 
-                                     TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
+                                     TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+                task.setMessageQueue(mq)
 
             elif runmode == "sge": 
                 task = PypeSGETask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs, 
                                    URL="task://pype/task_l%d_w%d" % (layer, w), 
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+                task.setMessageQueue(mq)
 
             elif runmode == "mixed":
+                #distributed = random.choice( (False, True) )
+                distributed = True if w % 3 == 0 else False
                 task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs,
                                    URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                   distributed=distributed,
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+                task.setMessageQueue(mq)
                 
-                if w % 3 != 0:
-                    task.distributed = False
 
-            task.setMessageQueue(mq)
 
             wf.addTasks([task])
             allTasks.append(task)

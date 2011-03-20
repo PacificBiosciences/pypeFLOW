@@ -166,7 +166,6 @@ class PypeTaskBase(PypeObject):
         outputDataObjs = self.outputDataObjs
         parameters = self.parameters
 
-
         runFlag = self._getRunFlag()
             
         if runFlag == True:
@@ -214,6 +213,7 @@ class PypeDistributiableTaskBase(PypeThreadTaskBase):
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
         self.distributed = True
 
+
 def PypeTask(*argv, **kwargv):
 
     def f(taskFun):
@@ -234,27 +234,15 @@ def PypeTask(*argv, **kwargv):
 
 def PypeShellTask(*argv, **kwargv):
 
-    def f(shellCmd):
+    def f(scriptToRun):
         def taskFun():
             """make shell script using the template"""
             """run shell command"""
+            shellCmd = "/bin/bash %s" % scriptToRun
             runShellCmd(shlex.split(shellCmd))
 
-
-        TaskType = kwargv.get("TaskType", PypeTaskBase)
-        if "TaskType" in kwargv:
-            del kwargv["TaskType"]
-
-        kwargv["_taskFun"] = taskFun
-        kwargv["shellCmd"] = shellCmd
-
-        if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
-        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
-                    
-        
-        return TaskType(*argv, **kwargv) 
+        kwargv["script"] = scriptToRun
+        return PypeTask(*argv, **kwargv)(taskFun)
 
     return f
 
@@ -268,52 +256,26 @@ def PypeSGETask(*argv, **kwargv):
             shellCmd = "qsub -sync y -S /bin/bash %s" % scriptToRun
             runShellCmd(shlex.split(shellCmd))
 
-
-        TaskType = kwargv.get("TaskType", PypeTaskBase)
-        if "TaskType" in kwargv:
-            del kwargv["TaskType"]
-
-        kwargv["_taskFun"] = taskFun
-        kwargv["shellCmd"] = scriptToRun
-
-        if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
-        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
-                    
-        
-        return TaskType(*argv, **kwargv) 
+        kwargv["script"] = scriptToRun
+        return PypeTask(*argv, **kwargv)(taskFun)
 
     return f
 
 def PypeDistributibleTask(*argv, **kwargv):
-
+    distributed = kwargv.get("distributed", False)
     def f(scriptToRun):
         def taskFun(self):
             """make shell script using the template"""
             """run shell command"""
-            if self.distributed == True:
+            if distributed == True:
                 shellCmd = "qsub -sync y -S /bin/bash %s" % scriptToRun
             else:
                 shellCmd = "/bin/bash %s" % scriptToRun
 
             runShellCmd(shlex.split(shellCmd))
 
-
-        TaskType = PypeDistributiableTaskBase
-        if "TaskType" in kwargv:
-            del kwargv["TaskType"]
-
-        kwargv["_taskFun"] = taskFun
-        kwargv["shellCmd"] = scriptToRun
-
-        if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
-        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
-                    
-        
-        return TaskType(*argv, **kwargv) 
+        kwargv["script"] = scriptToRun
+        return PypeTask(*argv, **kwargv)(taskFun) 
 
     return f
 
