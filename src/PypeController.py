@@ -435,15 +435,15 @@ def test4Threading3():
             print >> shfile, shellCmd
             shfile.close()
 
-            #task = PypeShellTask(inputDataObjs  = inputDataObjs,
-            #                     outputDataObjs = outputDataObjs,
-            #                     URL="task://pype/./task_l%d_w%d" % (layer, w),
-            #                     TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
-            
-            task = PypeSGETask(inputDataObjs  = inputDataObjs,
+            task = PypeShellTask(inputDataObjs  = inputDataObjs,
                                  outputDataObjs = outputDataObjs,
                                  URL="task://pype/./task_l%d_w%d" % (layer, w),
-                                 TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
+                                 TaskType=PypeThreadTaskBase) ( "bash %s" % shellFileName )
+            
+            #task = PypeSGETask(inputDataObjs  = inputDataObjs,
+            #                     outputDataObjs = outputDataObjs,
+            #                     URL="task://pype/./task_l%d_w%d" % (layer, w),
+            #                     TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
             task.setMessageQueue(mq)
 
             wf.addTasks([task])
