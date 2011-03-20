@@ -12,8 +12,34 @@ else:
 
 import os
 import shlex
+import time
 
 from PypeCommon import * 
+
+def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
+
+    runFlag = False
+
+    inputDataObjsTS = []
+    for ft, f in inputDataObjs.iteritems():
+        inputDataObjsTS.append( f.timeStamp )
+
+    outputDataObjsTS = []
+
+    for ft, f in outputDataObjs.iteritems():
+        if not f.exists:
+            runFlag = True
+            break
+        else:
+            outputDataObjsTS.append( f.timeStamp )
+
+    if runFlag == False:                
+        if min(outputDataObjsTS) < max(inputDataObjsTS):
+            runFlag = True
+
+
+    return runFlag
+
 
 class TaskFunctionError(Exception):
     def __init__(self, msg):
@@ -41,42 +67,24 @@ class PypeTaskBase(PypeObject):
             vars(self).update(self.__dict__[defaultAttr])
 
         self._codeMD5digest = kwargv["_codeMD5digest"]
-        #print func.func_name, self._codeMD5digest
         self._paramMD5digest = kwargv["_paramMD5digest"]
+        self._compareFuntions = [ timeStampCompare ]
 
         self._updateRDFGraph()
 
     def setReferenceMD5(self, md5Str):
         self._referenceMD5 = md5Str
 
+
     def _getRunFlag(self):
-        runFlag = False
-
-        inputDataObjs = self.inputDataObjs
-        outputDataObjs = self.outputDataObjs
-        parameters = self.parameters
-
-        inputDataObjsTS = []
-        for ft, f in inputDataObjs.iteritems():
-            inputDataObjsTS.append( f.timeStamp )
-   
-        outputDataObjsTS = []
-        for ft, f in outputDataObjs.iteritems():
-            if not f.isExist:
-                runFlag = True
-                break
-            else:
-                outputDataObjsTS.append( f.timeStamp )
-
-        if runFlag == False:                
-            if min(outputDataObjsTS) < max(inputDataObjsTS):
-                runFlag = True
-
         #print self._referenceMD5
         #print self._codeMD5digest
+        runFlag = False
         if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
             runFlag = True
+        if runFlag == False:
+            runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFuntions] )
 
         return runFlag
 
@@ -84,6 +92,7 @@ class PypeTaskBase(PypeObject):
         """ TODO: the arg porcessing is still a mess, need to find a better way to do this """
         if PYTHONVERSION == (2,5):
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
+            print  (args, varargs, varkw, defaults)
         else:
             argspec = inspect.getargspec(self._taskFun)
             (args, varargs, varkw, defaults) = argspec.args, argspec.varargs, argspec.keywords, argspec.defaults
@@ -103,7 +112,6 @@ class PypeTaskBase(PypeObject):
                 self._taskFun(self)
         else:
             self._taskFun()
-        self._taskFun()
 
 
     def _updateRDFGraph(self):
@@ -144,20 +152,23 @@ class PypeTaskBase(PypeObject):
         return self._RDFGraph.serialize()                       
 
     def __call__(self, *argv, **kwargv):
-        #print "__call__", argv
-        #print "__call__", kwargv
         argv = list(argv)
         argv.extend(self._argv)
         kwargv.update(self._kwargv)
 
         inputDataObjs = self.inputDataObjs
+        # need the following loop to force the stupid Islon to update the metadata in the directory
+        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
+        for o in inputDataObjs.values():
+            d = os.path.dirname(o.localFileName)
+            os.listdir(d) 
+
         outputDataObjs = self.outputDataObjs
         parameters = self.parameters
 
         runFlag = self._getRunFlag()
             
         if runFlag == True:
-            #self._taskFun(*argv, **kwargv)
 
             self._runTask(*argv, **kwargv)
 
@@ -166,26 +177,42 @@ class PypeTaskBase(PypeObject):
 
             self._updateRDFGraph() #allow the task function to modify the output list if necessary
 
-class PypeTaskBase2(PypeTaskBase):
-    pass
-
 class PypeThreadTaskBase(PypeTaskBase):
+
     def __init__(self, URL, *argv, **kwargv):
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
+
     def setMessageQueue(self, q):
         self._queue = q
+
     def __call__(self, *argv, **kwargv):
-        #runFlag = self._getRunFlag()
         try:
             runFlag = self._getRunFlag()
         except TaskFunctionError:
-            pass
             self._queue.put( (self.URL, "fail") )
             return
+
         self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
 
         PypeTaskBase.__call__(self, *argv, **kwargv)
-        self._queue.put( (self.URL, "done") )
+
+        # need the following loop to force the stupid Islon to update the metadata in the directory
+        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
+        for o in self.outputDataObjs.values():
+            d = os.path.dirname(o.localFileName)
+            os.listdir(d) 
+
+        if any([o.exists == False for o in self.outputDataObjs.values()]):
+            self._queue.put( (self.URL, "fail") )
+        else:
+            self._queue.put( (self.URL, "done") )
+
+class PypeDistributiableTaskBase(PypeThreadTaskBase):
+
+    def __init__(self, URL, *argv, **kwargv):
+        PypeTaskBase.__init__(self, URL, *argv, **kwargv)
+        self.distributed = True
+
 
 def PypeTask(*argv, **kwargv):
 
@@ -199,7 +226,6 @@ def PypeTask(*argv, **kwargv):
         if kwargv.get("URL",None) == None:
             kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
         kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
-        #print func.func_name, self._codeMD5digest
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
         return TaskType(*argv, **kwargv) 
@@ -208,28 +234,15 @@ def PypeTask(*argv, **kwargv):
 
 def PypeShellTask(*argv, **kwargv):
 
-    def f(shellCmd):
+    def f(scriptToRun):
         def taskFun():
             """make shell script using the template"""
             """run shell command"""
+            shellCmd = "/bin/bash %s" % scriptToRun
             runShellCmd(shlex.split(shellCmd))
 
-
-        TaskType = kwargv.get("TaskType", PypeTaskBase)
-        if "TaskType" in kwargv:
-            del kwargv["TaskType"]
-
-        kwargv["_taskFun"] = taskFun
-        kwargv["shellCmd"] = shellCmd
-
-        if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
-        #print func.func_name, self._codeMD5digest
-        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
-                    
-        
-        return TaskType(*argv, **kwargv) 
+        kwargv["script"] = scriptToRun
+        return PypeTask(*argv, **kwargv)(taskFun)
 
     return f
 
@@ -243,22 +256,26 @@ def PypeSGETask(*argv, **kwargv):
             shellCmd = "qsub -sync y -S /bin/bash %s" % scriptToRun
             runShellCmd(shlex.split(shellCmd))
 
+        kwargv["script"] = scriptToRun
+        return PypeTask(*argv, **kwargv)(taskFun)
 
-        TaskType = kwargv.get("TaskType", PypeTaskBase)
-        if "TaskType" in kwargv:
-            del kwargv["TaskType"]
+    return f
 
-        kwargv["_taskFun"] = taskFun
-        kwargv["shellCmd"] = scriptToRun
+def PypeDistributibleTask(*argv, **kwargv):
+    distributed = kwargv.get("distributed", False)
+    def f(scriptToRun):
+        def taskFun(self):
+            """make shell script using the template"""
+            """run shell command"""
+            if distributed == True:
+                shellCmd = "qsub -sync y -S /bin/bash %s" % scriptToRun
+            else:
+                shellCmd = "/bin/bash %s" % scriptToRun
 
-        if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
-        #print func.func_name, self._codeMD5digest
-        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
-                    
-        
-        return TaskType(*argv, **kwargv) 
+            runShellCmd(shlex.split(shellCmd))
+
+        kwargv["script"] = scriptToRun
+        return PypeTask(*argv, **kwargv)(taskFun) 
 
     return f
 
