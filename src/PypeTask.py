@@ -132,11 +132,11 @@ class PypeTaskBase(PypeObject):
                 continue
 
             if k in self.inputDataObjs:
-                graph.add( ( URIRef(self.URL), pypeNS["inputFile"], URIRef(v.URL) ) )
+                graph.add( ( URIRef(self.URL), pypeNS["inputDataObject"], URIRef(v.URL) ) )
                 continue
 
             if k in self.outputDataObjs:
-                graph.add( ( URIRef(self.URL), pypeNS["outputFile"], URIRef(v.URL) ) )
+                graph.add( ( URIRef(self.URL), pypeNS["outputDataObject"], URIRef(v.URL) ) )
                 continue
 
             if hasattr(v, "URL"):
@@ -161,7 +161,10 @@ class PypeTaskBase(PypeObject):
         # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
         for o in inputDataObjs.values():
             d = os.path.dirname(o.localFileName)
-            os.listdir(d) 
+            try:
+                os.listdir(d) 
+            except OSError:
+                pass
 
         outputDataObjs = self.outputDataObjs
         parameters = self.parameters
@@ -200,7 +203,10 @@ class PypeThreadTaskBase(PypeTaskBase):
         # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
         for o in self.outputDataObjs.values():
             d = os.path.dirname(o.localFileName)
-            os.listdir(d) 
+            try:
+                os.listdir(d) 
+            except OSError:
+                pass
 
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             self._queue.put( (self.URL, "fail") )
@@ -236,7 +242,7 @@ def PypeShellTask(*argv, **kwargv):
 
     def f(scriptToRun):
         def taskFun():
-            """make shell script using the template"""
+            """make shell script using a template"""
             """run shell command"""
             shellCmd = "/bin/bash %s" % scriptToRun
             runShellCmd(shlex.split(shellCmd))
