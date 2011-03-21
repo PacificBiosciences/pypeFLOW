@@ -142,7 +142,7 @@ def testDistributed(runmode, cleanup):
                                         if isinstance(wf._pypeObjects[str(u)], PypeLocalFile) and str(u) != URL ]
         if len(prereqJobURLs) == 0:
             if cleanup == "1":
-                os.system("touch %s" % wf._pypeObjects[URL].localFileName)
+                os.system("echo start > %s" % wf._pypeObjects[URL].localFileName)
             pass
     dotFile = open("test.dot","w")
     print >>dotFile, wf.graphvizDot
