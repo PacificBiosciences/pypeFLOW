@@ -62,10 +62,10 @@ def testDistributed(runmode, cleanup):
     #baseDir = "/home/cschin/Sandbox/PypeEngine/src"
     import random
     random.seed(1984)
-    mq = Queue()
+    #mq = Queue()
     PypeThreadWorkflow.setNumThreadAllowed(20)
     #wf = PypeWorkflow(messageQueue=mq)
-    wf = PypeThreadWorkflow(messageQueue=mq)
+    wf = PypeThreadWorkflow()
     allTasks = []
     for layer in range(5):
         #fN = random.randint(3,7)
@@ -106,21 +106,21 @@ def testDistributed(runmode, cleanup):
                                 outputDataObjs = outputDataObjs, 
                                 URL="task://pype/./task_l%d_w%d" % (layer, w), 
                                 TaskType=PypeThreadTaskBase) ( t1 )
-                task.setMessageQueue(mq)
+                #task.setMessageQueue(mq)
 
             elif runmode == "localshell":
                 task = PypeShellTask(inputDataObjs = inputDataObjs,
                                      outputDataObjs = outputDataObjs, 
                                      URL="task://pype/./task_l%d_w%d" % (layer, w), 
                                      TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                task.setMessageQueue(mq)
+                #task.setMessageQueue(mq)
 
             elif runmode == "sge": 
                 task = PypeSGETask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs, 
                                    URL="task://pype/task_l%d_w%d" % (layer, w), 
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                task.setMessageQueue(mq)
+                #task.setMessageQueue(mq)
 
             elif runmode == "mixed":
                 #distributed = random.choice( (False, True) )
@@ -130,7 +130,7 @@ def testDistributed(runmode, cleanup):
                                    URL="task://pype/./task_l%d_w%d" % (layer, w), 
                                    distributed=distributed,
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                task.setMessageQueue(mq)
+                #task.setMessageQueue(mq)
                 
 
 

@@ -13,6 +13,12 @@ from urlparse import urlparse
 from PypeCommon import * 
 from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase, PypeDistributibleTask
 
+class TaskTypeError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return repr(self.msg)
+
 class PypeNode(object):
     def __init__(self, obj):
         self.obj = obj
@@ -188,6 +194,20 @@ class PypeThreadWorkflow(PypeWorkflow):
     @classmethod
     def setNumThreadAllowed(cls, nT):
         cls.CONCURRENT_THREAD_ALLOWED = nT
+
+    def __init__(self, URL = None, **attributes ):
+        PypeWorkflow.__init__(self, URL, **attributes )
+        self.messageQueue = Queue()
+
+    def addTasks(self, taskObjs):
+        for taskObj in taskObjs:
+            if not isinstance(taskObj, PypeThreadTaskBase):
+                raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow")
+            taskObj.setMessageQueue(self.messageQueue)
+
+            self.addObjects(taskObj.inputDataObjs.values())
+            self.addObjects(taskObj.outputDataObjs.values())
+            self.addObject(taskObj)
 
     def refreshTargets(self, objs = []):
         if len(objs) != 0:
