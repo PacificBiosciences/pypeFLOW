@@ -146,11 +146,11 @@ class PypeWorkflow(PypeObject):
             obj = self._pypeObjects[str(URL)]
             obj.setReferenceMD5(md5digest)
 
-    @property
-    def graphvizDot(self):
+    def _graphvizDot(self, shortName=False):
         graph = self._RDFGraph
         dotStr = StringIO()
         shapeMap = {"file":"box", "task":"component"}
+        colorMap = {"file":"yellow", "task":"green"}
         dotStr.write( 'digraph "%s" {\n' % self.URL)
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
@@ -158,14 +158,57 @@ class PypeWorkflow(PypeObject):
                 continue
             else:
                 shape = shapeMap[URLParseResult.scheme]
-                dotStr.write( '"%s" [shape=%s];\n' % (URL, shape))
+                color = colorMap[URLParseResult.scheme]
+
+                s = URL
+                if shortName == True:
+                    s = URLParseResult.path.split("/")[-1] 
+                dotStr.write( '"%s" [shape=%s, fillcolor=%s, style=filled];\n' % (s, shape, color))
 
         for row in graph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
             s, o = row
-            #s = urlparse(s).path.split("/")[-1] o = urlparse(o).path.split("/")[-1]
+            if shortName == True:
+                s = urlparse(s).path.split("/")[-1] 
+                o = urlparse(o).path.split("/")[-1]
             dotStr.write( '"%s" -> "%s";\n' % (o, s))
         dotStr.write ("}")
         return dotStr.getvalue()
+
+    @property
+    def graphvizDot(self):
+        return self._graphvizDot()
+
+    @property
+    def graphvizShortNameDot(self):
+        return self._graphvizDot(shortName = True)
+
+    @property
+    def makeFileStr(self):
+        graph = self._RDFGraph
+        for URL in self._pypeObjects.keys():
+            URLParseResult = urlparse(URL)
+            if URLParseResult.scheme != "task": continue
+            taskObj = self._pypeObjects[URL]
+            if not hasattr(taskObj, "script"):
+                raise TaskTypeError("can not convert non shell script based workflow to a makefile") 
+
+        makeStr = StringIO()
+        shapeMap = {"file":"box", "task":"component"}
+        for URL in self._pypeObjects.keys():
+            URLParseResult = urlparse(URL)
+            if URLParseResult.scheme != "task": continue
+            taskObj = self._pypeObjects[URL]
+            inputFiles = taskObj.inputDataObjs
+            outputFiles = taskObj.outputDataObjs
+            #for oStr in [o.localFileName for o in outputFiles.values()]:
+            if 1:
+                oStr = " ".join( [o.localFileName for o in outputFiles.values()])
+
+                iStr = " ".join([i.localFileName for i in inputFiles.values()])
+                makeStr.write( "%s:%s\n" % ( oStr, iStr ) )
+                makeStr.write( "\t%s\n\n" % taskObj.script )
+        makeStr.write("all: %s" %  " ".join([o.localFileName for o in outputFiles.values()]) )
+        return makeStr.getvalue()
      
     def refreshTargets(self, objs = []):
         if len(objs) != 0:
@@ -284,4 +327,5 @@ class PypeThreadWorkflow(PypeWorkflow):
         print
         for u,s in sorted(jobStatusMap.items()):
             print u, s
+
 
