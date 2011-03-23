@@ -15,6 +15,7 @@ import shlex
 import time
 
 from PypeCommon import * 
+from PypeData import FileNotExistError
 
 def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 
@@ -192,6 +193,9 @@ class PypeThreadTaskBase(PypeTaskBase):
         try:
             runFlag = self._getRunFlag()
         except TaskFunctionError:
+            self._queue.put( (self.URL, "fail") )
+            return
+        except FileNotExistError:
             self._queue.put( (self.URL, "fail") )
             return
 

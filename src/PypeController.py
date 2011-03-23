@@ -241,6 +241,7 @@ class PypeThreadWorkflow(PypeWorkflow):
     def __init__(self, URL = None, **attributes ):
         PypeWorkflow.__init__(self, URL, **attributes )
         self.messageQueue = Queue()
+        self.jobStatusMap = {}
 
     def addTasks(self, taskObjs):
         for taskObj in taskObjs:
@@ -263,7 +264,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
 
         sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs if isinstance(self._pypeObjects[u], PypeTaskBase) ]
-        jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
+        self.jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
         prereqJobURLMap = {}
         for URL, taskObj, tStatus in sortedTaskList:
             prereqJobURLs = [str(u) for u in self._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"])
@@ -281,9 +282,9 @@ class PypeThreadWorkflow(PypeWorkflow):
             jobsReadyToBeSubmitted = []
             for URL, taskObj, tStatus in sortedTaskList:
                 prereqJobURLs = prereqJobURLMap[URL]
-                if len(prereqJobURLs) == 0 and jobStatusMap[URL] == None:
+                if len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None:
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
-                elif all( ( jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and jobStatusMap[URL] == None:
+                elif all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and self.jobStatusMap[URL] == None:
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
             print "jobReadyToBeSubmitted:", len(jobsReadyToBeSubmitted)
@@ -306,7 +307,7 @@ class PypeThreadWorkflow(PypeWorkflow):
 
             while not self.messageQueue.empty():
                 URL, message = self.messageQueue.get()
-                jobStatusMap[str(URL)] = message
+                self.jobStatusMap[str(URL)] = message
 
                 if message in ["done", "continue"]:
                     nSubmittedJob -= 1
@@ -318,14 +319,51 @@ class PypeThreadWorkflow(PypeWorkflow):
                     task2thread[URL].join()
                     faildJobCount += 1
 
-            for u,s in sorted(jobStatusMap.items()):
+            for u,s in sorted(self.jobStatusMap.items()):
                 print u, s
 
             if faildJobCount != 0:
                 break
 
         print
-        for u,s in sorted(jobStatusMap.items()):
+        for u,s in sorted(self.jobStatusMap.items()):
             print u, s
 
+    def _graphvizDot(self, shortName=False):
+        graph = self._RDFGraph
+        dotStr = StringIO()
+        shapeMap = {"file":"box", "task":"component"}
+        colorMap = {"file":"yellow", "task":"green"}
+        dotStr.write( 'digraph "%s" {\n' % self.URL)
 
+
+        for URL in self._pypeObjects.keys():
+            URLParseResult = urlparse(URL)
+            if URLParseResult.scheme not in shapeMap:
+                continue
+            else:
+                shape = shapeMap[URLParseResult.scheme]
+                color = colorMap[URLParseResult.scheme]
+
+                s = URL
+                if shortName == True:
+                    s = URLParseResult.path.split("/")[-1] 
+                jobStatus = self.jobStatusMap.get(URL, None)
+                if jobStatus != None:
+                    if jobStatus == "fail":
+                        color = 'red'
+                    elif jobStatus == "done":
+                        color = 'green'
+                else:
+                    color = 'white'
+                    
+                dotStr.write( '"%s" [shape=%s, fillcolor=%s, style=filled];\n' % (s, shape, color))
+
+        for row in graph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
+            s, o = row
+            if shortName == True:
+                s = urlparse(s).path.split("/")[-1] 
+                o = urlparse(o).path.split("/")[-1]
+            dotStr.write( '"%s" -> "%s";\n' % (o, s))
+        dotStr.write ("}")
+        return dotStr.getvalue()

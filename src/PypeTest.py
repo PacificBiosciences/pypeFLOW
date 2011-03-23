@@ -59,7 +59,7 @@ def simpleTest():
 
 def testDistributed(runmode, cleanup):
     baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
-    #baseDir = "/home/cschin/Sandbox/PypeEngine/src"
+    baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
     import random
     random.seed(1984)
     #mq = Queue()
@@ -144,13 +144,13 @@ def testDistributed(runmode, cleanup):
             if cleanup == "1":
                 os.system("echo start > %s" % wf._pypeObjects[URL].localFileName)
             pass
+    wf.refreshTargets(allTasks)
     dotFile = open("test.dot","w")
-    print >>dotFile, wf.graphvizDot
+    print >>dotFile, wf.graphvizShortNameDot
     dotFile.close()
     rdfFile = open("test.rdf","w")
     print >>rdfFile, wf.RDFXML
     rdfFile.close()
-    wf.refreshTargets(allTasks)
 
 if __name__ == "__main__":
     testDistributed(sys.argv[1], sys.argv[2])
