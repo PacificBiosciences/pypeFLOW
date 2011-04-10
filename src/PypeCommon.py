@@ -118,7 +118,7 @@ class PypeObject(object):
 def runShellCmd(args):
 
     """ 
-    Utility funtion taht run a shell script command. 
+    Utility funtion that run a shell script command. 
     I blocks until the command is finished. The return value
     from the shell command is returned
     """
@@ -135,7 +135,7 @@ def runShellCmd(args):
 def runSgeSyncJob(args):
 
     """ 
-    Utility funtion taht run a shell script with SGE. 
+    Utility funtion that run a shell script with SGE. 
     I blocks until the command is finished. The return value
     from the shell command is returned
     """
