@@ -305,6 +305,7 @@ def PypeSGETask(*argv, **kwargv):
     """
 
     def f(scriptToRun):
+
         def taskFun():
             """make shell script using the template"""
             """run shell command"""
@@ -312,6 +313,7 @@ def PypeSGETask(*argv, **kwargv):
             runShellCmd(shlex.split(shellCmd))
 
         kwargv["script"] = scriptToRun
+
         return PypeTask(*argv, **kwargv)(taskFun)
 
     return f
