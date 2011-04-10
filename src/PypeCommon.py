@@ -50,17 +50,18 @@ import time
 
 pypeNS = Namespace("pype://v0.1/")
 
-class NotImplementedError(Exception):
+class PypeError(Exception):
     def __init__(self, msg):
         self.msg = msg
     def __str__(self):
         return repr(self.msg)
 
-class URLSchemeNotSupportYet(Exception):
-    def __init__(self, msg):
-        self.msg = msg
-    def __str__(self):
-        return repr(self.msg)
+class NotImplementedError(PypeError):
+    pass
+
+class URLSchemeNotSupportYet(PypeError):
+    pass
+
 
 class PypeObject(object):
 
@@ -106,10 +107,22 @@ class PypeObject(object):
     
     @property
     def RDFXML(self):
+
+        """ 
+        RDF XML representation of the everything related to the PypeObject 
+        """
+
         return self._RDFGraph.serialize() 
 
 
 def runShellCmd(args):
+
+    """ 
+    Utility funtion taht run a shell script command. 
+    I blocks until the command is finished. The return value
+    from the shell command is returned
+    """
+
     p = Popen(args)
     pStatus = None
     while 1:
@@ -120,6 +133,13 @@ def runShellCmd(args):
     return pStatus
 
 def runSgeSyncJob(args):
+
+    """ 
+    Utility funtion taht run a shell script with SGE. 
+    I blocks until the command is finished. The return value
+    from the shell command is returned
+    """
+
     p = Popen(args)
     pStatus = None
     while 1:

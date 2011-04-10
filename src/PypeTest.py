@@ -129,21 +129,21 @@ def testDistributed(runmode, cleanup):
 
                 task = PypeTask(inputDataObjs = inputDataObjs,
                                 outputDataObjs = outputDataObjs, 
-                                URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                URL="task://task_l%d_w%d" % (layer, w), 
                                 TaskType=PypeThreadTaskBase) ( t1 )
                 #task.setMessageQueue(mq)
 
             elif runmode == "localshell":
                 task = PypeShellTask(inputDataObjs = inputDataObjs,
                                      outputDataObjs = outputDataObjs, 
-                                     URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                     URL="task://task_l%d_w%d" % (layer, w), 
                                      TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
                 #task.setMessageQueue(mq)
 
             elif runmode == "sge": 
                 task = PypeSGETask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs, 
-                                   URL="task://pype/task_l%d_w%d" % (layer, w), 
+                                   URL="task://task_l%d_w%d" % (layer, w), 
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
                 #task.setMessageQueue(mq)
 
@@ -152,7 +152,7 @@ def testDistributed(runmode, cleanup):
                 distributed = True if w % 3 == 0 else False
                 task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs,
-                                   URL="task://pype/./task_l%d_w%d" % (layer, w), 
+                                   URL="task://task_l%d_w%d" % (layer, w), 
                                    distributed=distributed,
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
                 #task.setMessageQueue(mq)

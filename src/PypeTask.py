@@ -40,44 +40,23 @@ import time
 from PypeCommon import * 
 from PypeData import FileNotExistError
 
-def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
-
-    runFlag = False
-
-    inputDataObjsTS = []
-    for ft, f in inputDataObjs.iteritems():
-        inputDataObjsTS.append( f.timeStamp )
-
-    outputDataObjsTS = []
-
-    for ft, f in outputDataObjs.iteritems():
-        if not f.exists:
-            runFlag = True
-            break
-        else:
-            outputDataObjsTS.append( f.timeStamp )
-
-    if runFlag == False:                
-        if min(outputDataObjsTS) < max(inputDataObjsTS):
-            runFlag = True
-
-
-    return runFlag
-
-
-class TaskFunctionError(Exception):
-
-    def __init__(self, msg):
-        self.msg = msg
-
-    def __str__(self):
-        return repr(self.msg)
+class TaskFunctionError(PypeError):
+    pass
 
 class PypeTaskBase(PypeObject):
+
+    """
+    Represent a PypeTask. Subclass it to for different kind of
+    task.
+    """
 
     supportedURLScheme = ["task"]
 
     def __init__(self, URL, *argv, **kwargv):
+
+        """
+        Constructor of a PypeTask.
+        """
 
         PypeObject.__init__(self, URL, **kwargv)
 
@@ -100,10 +79,13 @@ class PypeTaskBase(PypeObject):
     def setReferenceMD5(self, md5Str):
         self._referenceMD5 = md5Str
 
-
     def _getRunFlag(self):
-        #print self._referenceMD5
-        #print self._codeMD5digest
+
+        """
+        Determine whether the PypeTask should be run. It can be overridden in
+        subclass to allow more flexible rules.
+        """
+
         runFlag = False
         if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
@@ -114,7 +96,13 @@ class PypeTaskBase(PypeObject):
         return runFlag
 
     def _runTask(self, *argv, **kwargv):
-        """ TODO: the arg porcessing is still a mess, need to find a better way to do this """
+
+        """ 
+        The method to run the decorated function _taskFun(). It is called through __call__() of
+        the PypeTask object and it should never be called directly
+
+        TODO: the arg porcessing is still a mess, need to find a better way to do this 
+        """
         
         if PYTHONVERSION == (2,5):
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
@@ -171,11 +159,13 @@ class PypeTaskBase(PypeObject):
             graph.add(  ( URIRef(self.URL), pypeNS["codeMD5digest"], Literal(self._codeMD5digest) ) )
             graph.add(  ( URIRef(self.URL), pypeNS["parameterMD5digest"], Literal(self._paramMD5digest) ) )
     
-    @property
-    def RDFXML(self):
-        return self._RDFGraph.serialize()                       
-
     def __call__(self, *argv, **kwargv):
+
+        """
+        Determine whether a task should be run when called. If the dependency is
+        not satisified then the _taskFun() will be called to generate the output data objects.
+        """
+
         argv = list(argv)
         argv.extend(self._argv)
         kwargv.update(self._kwargv)
@@ -206,6 +196,11 @@ class PypeTaskBase(PypeObject):
 
 class PypeThreadTaskBase(PypeTaskBase):
 
+    """
+    Represent a PypeTask that can be run within a thread. 
+    Subclass it to for different kind of task.
+    """
+
     def __init__(self, URL, *argv, **kwargv):
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
 
@@ -213,6 +208,13 @@ class PypeThreadTaskBase(PypeTaskBase):
         self._queue = q
 
     def __call__(self, *argv, **kwargv):
+
+        """
+        Similar to the PypeTaskBase.__call__(), but it provide some machinary to pass information
+        back to the main thread that run this task in a sepearated thread through the standard python
+        queue from the Queue module.
+        """
+
         try:
             runFlag = self._getRunFlag()
         except TaskFunctionError:
@@ -242,12 +244,22 @@ class PypeThreadTaskBase(PypeTaskBase):
 
 class PypeDistributiableTaskBase(PypeThreadTaskBase):
 
+    """
+    Represent a PypeTask that can be run within a thread or submit to
+    a grid-engine like job scheduling system. 
+    Subclass it to for different kind of task.
+    """
+
     def __init__(self, URL, *argv, **kwargv):
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
         self.distributed = True
 
 
 def PypeTask(*argv, **kwargv):
+
+    """
+    A decorator that converts a function into a PypeTaskBase object.
+    """
 
     def f(taskFun):
         TaskType = kwargv.get("TaskType", PypeTaskBase)
@@ -257,7 +269,7 @@ def PypeTask(*argv, **kwargv):
         kwargv["_taskFun"] = taskFun
 
         if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://pype/./" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+            kwargv["URL"] = "task://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
         kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
@@ -266,6 +278,11 @@ def PypeTask(*argv, **kwargv):
     return f
 
 def PypeShellTask(*argv, **kwargv):
+
+    """
+    A decorator that converts a function into a PypeTaskBase object where the
+    task itself is a shell script.
+    """
 
     def f(scriptToRun):
         def taskFun():
@@ -282,6 +299,11 @@ def PypeShellTask(*argv, **kwargv):
 
 def PypeSGETask(*argv, **kwargv):
 
+    """
+    A decorator that converts a function into a PypeTaskBase object where the
+    task itself is a shell script that can be submitted to SGE to run.
+    """
+
     def f(scriptToRun):
         def taskFun():
             """make shell script using the template"""
@@ -295,6 +317,13 @@ def PypeSGETask(*argv, **kwargv):
     return f
 
 def PypeDistributibleTask(*argv, **kwargv):
+
+    """
+    A decorator that converts a function into a PypeTaskBase object where the
+    task itself is a shell script that can be submitted to SGE to run or locally
+    depending on the "distributed" flag.
+    """
+
     distributed = kwargv.get("distributed", False)
     def f(scriptToRun):
         def taskFun(self):
@@ -311,6 +340,37 @@ def PypeDistributibleTask(*argv, **kwargv):
         return PypeTask(*argv, **kwargv)(taskFun) 
 
     return f
+
+def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
+
+    """
+    Given the inputDataObjs and the outputDataObjs, determine whether any
+    object in the inputDataObjs is created or modified later than any object
+    in outputDataObjects.
+    """
+
+    runFlag = False
+
+    inputDataObjsTS = []
+    for ft, f in inputDataObjs.iteritems():
+        inputDataObjsTS.append( f.timeStamp )
+
+    outputDataObjsTS = []
+
+    for ft, f in outputDataObjs.iteritems():
+        if not f.exists:
+            runFlag = True
+            break
+        else:
+            outputDataObjsTS.append( f.timeStamp )
+
+    if runFlag == False:                
+        if min(outputDataObjsTS) < max(inputDataObjsTS):
+            runFlag = True
+
+
+    return runFlag
+
 
 def test():
     from PypeData import PypeLocalFile, makePypeLocalFile, fn
