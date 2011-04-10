@@ -47,7 +47,13 @@ from rdflib import URIRef
 from subprocess import Popen
 import time
 
-pypeNS = Namespace("http://pype/v0.1/")
+pypeNS = Namespace("pype://v0.1/")
+
+class NotImplementedError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return repr(self.msg)
 
 class URLSchemeNotSupportYet(Exception):
     def __init__(self, msg):
