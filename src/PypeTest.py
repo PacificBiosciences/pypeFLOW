@@ -59,11 +59,8 @@ def simpleTest():
 
 def testDistributed(runmode, cleanup):
     baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
-<<<<<<< HEAD
     baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
-=======
-    #baseDir = "/home/cschin/Sandbox/PypeEngine/src"
->>>>>>> 377cda6c351ed52c98d64eab0742befc53ff3846
+    baseDir = "/home/cschin/Sandbox/PypeEngine/src"
     import random
     random.seed(1984)
     #mq = Queue()
