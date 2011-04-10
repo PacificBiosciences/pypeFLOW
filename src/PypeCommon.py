@@ -7,13 +7,7 @@ import rdflib
 try:
     from rdflib.Graph import ConjunctiveGraph as Graph #work for rdflib-2.4.2
 except:
-    from rdflib import ConjunctiveGraph as Graph #work for rdflib-3.0.0, need to patch rdflib.graph.query to support initNs
-    """
-    in order to work with rdflib-3.0.0, patch to rdflib-3.0.0 source code needed 
-    in rdflib.graph: one needs to add the initNs and initBindings to the following two line
-    1) def query(..., initNs={}, initBindings={})
-    2) return result(processor.query(query_object, initBindings, initNs))
-    """
+    from rdflib import ConjunctiveGraph as Graph #work for rdflib-3.1.0
     # need to install rdfextras for rdflib-3.0.0
     rdflib.plugin.register('sparql', rdflib.query.Processor,
                            'rdfextras.sparql.processor', 'Processor')
