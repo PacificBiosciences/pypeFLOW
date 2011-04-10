@@ -24,7 +24,8 @@
 
 """
 
-PypeCommon: provide the common base classes and general module level constants for PypeEngine
+PypeCommon: provide the common base classes and general module level utility functions
+            and constants for PypeEngine
 
 """
 
@@ -62,14 +63,26 @@ class URLSchemeNotSupportYet(Exception):
         return repr(self.msg)
 
 class PypeObject(object):
+
     """ 
+
     Base class for all PypeObjects
-    Every PypeObject should have an URL, and when _updataRDFGraph got called, it will generate the RDF XML for the object. 
-    The instance attributes can be set by using key-work argument. This design is for convinenice for now. Since it is not quite self,
-    we might remove it in the furture. 
+
+    Every PypeObject should have an URL, and when _updataRDFGraph got called, 
+    it will generate the RDF Graph for the object if the value has a URL.
+    The instance attributes can be set by using keyword argument in __init__(). 
+
+    If the value in the attributes has a URL attribute, a RDF statement will 
+    be generated when _updateRDFGraph() is called.
+
+    The _updateRDFGraph in generall would be overridden by subclasses.
+
     """
+
     def __init__(self, URL, **attributes):
+
         self._RDFGraph = None
+
         URLParseResult = urlparse(URL)
         if URLParseResult.scheme not in self.__class__.supportedURLScheme:
             raise URLSchemeNotSupportYet("%s is not supported yet" % URLParseResult.scheme )
@@ -78,13 +91,14 @@ class PypeObject(object):
             for k,v in attributes.iteritems():
                 if k not in self.__dict__:
                     self.__dict__[k] = v
-        # this is typically called in __init__ by child classes -
-        # breaks if you call it here for Tasks and have no inputDataObj
-        # self._updateRDFGraph() 
+
+        PypeObject._updateRDFGraph(self) 
         
     def _updateRDFGraph(self):
+
         graph = self._RDFGraph = Graph()
-        for k,v in self.__dict__.iteritems():
+
+        for k, v in self.__dict__.iteritems():
             if k == "URL": continue
             if k[0] == "_": continue
             if hasattr(v, "URL"):

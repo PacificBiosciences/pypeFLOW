@@ -66,8 +66,10 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 
 
 class TaskFunctionError(Exception):
+
     def __init__(self, msg):
         self.msg = msg
+
     def __str__(self):
         return repr(self.msg)
 
@@ -83,7 +85,6 @@ class PypeTaskBase(PypeObject):
         self._kwargv = kwargv
         self._taskFun = kwargv['_taskFun']
         self._referenceMD5 = None
-
 
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
             if defaultAttr not in self.__dict__:
@@ -166,8 +167,8 @@ class PypeTaskBase(PypeObject):
 
             if hasattr(v, "URL"):
                 graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
-            else:
-                graph.add( ( URIRef(self.URL), pypeNS[k], Literal(json.dumps(v.__repr__())) ) )
+            #else:
+            #    graph.add( ( URIRef(self.URL), pypeNS[k], Literal(json.dumps(v.__repr__())) ) )
 
             graph.add(  ( URIRef(self.URL), pypeNS["codeMD5digest"], Literal(self._codeMD5digest) ) )
             graph.add(  ( URIRef(self.URL), pypeNS["parameterMD5digest"], Literal(self._paramMD5digest) ) )
@@ -341,6 +342,18 @@ def test():
 
     print test2.RDFXML
     test2()    
+
+def test3():
+    from PypeData import PypeLocalFile, makePypeLocalFile, fn
+    f3 = makePypeLocalFile("aln.txt", readOnly=False)
+    @PypeTask(outputDataObjs={"aln":f3},
+              parameters={"a":10}, **{"b":12})
+    #def test2(bb, a=2, **kwargv):
+    def test2():
+        pass
+    print test2.RDFXML     
     
+
 if __name__ == "__main__":
-    test()
+    test3()
+    
