@@ -39,7 +39,6 @@ def fn(obj):
 class PypeDataObjectBase(PypeObject):
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
-        self._updateRDFGraph() 
 
     @property
     def timeStamp(self):

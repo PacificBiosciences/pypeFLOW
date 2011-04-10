@@ -95,7 +95,7 @@ class PypeTaskBase(PypeObject):
         self._paramMD5digest = kwargv["_paramMD5digest"]
         self._compareFuntions = [ timeStampCompare ]
 
-        self._updateRDFGraph()
+        PypeTaskBase._updateRDFGraph(self)
 
     def setReferenceMD5(self, md5Str):
         self._referenceMD5 = md5Str
