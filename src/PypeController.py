@@ -12,6 +12,7 @@ from urlparse import urlparse
 
 from PypeCommon import * 
 from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase, PypeDistributibleTask
+from PypeData import PypeDataObjectBase
 
 class TaskTypeError(Exception):
     def __init__(self, msg):
@@ -72,7 +73,7 @@ class PypeGraph(object):
             self._allNodes.add( n2 )
             self._allEdges.add( anEdge )
             
-    def tSort(self, connectePypeNode = None): #return a topoloical sort node list
+    def tSort(self): #return a topoloical sort node list
         edges = self._allEdges.copy()
         nodes = self._allNodes.copy()
         
@@ -216,9 +217,9 @@ class PypeWorkflow(PypeObject):
             for obj in objs:
                 for x in self._RDFGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
                     connectedPypeNodes.add(x)
-            tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort(connectedPypeNodes)
+            tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort()
         else:
-            tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
+            tSortedURLs = PypeGraph(self._RDFGraph).tSort( )
 
         for URL in tSortedURLs:
             obj = self._pypeObjects[URL]
@@ -230,6 +231,14 @@ class PypeWorkflow(PypeObject):
     @property
     def RDFXML(self):
         return self._RDFGraph.serialize()
+    
+    @property
+    def dataObjects( self ):
+        return [ o for o in self._pypeObjects.values( ) if isinstance( o, PypeDataObjectBase )]
+    
+    @property
+    def tasks( self ):
+        return [ o for o in self._pypeObjects.values( ) if isinstance( o, PypeTaskBase )]
 
 class PypeThreadWorkflow(PypeWorkflow):
     CONCURRENT_THREAD_ALLOWED = 8
@@ -259,9 +268,9 @@ class PypeThreadWorkflow(PypeWorkflow):
             for obj in objs:
                 for x in self._RDFGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
                     connectedPypeNodes.add(x)
-            tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort(connectedPypeNodes)
+            tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort( )
         else:
-            tSortedURLs = PypeGraph(self._RDFGraph).tSort(connectedPypeNodes)
+            tSortedURLs = PypeGraph(self._RDFGraph).tSort( )
 
         sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs if isinstance(self._pypeObjects[u], PypeTaskBase) ]
         self.jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
