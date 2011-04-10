@@ -59,7 +59,7 @@ def simpleTest():
 
 def testDistributed(runmode, cleanup):
     baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
-    baseDir = "/home/cschin/Sandbox/PypeEngine/src"
+    baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
     import random
     random.seed(1984)
     #mq = Queue()
@@ -151,6 +151,9 @@ def testDistributed(runmode, cleanup):
     rdfFile = open("test.rdf","w")
     print >>rdfFile, wf.RDFXML
     rdfFile.close()
+    mkFile = open("test.mk","w")
+    print >>mkFile, wf.makeFileStr
+    mkFile.close()
 
 if __name__ == "__main__":
     testDistributed(sys.argv[1], sys.argv[2])
