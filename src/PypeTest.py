@@ -58,8 +58,8 @@ def simpleTest():
     os.system("sleep 1;touch %s;" % f3.localFileName)
 
 def testDistributed(runmode, cleanup):
-    baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
-    baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
+    #baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
+    #baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
     baseDir = "/home/cschin/Sandbox/PypeEngine/src"
     import random
     random.seed(1984)
