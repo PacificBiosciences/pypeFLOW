@@ -167,8 +167,6 @@ class PypeTaskBase(PypeObject):
 
             if hasattr(v, "URL"):
                 graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
-            #else:
-            #    graph.add( ( URIRef(self.URL), pypeNS[k], Literal(json.dumps(v.__repr__())) ) )
 
             graph.add(  ( URIRef(self.URL), pypeNS["codeMD5digest"], Literal(self._codeMD5digest) ) )
             graph.add(  ( URIRef(self.URL), pypeNS["parameterMD5digest"], Literal(self._paramMD5digest) ) )
