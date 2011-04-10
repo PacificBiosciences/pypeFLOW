@@ -91,6 +91,7 @@ class PypeTaskBase(PypeObject):
 
     def _runTask(self, *argv, **kwargv):
         """ TODO: the arg porcessing is still a mess, need to find a better way to do this """
+        
         if PYTHONVERSION == (2,5):
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
             print  (args, varargs, varkw, defaults)

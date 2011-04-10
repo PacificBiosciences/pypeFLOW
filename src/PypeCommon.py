@@ -32,7 +32,7 @@ class URLSchemeNotSupportYet(Exception):
     def __init__(self, msg):
         self.msg = msg
     def __str__(self):
-        return repr(slef.msg)
+        return repr(self.msg)
 
 class PypeObject(object):
     """ 
@@ -45,13 +45,15 @@ class PypeObject(object):
         self._RDFGraph = None
         URLParseResult = urlparse(URL)
         if URLParseResult.scheme not in self.__class__.supportedURLScheme:
-            raise URLSchemeNotSupportYet("%s is not supported yet")
+            raise URLSchemeNotSupportYet("%s is not supported yet" % URLParseResult.scheme )
         else:
             self.URL = URL
             for k,v in attributes.iteritems():
                 if k not in self.__dict__:
                     self.__dict__[k] = v
-        self._updateRDFGraph()
+        # this is typically called in __init__ by child classes -
+        # breaks if you call it here for Tasks and have no inputDataObj
+        # self._updateRDFGraph() 
         
     def _updateRDFGraph(self):
         graph = self._RDFGraph = Graph()
@@ -60,8 +62,6 @@ class PypeObject(object):
             if k[0] == "_": continue
             if hasattr(v, "URL"):
                 graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
-            else:
-                graph.add( ( URIRef(self.URL), pypeNS[k], Literal(json.dumps(v)) ) )
     
     @property
     def RDFXML(self):
