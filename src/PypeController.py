@@ -31,18 +31,14 @@ PypeController: This module provides the PypeWorkflow that controlls how a workf
 
 import threading 
 from threading import Thread 
-import inspect 
-import hashlib 
-import sys
-import os 
 import time 
 from Queue import Queue 
 from cStringIO import StringIO 
 from urlparse import urlparse
 
 from PypeCommon import * 
-from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase, PypeDistributibleTask
 from PypeData import PypeDataObjectBase
+from PypeTask import *
 
 class TaskExecutionError(PypeError):
     pass
@@ -126,7 +122,6 @@ class PypeGraph(object):
         """
 
         edges = self._allEdges.copy()
-        nodes = self._allNodes.copy()
         
         S = [x for x in self._allNodes if x.inDegree == 0]
         L = []
@@ -247,7 +242,6 @@ class PypeWorkflow(PypeObject):
         executed by "make".
         """
 
-        graph = self._RDFGraph
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
             if URLParseResult.scheme != "task": continue
