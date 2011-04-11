@@ -22,6 +22,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""
+
+This module provides the PypeTask class and the decorators that can convert 
+a regular python funtion into a PypeTask instance. 
+
+"""
+
+
 from urlparse import urlparse
 import inspect
 import hashlib

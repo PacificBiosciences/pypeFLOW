@@ -22,6 +22,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""
+This module provides the PypeWorkflow that controlls how a workflow is excuted.
+"""
+
 import threading 
 from threading import Thread 
 import inspect 

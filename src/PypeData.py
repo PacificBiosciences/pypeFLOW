@@ -22,6 +22,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+"""
+
+This module defines the general interface and class for PypeData Objects. 
+
+"""
+
+
 from urlparse import urlparse
 import platform
 import os
