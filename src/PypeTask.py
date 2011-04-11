@@ -24,7 +24,7 @@
 
 """
 
-This module provides the PypeTask class and the decorators that can convert 
+PypeTask: This module provides the PypeTask class and the decorators that can convert 
 a regular python funtion into a PypeTask instance. 
 
 """

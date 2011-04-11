@@ -23,8 +23,11 @@
 # THE SOFTWARE.
 
 """
-This module provides the PypeWorkflow that controlls how a workflow is excuted.
+
+PypeController: This module provides the PypeWorkflow that controlls how a workflow is excuted.
+
 """
+
 
 import threading 
 from threading import Thread 

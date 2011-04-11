@@ -24,7 +24,7 @@
 
 """
 
-This module defines the general interface and class for PypeData Objects. 
+PypeData: This module defines the general interface and class for PypeData Objects. 
 
 """
 
