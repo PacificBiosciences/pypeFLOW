@@ -1,5 +1,33 @@
 
+# @author Jason Chin
+#
+# Copyright (C) 2010 by Jason Chin 
+# Copyright (C) 2011 by Jason Chin
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
 
+"""
+
+PypeCommon: provide the common base classes and general module level utility functions
+            and constants for PypeEngine
+
+"""
 
 from urlparse import urlparse
 
@@ -7,13 +35,7 @@ import rdflib
 try:
     from rdflib.Graph import ConjunctiveGraph as Graph #work for rdflib-2.4.2
 except:
-    from rdflib import ConjunctiveGraph as Graph #work for rdflib-3.0.0, need to patch rdflib.graph.query to support initNs
-    """
-    in order to work with rdflib-3.0.0, patch to rdflib-3.0.0 source code needed 
-    in rdflib.graph: one needs to add the initNs and initBindings to the following two line
-    1) def query(..., initNs={}, initBindings={})
-    2) return result(processor.query(query_object, initBindings, initNs))
-    """
+    from rdflib import ConjunctiveGraph as Graph #work for rdflib-3.1.0
     # need to install rdfextras for rdflib-3.0.0
     rdflib.plugin.register('sparql', rdflib.query.Processor,
                            'rdfextras.sparql.processor', 'Processor')
@@ -26,23 +48,42 @@ from rdflib import URIRef
 from subprocess import Popen
 import time
 
-pypeNS = Namespace("http://pype/v0.1/")
+pypeNS = Namespace("pype://v0.1/")
 
-class URLSchemeNotSupportYet(Exception):
+class PypeError(Exception):
     def __init__(self, msg):
         self.msg = msg
     def __str__(self):
         return repr(self.msg)
 
+class NotImplementedError(PypeError):
+    pass
+
+class URLSchemeNotSupportYet(PypeError):
+    pass
+
+
 class PypeObject(object):
+
     """ 
+
     Base class for all PypeObjects
-    Every PypeObject should have an URL, and when _updataRDFGraph got called, it will generate the RDF XML for the object. 
-    The instance attributes can be set by using key-work argument. This design is for convinenice for now. Since it is not quite self,
-    we might remove it in the furture. 
+
+    Every PypeObject should have an URL, and when _updataRDFGraph got called, 
+    it will generate the RDF Graph for the object if the value has a URL.
+    The instance attributes can be set by using keyword argument in __init__(). 
+
+    If the value in the attributes has a URL attribute, a RDF statement will 
+    be generated when _updateRDFGraph() is called.
+
+    The _updateRDFGraph in generall would be overridden by subclasses.
+
     """
+
     def __init__(self, URL, **attributes):
+
         self._RDFGraph = None
+
         URLParseResult = urlparse(URL)
         if URLParseResult.scheme not in self.__class__.supportedURLScheme:
             raise URLSchemeNotSupportYet("%s is not supported yet" % URLParseResult.scheme )
@@ -51,13 +92,14 @@ class PypeObject(object):
             for k,v in attributes.iteritems():
                 if k not in self.__dict__:
                     self.__dict__[k] = v
-        # this is typically called in __init__ by child classes -
-        # breaks if you call it here for Tasks and have no inputDataObj
-        # self._updateRDFGraph() 
+
+        PypeObject._updateRDFGraph(self) 
         
     def _updateRDFGraph(self):
+
         graph = self._RDFGraph = Graph()
-        for k,v in self.__dict__.iteritems():
+
+        for k, v in self.__dict__.iteritems():
             if k == "URL": continue
             if k[0] == "_": continue
             if hasattr(v, "URL"):
@@ -65,10 +107,22 @@ class PypeObject(object):
     
     @property
     def RDFXML(self):
+
+        """ 
+        RDF XML representation of the everything related to the PypeObject 
+        """
+
         return self._RDFGraph.serialize() 
 
 
 def runShellCmd(args):
+
+    """ 
+    Utility funtion that runs a shell script command. 
+    I blocks until the command is finished. The return value
+    from the shell command is returned
+    """
+
     p = Popen(args)
     pStatus = None
     while 1:
@@ -79,6 +133,13 @@ def runShellCmd(args):
     return pStatus
 
 def runSgeSyncJob(args):
+
+    """ 
+    Utility funtion that runs a shell script with SGE. 
+    I blocks until the command is finished. The return value
+    from the shell command is returned
+    """
+
     p = Popen(args)
     pStatus = None
     while 1:

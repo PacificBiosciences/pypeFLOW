@@ -1,4 +1,34 @@
-import cPickle as pickle 
+
+# @author Jason Chin
+#
+# Copyright (C) 2010 by Jason Chin 
+# Copyright (C) 2011 by Jason Chin
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+"""
+
+PypeController: This module provides the PypeWorkflow that controlls how a workflow is excuted.
+
+"""
+
+
 import threading 
 from threading import Thread 
 import inspect 
@@ -14,13 +44,18 @@ from PypeCommon import *
 from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase, PypeDistributibleTask
 from PypeData import PypeDataObjectBase
 
-class TaskTypeError(Exception):
-    def __init__(self, msg):
-        self.msg = msg
-    def __str__(self):
-        return repr(self.msg)
+class TaskExecutionError(PypeError):
+    pass
+
+class TaskTypeError(PypeError):
+    pass
 
 class PypeNode(object):
+
+    """ 
+    Representing a node in the dependence DAG. 
+    """
+
     def __init__(self, obj):
         self.obj = obj
         self._outNodes = set()
@@ -48,7 +83,17 @@ class PypeNode(object):
 
 class PypeGraph(object):
 
+    """ 
+    Representing a dependence DAG with PypeObjects. 
+    """
+
     def __init__(self, RDFGraph, subGraphNodes=None):
+        
+        """
+        Construct an internal DAG with PypeObject given an RDF graph.
+        A sub-graph can be constructed if subGraphNodes is not "None"
+        """
+
         self._RDFGraph = RDFGraph
         self._allEdges = set()
         self._allNodes = set()
@@ -74,6 +119,12 @@ class PypeGraph(object):
             self._allEdges.add( anEdge )
             
     def tSort(self): #return a topoloical sort node list
+        
+        """
+        Output topological sorted list of the graph element. 
+        It raises a TeskExecutionError if a circle is detected.
+        """
+
         edges = self._allEdges.copy()
         nodes = self._allNodes.copy()
         
@@ -91,20 +142,24 @@ class PypeGraph(object):
                     S.append(m)
         
         if len(edges) != 0:
-            print( "circle detected" )
-            return None
+            raise TaskExecutionError(" Circle detectd in the dependency graph ")
         else:
             return [x.obj for x in L]
                     
 
 class PypeWorkflow(PypeObject):
 
+    """ 
+    Representing a PypeWorkflow. PypeTask and PypeDataObjects can be added
+    into the workflow and executed through the instanct methods.
+    """
+
     supportedURLScheme = ["workflow"]
 
     def __init__(self, URL = None, **attributes ):
 
         if URL == None:
-            URL = "workflow://pype/./" + __file__+"/%d" % id(self)
+            URL = "workflow://" + __file__+"/%d" % id(self)
 
         self._pypeObjects = {}
 
@@ -185,6 +240,13 @@ class PypeWorkflow(PypeObject):
 
     @property
     def makeFileStr(self):
+        
+        """
+        generate a string that has the information of the execution dependency in
+        a "Makefile" like format. It can be written into a "Makefile" and
+        executed by "make".
+        """
+
         graph = self._RDFGraph
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
@@ -212,6 +274,11 @@ class PypeWorkflow(PypeObject):
         return makeStr.getvalue()
      
     def refreshTargets(self, objs = []):
+
+        """
+        Execute the DAG to reach all objects in the "objs" argument.
+        """
+
         if len(objs) != 0:
             connectedPypeNodes = set()
             for obj in objs:
@@ -227,10 +294,6 @@ class PypeWorkflow(PypeObject):
                 continue
             else:
                 obj()
-            
-    @property
-    def RDFXML(self):
-        return self._RDFGraph.serialize()
     
     @property
     def dataObjects( self ):
@@ -241,6 +304,13 @@ class PypeWorkflow(PypeObject):
         return [ o for o in self._pypeObjects.values( ) if isinstance( o, PypeTaskBase )]
 
 class PypeThreadWorkflow(PypeWorkflow):
+
+    """ 
+    Representing a PypeWorkflow that can excute tasks concurrently using threads. It
+    assume all tasks block until they finish. PypeTask and PypeDataObjects can be added
+    into the workflow and executed through the instanct methods.
+    """
+
     CONCURRENT_THREAD_ALLOWED = 8
 
     @classmethod
