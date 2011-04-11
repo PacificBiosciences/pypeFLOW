@@ -30,7 +30,6 @@ a regular python funtion into a PypeTask instance.
 """
 
 
-from urlparse import urlparse
 import inspect
 import hashlib
 
@@ -43,7 +42,6 @@ else:
 
 import os
 import shlex
-import time
 
 from PypeCommon import * 
 from PypeData import FileNotExistError
