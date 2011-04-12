@@ -342,35 +342,26 @@ def PypeTask(*argv, **kwargv):
     test/testfile_in
     test/testfile_out
     in finalize: TaskDone
-    
-
-    The following code show how to set up a task with a PypeThreadWorkflow that allows running multitple tasks in parallel. 
-
-    >> from PypeController import PypeThreadWorkflow
-    >> wf = PypeThreadWorkflow()
-    >> @PypeTask(outputDataObjs={"test_out":fout},
-    ..           inputDataObjs={"test_in":fin},
-    ..           TaskType=PypeThreadTaskBase,
-    ..           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
-    .. def test(self):
-    ..     print test.test_in.localFileName
-    ..     print test.test_out.localFileName
-    ..     os.system( "touch %s" % fn(test.test_out) )
-    ..     print self.test_in.localFileName
-    ..     print self.test_out.localFileName
-    ..     pass
-    >> wf.addTask(test)
-    >> def finalize(self):
-    ..     def f():
-    ..         print "in finalize:", self._status
-    ..     return f
-    >> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overided by subclasses. 
-    >> wf.refreshTargets( objs = [fout] )
-    test/testfile_in
-    test/testfile_out
-    test/testfile_in
-    test/testfile_out
-    in finalize: TaskDone
+    >>> #The following code show how to set up a task with a PypeThreadWorkflow that allows running multitple tasks in parallel. 
+    >>> from PypeController import PypeThreadWorkflow
+    >>> wf = PypeThreadWorkflow()
+    >>> @PypeTask(outputDataObjs={"test_out":fout},
+    ...           inputDataObjs={"test_in":fin},
+    ...           TaskType=PypeThreadTaskBase,
+    ...           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
+    ... def test(self):
+    ...     print test.test_in.localFileName
+    ...     print test.test_out.localFileName
+    ...     os.system( "touch %s" % fn(test.test_out) )
+    ...     print self.test_in.localFileName
+    ...     print self.test_out.localFileName
+    >>> wf.addTask(test)
+    >>> def finalize(self):
+    ...     def f():
+    ...         print "in finalize:", self._status
+    ...     return f
+    >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overided by subclasses. 
+    >>> wf.refreshTargets( objs = [fout] ) #doctest: +SKIP
     """
 
     def f(taskFun):
