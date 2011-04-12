@@ -49,6 +49,12 @@ from PypeData import FileNotExistError
 class TaskFunctionError(PypeError):
     pass
 
+TaskInitialized = "TaskInitialized"
+TaskDone = "TaskDone"
+TaskContinue = "TaskContinue"
+TaskFail = "TaskFail"
+
+
 class PypeTaskBase(PypeObject):
 
     """
@@ -70,6 +76,7 @@ class PypeTaskBase(PypeObject):
         self._kwargv = kwargv
         self._taskFun = kwargv['_taskFun']
         self._referenceMD5 = None
+        self._status = TaskInitialized
 
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
             if defaultAttr not in self.__dict__:
@@ -112,7 +119,7 @@ class PypeTaskBase(PypeObject):
         
         if PYTHONVERSION == (2,5):
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
-            print  (args, varargs, varkw, defaults)
+            #print  (args, varargs, varkw, defaults)
         else:
             argspec = inspect.getargspec(self._taskFun)
             (args, varargs, varkw, defaults) = argspec.args, argspec.varargs, argspec.keywords, argspec.defaults
@@ -132,7 +139,6 @@ class PypeTaskBase(PypeObject):
                 self._taskFun(self)
         else:
             self._taskFun()
-
 
     def _updateRDFGraph(self):
         graph = self._RDFGraph = Graph()
@@ -200,6 +206,14 @@ class PypeTaskBase(PypeObject):
 
             self._updateRDFGraph() #allow the task function to modify the output list if necessary
 
+        if any([o.exists == False for o in self.outputDataObjs.values()]):
+            self._status = TaskFail
+        else:
+            self._status = TaskDone
+
+    def finalize(self): #this function 
+        pass
+
 class PypeThreadTaskBase(PypeTaskBase):
 
     """
@@ -224,9 +238,11 @@ class PypeThreadTaskBase(PypeTaskBase):
         try:
             runFlag = self._getRunFlag()
         except TaskFunctionError:
+            self._status = TaskFail
             self._queue.put( (self.URL, "fail") )
             return
         except FileNotExistError:
+            self._status = TaskFail
             self._queue.put( (self.URL, "fail") )
             return
 
@@ -244,8 +260,10 @@ class PypeThreadTaskBase(PypeTaskBase):
                 pass
 
         if any([o.exists == False for o in self.outputDataObjs.values()]):
+            self._status = TaskFail
             self._queue.put( (self.URL, "fail") )
         else:
+            self._status = TaskDone
             self._queue.put( (self.URL, "done") )
 
 class PypeDistributiableTaskBase(PypeThreadTaskBase):
@@ -268,6 +286,7 @@ def PypeTask(*argv, **kwargv):
 
     >>> import os 
     >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
+    >>> from PypeTask import *
     >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
     >>> @PypeTask(outputDataObjs={"test_out":fout},
@@ -281,7 +300,7 @@ def PypeTask(*argv, **kwargv):
     ...     print self.test_out.localFileName
     ...     pass
     >>> type(test) 
-    <class '__main__.PypeTaskBase'>
+    <class 'PypeTask.PypeTaskBase'>
     >>> test.test_in.localFileName
     'test/testfile_in'
     >>> test.test_out.localFileName
@@ -306,7 +325,52 @@ def PypeTask(*argv, **kwargv):
     I am "a"
     >>> print test.b
     I am "b"
-   
+    >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
+    0
+    >>> # test PypeTask.finalize()
+    >>> from PypeController import PypeWorkflow
+    >>> wf = PypeWorkflow()
+    >>> wf.addTask(test)
+    >>> def finalize(self):
+    ...     def f():
+    ...         print "in finalize:", self._status
+    ...     return f
+    >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overided by subclasses. 
+    >>> wf.refreshTargets( objs = [fout] )
+    test/testfile_in
+    test/testfile_out
+    test/testfile_in
+    test/testfile_out
+    in finalize: TaskDone
+    
+
+    The following code show how to set up a task with a PypeThreadWorkflow that allows running multitple tasks in parallel. 
+
+    >> from PypeController import PypeThreadWorkflow
+    >> wf = PypeThreadWorkflow()
+    >> @PypeTask(outputDataObjs={"test_out":fout},
+    ..           inputDataObjs={"test_in":fin},
+    ..           TaskType=PypeThreadTaskBase,
+    ..           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
+    .. def test(self):
+    ..     print test.test_in.localFileName
+    ..     print test.test_out.localFileName
+    ..     os.system( "touch %s" % fn(test.test_out) )
+    ..     print self.test_in.localFileName
+    ..     print self.test_out.localFileName
+    ..     pass
+    >> wf.addTask(test)
+    >> def finalize(self):
+    ..     def f():
+    ..         print "in finalize:", self._status
+    ..     return f
+    >> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overided by subclasses. 
+    >> wf.refreshTargets( objs = [fout] )
+    test/testfile_in
+    test/testfile_out
+    test/testfile_in
+    test/testfile_out
+    in finalize: TaskDone
     """
 
     def f(taskFun):
@@ -332,6 +396,7 @@ def PypeShellTask(*argv, **kwargv):
 
     >>> import os 
     >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
+    >>> from PypeTask import *
     >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
     >>> f = open("test/shellTask.sh","w")
@@ -342,7 +407,7 @@ def PypeShellTask(*argv, **kwargv):
     ...                           parameters={"a":'I am "a"'}, **{"b":'I am "b"'}) 
     >>> shellTask = shellTask("test/shellTask.sh")
     >>> type(shellTask) 
-    <class '__main__.PypeTaskBase'>
+    <class 'PypeTask.PypeTaskBase'>
     >>> print fn(shellTask.test_in)
     test/testfile_in
     >>> os.system( "touch %s" %  fn(fin)  ) 

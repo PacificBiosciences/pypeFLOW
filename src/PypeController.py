@@ -288,6 +288,7 @@ class PypeWorkflow(PypeObject):
                 continue
             else:
                 obj()
+                obj.finalize()
 
         self._runCallback(callback)
 
@@ -405,14 +406,16 @@ class PypeThreadWorkflow(PypeWorkflow):
                 self.jobStatusMap[str(URL)] = message
 
                 if message in ["done", "continue"]:
+                    successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     task2thread[URL].join()
+                    successfullTask.finalize()
 
                 elif message in ["fail"]:
                     failedTask = self._pypeObjects[str(URL)]
-
                     task2thread[URL].join()
                     faildJobCount += 1
+                    failedTask.finalize()
 
             for u,s in sorted(self.jobStatusMap.items()):
                 print u, s
