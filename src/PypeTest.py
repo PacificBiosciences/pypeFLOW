@@ -25,11 +25,22 @@
 import sys
 import os 
 
+
 from PypeCommon import * 
 from PypeTask import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase, PypeDistributibleTask
 from PypeController import PypeWorkflow, PypeThreadWorkflow
 from PypeData import PypeLocalFile, makePypeLocalFile
 from Queue import Queue 
+import logging
+
+logger = logging.getLogger('workflow')
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch = logging.StreamHandler()
+ch.setLevel(logging.INFO)
+ch.setFormatter(formatter)
+logger.addHandler(ch)
+
 
 def simpleTest():
 
@@ -82,6 +93,7 @@ def simpleTest():
     os.system("sleep 1;touch %s;" % f3.localFileName)
 
 def testDistributed(runmode, cleanup):
+    logger.info("test start")
     baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
     #baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
     #baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"

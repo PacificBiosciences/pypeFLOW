@@ -32,6 +32,7 @@ PypeController: This module provides the PypeWorkflow that controlls how a workf
 import threading 
 from threading import Thread 
 import time 
+import logging
 from Queue import Queue 
 from cStringIO import StringIO 
 from urlparse import urlparse
@@ -39,6 +40,8 @@ from urlparse import urlparse
 from PypeCommon import * 
 from PypeData import PypeDataObjectBase
 from PypeTask import *
+
+
 
 class TaskExecutionError(PypeError):
     pass
@@ -292,6 +295,8 @@ class PypeWorkflow(PypeObject):
 
         self._runCallback(callback)
 
+        return True
+
     def _runCallback(self, callback = (None, None, None ) ):
 
         if callback[0] != None and callable(callback[0]):
@@ -338,6 +343,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         PypeWorkflow.__init__(self, URL, **attributes )
         self.messageQueue = Queue()
         self.jobStatusMap = {}
+        self._logger = logging.getLogger('workflow')
 
     def addTasks(self, taskObjs):
         for taskObj in taskObjs:
@@ -372,9 +378,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         task2thread = {}
         while 1:
             loopN += 1
-            print
-            print
-            print loopN
+            self._logger.info( "tick: %d" % loopN )
             jobsReadyToBeSubmitted = []
             for URL, taskObj, tStatus in sortedTaskList:
                 prereqJobURLs = prereqJobURLMap[URL]
@@ -383,7 +387,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                 elif all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and self.jobStatusMap[URL] == None:
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
-            print "jobReadyToBeSubmitted:", len(jobsReadyToBeSubmitted)
+            self._logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
             if threading.activeCount() == 1 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
                 break
 
@@ -398,7 +402,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                     break
 
             time.sleep(0.25)
-            print "number of running tasks", threading.activeCount()-1
+            self._logger.info ( "number of running tasks: %d" % (threading.activeCount()-1) )
             faildJobCount = 0
 
             while not self.messageQueue.empty():
@@ -418,16 +422,19 @@ class PypeThreadWorkflow(PypeWorkflow):
                     failedTask.finalize()
 
             for u,s in sorted(self.jobStatusMap.items()):
-                print u, s
+                self._logger.info( "task status: %s, %s" % (str(u),str(s)) )
 
             if faildJobCount != 0:
-                break
+                for thread in task2thread.values( ):
+                    if thread.isAlive( ):
+                        thread.join( )
+                return False
 
-        print
         for u,s in sorted(self.jobStatusMap.items()):
-            print u, s
+            self._logger.info( "task status: %s, %s" % (str(u),str(s)) )
 
         self._runCallback(callback)
+        return True
 
     def _graphvizDot(self, shortName=False):
         graph = self._RDFGraph
