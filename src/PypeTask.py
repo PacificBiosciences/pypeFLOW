@@ -211,7 +211,12 @@ class PypeTaskBase(PypeObject):
         else:
             self._status = TaskDone
 
-    def finalize(self): #this function 
+    def finalize(self): 
+        """ 
+        This method is intended to be overriden by subclass to provide extra processing that is not 
+        directed related to the processing the input and output data. For the thread workflow, this
+        method will be called in the main thread after a take is finished regardless the job status.
+        """
         pass
 
 class PypeThreadTaskBase(PypeTaskBase):
@@ -335,7 +340,7 @@ def PypeTask(*argv, **kwargv):
     ...     def f():
     ...         print "in finalize:", self._status
     ...     return f
-    >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overided by subclasses. 
+    >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overriden by subclasses. 
     >>> wf.refreshTargets( objs = [fout] )
     test/testfile_in
     test/testfile_out
