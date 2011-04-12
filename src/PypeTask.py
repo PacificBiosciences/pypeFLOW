@@ -265,6 +265,48 @@ def PypeTask(*argv, **kwargv):
 
     """
     A decorator that converts a function into a PypeTaskBase object.
+
+    >>> import os 
+    >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
+    >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
+    >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
+    >>> @PypeTask(outputDataObjs={"test_out":fout},
+    ...           inputDataObjs={"test_in":fin},
+    ...           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
+    ... def test(self):
+    ...     print test.test_in.localFileName
+    ...     print test.test_out.localFileName
+    ...     os.system( "touch %s" % fn(test.test_out) )
+    ...     print self.test_in.localFileName
+    ...     print self.test_out.localFileName
+    ...     pass
+    >>> type(test) 
+    <class '__main__.PypeTaskBase'>
+    >>> test.test_in.localFileName
+    'test/testfile_in'
+    >>> test.test_out.localFileName
+    'test/testfile_out'
+    >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
+    0
+    >>> timeStampCompare(test.inputDataObjs, test.outputDataObjs, test.parameters)
+    True
+    >>> print test._getRunFlag()
+    True
+    >>> test()
+    test/testfile_in
+    test/testfile_out
+    test/testfile_in
+    test/testfile_out
+    >>> timeStampCompare(test.inputDataObjs, test.outputDataObjs, test.parameters)
+    False
+    >>> print test._getRunFlag()
+    False
+    >>> test() #return nothing, since the test_out is newer than the test_in
+    >>> print test.a
+    I am "a"
+    >>> print test.b
+    I am "b"
+   
     """
 
     def f(taskFun):
@@ -286,8 +328,35 @@ def PypeTask(*argv, **kwargv):
 def PypeShellTask(*argv, **kwargv):
 
     """
-    A decorator that converts a function into a PypeTaskBase object where the
-    task itself is a shell script.
+    A function that converts a shell script into a PypeTaskBase object.
+
+    >>> import os 
+    >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
+    >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
+    >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
+    >>> f = open("test/shellTask.sh","w")
+    >>> f.write( "echo touch %s; touch %s" % (fn(fout), fn(fout)) )
+    >>> f.close()
+    >>> shellTask = PypeShellTask(outputDataObjs={"test_out":fout},
+    ...                           inputDataObjs={"test_in":fin},
+    ...                           parameters={"a":'I am "a"'}, **{"b":'I am "b"'}) 
+    >>> shellTask = shellTask("test/shellTask.sh")
+    >>> type(shellTask) 
+    <class '__main__.PypeTaskBase'>
+    >>> print fn(shellTask.test_in)
+    test/testfile_in
+    >>> os.system( "touch %s" %  fn(fin)  ) 
+    0
+    >>> timeStampCompare(shellTask.inputDataObjs, shellTask.outputDataObjs, shellTask.parameters)
+    True
+    >>> print shellTask._getRunFlag()
+    True
+    >>> shellTask()
+    >>> timeStampCompare(shellTask.inputDataObjs, shellTask.outputDataObjs, shellTask.parameters)
+    False
+    >>> print shellTask._getRunFlag()
+    False
+    >>> shellTask()
     """
 
     def f(scriptToRun):
@@ -306,8 +375,7 @@ def PypeShellTask(*argv, **kwargv):
 def PypeSGETask(*argv, **kwargv):
 
     """
-    A decorator that converts a function into a PypeTaskBase object where the
-    task itself is a shell script that can be submitted to SGE to run.
+    Similar to PypeShellTask, but the shell script job will be executed through SGE.
     """
 
     def f(scriptToRun):
@@ -327,9 +395,8 @@ def PypeSGETask(*argv, **kwargv):
 def PypeDistributibleTask(*argv, **kwargv):
 
     """
-    A decorator that converts a function into a PypeTaskBase object where the
-    task itself is a shell script that can be submitted to SGE to run or locally
-    depending on the "distributed" flag.
+    Similar to PypeShellTask and PypeSGETask, with an additional argument "distributed" to decide
+    whether a job to be run through local shell or SGE.
     """
 
     distributed = kwargv.get("distributed", False)
@@ -379,47 +446,7 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 
     return runFlag
 
-
-def test():
-    from PypeData import PypeLocalFile, makePypeLocalFile, fn
-    f1 = makePypeLocalFile("test.fa")
-    f2 = makePypeLocalFile("ref.fa")
-    f3 = makePypeLocalFile("aln.txt", readOnly=False)
-    os.system('touch test.fa')
-    os.system('touch ref.fa')
-
-    @PypeTask(inputDataObjs={"fasta":f1, "ref":f2},
-              outputDataObjs={"aln":f3},
-              parameters={"a":10}, **{"b":12})
-    #def test2(bb, a=2, **kwargv):
-    def test2():
-        this = test2
-        print this.fasta
-        print test2.ref.localFileName
-        #print argv
-        #print kwargv
-        #print kwargv["inputDataObjs"] 
-        print "test2 is running"
-        #print test2.a, kwargv['a']
-        print test2.b
-        #print a
-        #print "bb",bb
-        print test2.__dict__
-
-    print test2.RDFXML
-    test2()    
-
-def test3():
-    from PypeData import PypeLocalFile, makePypeLocalFile, fn
-    f3 = makePypeLocalFile("aln.txt", readOnly=False)
-    @PypeTask(outputDataObjs={"aln":f3},
-              parameters={"a":10}, **{"b":12})
-    #def test2(bb, a=2, **kwargv):
-    def test2():
-        pass
-    print test2.RDFXML     
-    
-
 if __name__ == "__main__":
-    test3()
+    import doctest
+    doctest.testmod()
     
