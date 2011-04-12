@@ -267,7 +267,7 @@ class PypeWorkflow(PypeObject):
         makeStr.write("all: %s" %  " ".join([o.localFileName for o in outputFiles.values()]) )
         return makeStr.getvalue()
      
-    def refreshTargets(self, objs = []):
+    def refreshTargets(self, objs = [], callback = (None, None, None) ):
 
         """
         Execute the DAG to reach all objects in the "objs" argument.
@@ -288,6 +288,28 @@ class PypeWorkflow(PypeObject):
                 continue
             else:
                 obj()
+
+        self._runCallback(callback)
+
+    def _runCallback(self, callback = (None, None, None ) ):
+
+        if callback[0] != None and callable(callback[0]):
+            argv = []
+            kwargv = {}
+            if callback[1] != None and isinstance( callback[1], type(list()) ):
+                argv = callback[1]
+            else:
+                raise TaskExecutionError( "callback argument type error") 
+
+            if callback[2] != None and isinstance( callback[1], type(dict()) ):
+                kwargv = callback[2]
+            else:
+                raise TaskExecutionError( "callback argument type error") 
+
+            callback[0](*argv, **kwargv)
+
+        elif callback[0] != None:
+            raise TaskExecutionError( "callback is not callable") 
     
     @property
     def dataObjects( self ):
@@ -326,7 +348,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             self.addObjects(taskObj.outputDataObjs.values())
             self.addObject(taskObj)
 
-    def refreshTargets(self, objs = []):
+    def refreshTargets(self, objs = [], callback = (None, None, None) ):
         if len(objs) != 0:
             connectedPypeNodes = set()
             for obj in objs:
@@ -401,6 +423,8 @@ class PypeThreadWorkflow(PypeWorkflow):
         print
         for u,s in sorted(self.jobStatusMap.items()):
             print u, s
+
+        self._runCallback(callback)
 
     def _graphvizDot(self, shortName=False):
         graph = self._RDFGraph
