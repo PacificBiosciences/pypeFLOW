@@ -347,6 +347,7 @@ def PypeTask(*argv, **kwargv):
     test/testfile_in
     test/testfile_out
     in finalize: TaskDone
+    True
     >>> #The following code show how to set up a task with a PypeThreadWorkflow that allows running multitple tasks in parallel. 
     >>> from PypeController import PypeThreadWorkflow
     >>> wf = PypeThreadWorkflow()
