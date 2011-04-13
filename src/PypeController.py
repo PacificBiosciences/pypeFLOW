@@ -150,6 +150,35 @@ class PypeWorkflow(PypeObject):
     """ 
     Representing a PypeWorkflow. PypeTask and PypeDataObjects can be added
     into the workflow and executed through the instanct methods.
+
+    >>> import os 
+    >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
+    >>> from PypeTask import *
+    >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
+    >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
+    >>> @PypeTask(outputDataObjs={"test_out":fout},
+    ...           inputDataObjs={"test_in":fin},
+    ...           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
+    ... def test(self):
+    ...     print test.test_in.localFileName
+    ...     print test.test_out.localFileName
+    ...     os.system( "touch %s" % fn(test.test_out) )
+    ...     pass
+    >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
+    0
+    >>> from PypeController import PypeWorkflow
+    >>> wf = PypeWorkflow()
+    >>> wf.addTask(test)
+    >>> def finalize(self):
+    ...     def f():
+    ...         print "in finalize:", self._status
+    ...     return f
+    >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overriden by subclasses. 
+    >>> wf.refreshTargets( objs = [fout] )
+    test/testfile_in
+    test/testfile_out
+    in finalize: TaskDone
+    True
     """
 
     supportedURLScheme = ["workflow"]
@@ -170,6 +199,10 @@ class PypeWorkflow(PypeObject):
         self.addObjects([obj])
 
     def addObjects(self, objs):
+        """
+        Add data objects into the workflow. One can add also task object to the workflow using this method for
+        non-threaded workflow.
+        """
         for obj in objs:
             if obj.URL in self._pypeObjects:
                 continue
@@ -180,6 +213,9 @@ class PypeWorkflow(PypeObject):
         self.addTasks([taskObj])
 
     def addTasks(self, taskObjs):
+        """
+        Add tasks into the workflow. The dependent input and output data objects are added automatically too. 
+        """
         for taskObj in taskObjs:
             self.addObjects(taskObj.inputDataObjs.values())
             self.addObjects(taskObj.outputDataObjs.values())
@@ -337,6 +373,9 @@ class PypeThreadWorkflow(PypeWorkflow):
 
     @classmethod
     def setNumThreadAllowed(cls, nT):
+        """
+        Override the defualt number of threads used to run the tasks with this method.
+        """
         cls.CONCURRENT_THREAD_ALLOWED = nT
 
     def __init__(self, URL = None, **attributes ):
@@ -346,6 +385,13 @@ class PypeThreadWorkflow(PypeWorkflow):
         self._logger = logging.getLogger('workflow')
 
     def addTasks(self, taskObjs):
+
+        """
+        Add tasks into the workflow. The dependent input and output data objects are added automatically too. 
+        It sets the message queue used for communicating between the task thread and the main thread. One has
+        to use addTasks() or addTask() to add task objects to a threaded workflow.
+        """
+
         for taskObj in taskObjs:
             if not isinstance(taskObj, PypeThreadTaskBase):
                 raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow")
@@ -437,6 +483,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         return True
 
     def _graphvizDot(self, shortName=False):
+
         graph = self._RDFGraph
         dotStr = StringIO()
         shapeMap = {"file":"box", "task":"component"}
@@ -474,3 +521,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             dotStr.write( '"%s" -> "%s";\n' % (o, s))
         dotStr.write ("}")
         return dotStr.getvalue()
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()

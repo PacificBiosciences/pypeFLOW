@@ -62,6 +62,15 @@ class PypeLocalFile(PypeDataObjectBase):
     """ 
     Represent a PypeData object that can be accessed as a file in a local
     filesystem.
+
+    >>> f = PypeLocalFile("file://localhost/test.txt")
+    >>> f.localFileName == "test.txt"
+    True
+    >>> fn(f)
+    'test.txt'
+    >>> f = PypeLocalFile("file://localhost/test.txt", False, isFasta = True)
+    >>> f.isFasta == True
+    True
     """
 
     supportedURLScheme = ["file"]
@@ -110,21 +119,16 @@ class PypeLocalCompositeFile(PypeDataObjectBase):  #stub for now Mar 17, 2010
         #the rest of the URL goes to HDF5 DS
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
+    """
+    >>> f = makePypeLocalFile("./test.txt")
+    >>> f.localFileName == "./test.txt"
+    True
+    >>> fn(f)
+    './test.txt'
+    """
     return PypeLocalFile("file://localhost/%s" % aLocalFileName, readOnly, **attributes)
-
-def test():
-    f = PypeLocalFile("file://localhost/test.txt")
-    assert f.localFileName == "test.txt"
-    
-    f = PypeLocalFile("file://localhost/test.txt", False)
-    assert f.readOnly == False
-
-    f = PypeLocalFile("file://localhost/test.txt", False, isFasta = True)
-    assert f.isFasta == True
-
-    f.generateBy = "test"
-    print f.RDFXML
         
 if __name__ == "__main__":
-    test()
-        
+    import doctest
+    doctest.testmod()
+    
