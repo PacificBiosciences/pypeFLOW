@@ -81,7 +81,19 @@ class PypeTaskBase(PypeObject):
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
             if defaultAttr not in self.__dict__:
                 self.__dict__[defaultAttr] = {}
-            vars(self).update(self.__dict__[defaultAttr])
+
+        # "input" and "output" short cut
+        if "input" in kwargv:
+            self.inputDataObjs.update(kwargv["input"])
+            del kwargv["input"]
+
+        if "output" in kwargv:
+            self.outputDataObjs.update(kwargv["output"])
+            del kwargv["output"]
+
+        #the keys in inputDataObjs/outputDataObjs/parameters will become a task attribute 
+        for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
+            vars(self).update(self.__dict__[defaultAttr]) 
 
         self._codeMD5digest = kwargv["_codeMD5digest"]
         self._paramMD5digest = kwargv["_paramMD5digest"]
@@ -294,8 +306,8 @@ def PypeTask(*argv, **kwargv):
     >>> from PypeTask import *
     >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
-    >>> @PypeTask(outputDataObjs={"test_out":fout},
-    ...           inputDataObjs={"test_in":fin},
+    >>> @PypeTask(output={"test_out":fout},
+    ...           input={"test_in":fin},
     ...           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
     ... def test(self):
     ...     print test.test_in.localFileName
@@ -511,4 +523,3 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
-    
