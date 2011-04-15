@@ -45,7 +45,7 @@ from rdflib import Namespace
 from rdflib import Literal
 from rdflib import URIRef
 
-from subprocess import Popen, PIPE
+from subprocess import Popen
 import time
 
 pypeNS = Namespace("pype://v0.1/")
@@ -81,7 +81,9 @@ class PypeObject(object):
     """
 
     def __init__(self, URL, **attributes):
+
         self._RDFGraph = None
+
         URLParseResult = urlparse(URL)
         if URLParseResult.scheme not in self.__class__.supportedURLScheme:
             raise URLSchemeNotSupportYet("%s is not supported yet" % URLParseResult.scheme )
@@ -94,8 +96,10 @@ class PypeObject(object):
         PypeObject._updateRDFGraph(self) 
         
     def _updateRDFGraph(self):
+
         graph = self._RDFGraph = Graph()
-        for k,v in self.__dict__.iteritems():
+
+        for k, v in self.__dict__.iteritems():
             if k == "URL": continue
             if k[0] == "_": continue
             if hasattr(v, "URL"):
@@ -111,7 +115,7 @@ class PypeObject(object):
         return self._RDFGraph.serialize() 
 
 
-def runShellCmd(args,**kwargs):
+def runShellCmd(args):
 
     """ 
     Utility function that runs a shell script command. 
@@ -119,7 +123,7 @@ def runShellCmd(args,**kwargs):
     from the shell command is returned
     """
 
-    p = Popen(args,**kwargs)
+    p = Popen(args)
     pStatus = None
     while 1:
         time.sleep(0.2)
