@@ -33,6 +33,8 @@ from urlparse import urlparse
 import platform
 import os
 from PypeCommon import * 
+import logging
+import shutil
     
 class FileNotExistError(PypeError):
     pass
@@ -48,6 +50,8 @@ class PypeDataObjectBase(PypeObject):
 
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
+        self._updateRDFGraph() 
+        self._log = logging.Logger('dataobject')
 
     @property
     def timeStamp(self):
@@ -78,6 +82,7 @@ class PypeLocalFile(PypeDataObjectBase):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
+        self._path = self.localFileName
         self.readOnly = readOnly
 
     @property
@@ -89,6 +94,19 @@ class PypeLocalFile(PypeDataObjectBase):
     @property
     def exists(self):
         return os.path.exists(self.localFileName)
+    
+    def setVerifyFunction( self, verifyFunction ):
+        self._verify = verifyFunction
+    
+    def verify( self ):
+        if self._verify == None:
+            return True
+        self._log.debug("Verifying contents of %s" % self.URL)
+        errors = self._verify( self.path )
+        if len(errors) > 0:
+            for e in errors:
+                self._log.error(e)
+        return len(errors) == 0
 
 class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
 
@@ -97,6 +115,7 @@ class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
     Not implemented yet.
     """
 
+class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
     supportedURLScheme = ["hdf5ds"]
     def __init__(self, URL, readOnly = True, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
@@ -127,6 +146,19 @@ def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     './test.txt'
     """
     return PypeLocalFile("file://localhost/%s" % aLocalFileName, readOnly, **attributes)
+
+def test():
+    f = PypeLocalFile("file://localhost/test.txt")
+    assert f.localFileName == "./test.txt"
+    
+    f = PypeLocalFile("file://localhost/test.txt", False)
+    assert f.readOnly == False
+
+    f = PypeLocalFile("file://localhost/test.txt", False, isFasta = True)
+    assert f.isFasta == True
+
+    f.generateBy = "test"
+    print f.RDFXML
         
 if __name__ == "__main__":
     import doctest

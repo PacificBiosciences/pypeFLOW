@@ -418,6 +418,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             prereqJobURLs = [str(u) for u in self._RDFGraph.transitive_objects(URIRef(URL), pypeNS["prereq"])
                                     if isinstance(self._pypeObjects[str(u)], PypeTaskBase) and str(u) != URL ]
             prereqJobURLMap[URL] = prereqJobURLs
+            self._log.debug("Determined prereqs for %s to be %s" % (URL, ", ".join(prereqJobURLs)))
 
         nSubmittedJob = 0
         loopN = 0
