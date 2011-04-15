@@ -69,14 +69,8 @@ class PypeObject(object):
 
     Base class for all PypeObjects
 
-    Every PypeObject should have an URL, and when _updataRDFGraph got called, 
-    it will generate the RDF Graph for the object if the value has a URL.
+    Every PypeObject should have an URL.
     The instance attributes can be set by using keyword argument in __init__(). 
-
-    If the value in the attributes has a URL attribute, a RDF statement will 
-    be generated when _updateRDFGraph() is called.
-
-    The _updateRDFGraph in generall would be overridden by subclasses.
 
     """
 
