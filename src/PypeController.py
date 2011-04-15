@@ -207,7 +207,6 @@ class PypeWorkflow(PypeObject):
             if obj.URL in self._pypeObjects:
                 continue
             self._pypeObjects[obj.URL] = obj
-        self._updateRDFGraph()
 
     def addTask(self, taskObj):
         self.addTasks([taskObj])
@@ -220,13 +219,13 @@ class PypeWorkflow(PypeObject):
             self.addObjects(taskObj.inputDataObjs.values())
             self.addObjects(taskObj.outputDataObjs.values())
             self.addObject(taskObj)
-
-    def _updateRDFGraph(self):
-        self._RDFGraph = Graph()
-        graph = self._RDFGraph
+    @property
+    def _RDFGraph(self):
+        graph = Graph()
         for URL, obj in self._pypeObjects.iteritems():
             for s,p,o in obj._RDFGraph:
                 graph.add( (s,p,o) )
+        return graph
 
     def setReferenceRDFGraph(self, fn):
         self._referenceRDFGraph = Graph()

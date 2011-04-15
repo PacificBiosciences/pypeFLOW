@@ -105,6 +105,24 @@ class PypeLocalFile(PypeDataObjectBase):
             for e in errors:
                 self._log.error(e)
         return len(errors) == 0
+    
+    def __str__( self ):
+        return self.URL
+    
+    @property
+    def path( self ):
+        if self._path == None:
+            raise IOError, "Must resolve this file (%s) with a context " + \
+                            "before you can access .path"
+        return self._path
+    
+    def clean( self ):
+        if os.path.exists( self.path ):
+            self._log.info("Removing %s" % self.path )
+            if os.path.isdir( self.path ):
+                shutil.rmtree( self.path )
+            else:
+                os.remove( self.path )
 
 class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
 

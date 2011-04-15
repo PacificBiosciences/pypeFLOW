@@ -82,8 +82,6 @@ class PypeObject(object):
 
     def __init__(self, URL, **attributes):
 
-        self._RDFGraph = None
-
         URLParseResult = urlparse(URL)
         if URLParseResult.scheme not in self.__class__.supportedURLScheme:
             raise URLSchemeNotSupportYet("%s is not supported yet" % URLParseResult.scheme )
@@ -93,17 +91,19 @@ class PypeObject(object):
                 if k not in self.__dict__:
                     self.__dict__[k] = v
 
-        PypeObject._updateRDFGraph(self) 
-        
-    def _updateRDFGraph(self):
-
-        graph = self._RDFGraph = Graph()
+     
+    @property 
+    def _RDFGraph(self):
+        graph = Graph()
 
         for k, v in self.__dict__.iteritems():
             if k == "URL": continue
             if k[0] == "_": continue
             if hasattr(v, "URL"):
                 graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
+        return graph
+
+
     
     @property
     def RDFXML(self):

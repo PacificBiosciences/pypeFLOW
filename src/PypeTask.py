@@ -99,12 +99,6 @@ class PypeTaskBase(PypeObject):
         self._codeMD5digest = kwargv["_codeMD5digest"]
         self._paramMD5digest = kwargv["_paramMD5digest"]
         self._compareFunctions = [ timeStampCompare ]
-
-        # I can't call updateRDFGraph on __init__, and I can't override 
-        # it since its called as a class function, so this is my hack to
-        # disable it until I have time to write the 'correct' code. -drw
-        if 'noRDF' not in kwargv: 
-            PypeTaskBase._updateRDFGraph(self)
         
     def setInputs( self, inputDataObjs ):
         self.inputDataObjs = inputDataObjs
@@ -127,14 +121,9 @@ class PypeTaskBase(PypeObject):
         runFlag = False
         if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
-            self._log.debug("%s will run due to a change in the reference MD5 digest." % self.URL)
             runFlag = True
         if runFlag == False:
             runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFunctions] )
-            if runFlag:
-                self._log.debug("%s will run due to a change in inputs or outputs." % self.URL)
-            else:
-                self._log.debug("%s will not run." % self.URL)
 
         return runFlag
 
@@ -170,9 +159,9 @@ class PypeTaskBase(PypeObject):
         else:
             self._taskFun()
 
-
-    def _updateRDFGraph(self):
-        graph = self._RDFGraph = Graph()
+    @property
+    def _RDFGraph(self):
+        graph = Graph()
         for k,v in self.__dict__.iteritems():
             if k == "URL": continue
             if k[0] == "_": continue
@@ -201,7 +190,8 @@ class PypeTaskBase(PypeObject):
 
             graph.add(  ( URIRef(self.URL), pypeNS["codeMD5digest"], Literal(self._codeMD5digest) ) )
             graph.add(  ( URIRef(self.URL), pypeNS["parameterMD5digest"], Literal(self._paramMD5digest) ) )
-    
+        return graph
+
     def __call__(self, *argv, **kwargv):
         
         """
@@ -235,8 +225,6 @@ class PypeTaskBase(PypeObject):
             if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
                 raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
 
-            self._updateRDFGraph() #allow the task function to modify the output list if necessary
-        
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             self._status = TaskFail
         else:
