@@ -45,7 +45,7 @@ from rdflib import Namespace
 from rdflib import Literal
 from rdflib import URIRef
 
-from subprocess import Popen
+from subprocess import Popen, PIPE
 import time
 
 pypeNS = Namespace("pype://v0.1/")
@@ -115,7 +115,7 @@ class PypeObject(object):
         return self._RDFGraph.serialize() 
 
 
-def runShellCmd(args):
+def runShellCmd(args,**kwargs):
 
     """ 
     Utility function that runs a shell script command. 
@@ -123,7 +123,7 @@ def runShellCmd(args):
     from the shell command is returned
     """
 
-    p = Popen(args)
+    p = Popen(args,**kwargs)
     pStatus = None
     while 1:
         time.sleep(0.2)

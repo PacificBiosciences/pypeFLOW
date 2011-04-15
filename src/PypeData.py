@@ -33,6 +33,7 @@ from urlparse import urlparse
 import platform
 import os
 from PypeCommon import * 
+import logging
     
 class FileNotExistError(PypeError):
     pass
@@ -48,6 +49,7 @@ class PypeDataObjectBase(PypeObject):
 
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
+        self._log = logging.Logger('dataobject')
 
     @property
     def timeStamp(self):
@@ -78,6 +80,7 @@ class PypeLocalFile(PypeDataObjectBase):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
+        self._path = self.localFileName
         self.readOnly = readOnly
 
     @property
@@ -89,6 +92,19 @@ class PypeLocalFile(PypeDataObjectBase):
     @property
     def exists(self):
         return os.path.exists(self.localFileName)
+    
+    def setVerifyFunction( self, verifyFunction ):
+        self._verify = verifyFunction
+    
+    def verify( self ):
+        if self._verify == None:
+            return True
+        self._log.debug("Verifying contents of %s" % self.URL)
+        errors = self._verify( self.path )
+        if len(errors) > 0:
+            for e in errors:
+                self._log.error(e)
+        return len(errors) == 0
 
 class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
 
@@ -116,7 +132,6 @@ class PypeLocalCompositeFile(PypeDataObjectBase):  #stub for now Mar 17, 2010
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
-        #the rest of the URL goes to HDF5 DS
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     """
@@ -127,7 +142,7 @@ def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     './test.txt'
     """
     return PypeLocalFile("file://localhost/%s" % aLocalFileName, readOnly, **attributes)
-        
+
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
