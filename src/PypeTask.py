@@ -100,7 +100,11 @@ class PypeTaskBase(PypeObject):
         self._paramMD5digest = kwargv["_paramMD5digest"]
         self._compareFunctions = [ timeStampCompare ]
 
-        self._updateRDFGraph()
+        # I can't call updateRDFGraph on __init__, and I can't override 
+        # it since its called as a class function, so this is my hack to
+        # disable it until I have time to write the 'correct' code. -drw
+        if 'noRDF' not in kwargv: 
+            PypeTaskBase._updateRDFGraph(self)
         
     def setInputs( self, inputDataObjs ):
         self.inputDataObjs = inputDataObjs
