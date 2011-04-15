@@ -32,6 +32,7 @@ a regular python funtion into a PypeTask instance.
 
 import inspect
 import hashlib
+import logging
 
 import sys
 PYTHONVERSION = sys.version_info[:2]
@@ -42,6 +43,7 @@ else:
 
 import os
 import shlex
+import time
 
 from PypeCommon import * 
 from PypeData import FileNotExistError
@@ -54,9 +56,7 @@ TaskDone = "TaskDone"
 TaskContinue = "TaskContinue"
 TaskFail = "TaskFail"
 
-
 class PypeTaskBase(PypeObject):
-
     """
     Represent a PypeTask. Subclass it to for different kind of
     task.
@@ -77,6 +77,8 @@ class PypeTaskBase(PypeObject):
         self._taskFun = kwargv['_taskFun']
         self._referenceMD5 = None
         self._status = TaskInitialized
+        self._log = logging.Logger('task')
+
 
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
             if defaultAttr not in self.__dict__:
@@ -85,9 +87,21 @@ class PypeTaskBase(PypeObject):
 
         self._codeMD5digest = kwargv["_codeMD5digest"]
         self._paramMD5digest = kwargv["_paramMD5digest"]
-        self._compareFuntions = [ timeStampCompare ]
+        self._compareFunctions = [ timeStampCompare ]
 
-        PypeTaskBase._updateRDFGraph(self)
+        # I can't call updateRDFGraph on __init__, and I can't override 
+        # it since its called as a class function, so this is my hack to
+        # disable it until I have time to write the 'correct' code. -drw
+        if 'noRDF' not in kwargv: 
+            PypeTaskBase._updateRDFGraph(self)
+        
+    def setInputs( self, inputDataObjs ):
+        self.inputDataObjs = inputDataObjs
+        vars(self).update( inputDataObjs )
+        
+    def setOutputs( self, outputDataObjs ):
+        self.outputDataObjs = outputDataObjs
+        vars(self).update( outputDataObjs )
 
     def setReferenceMD5(self, md5Str):
         self._referenceMD5 = md5Str
@@ -102,9 +116,14 @@ class PypeTaskBase(PypeObject):
         runFlag = False
         if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
+            self._log.debug("%s will run due to a change in the reference MD5 digest." % self.URL)
             runFlag = True
         if runFlag == False:
-            runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFuntions] )
+            runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFunctions] )
+            if runFlag:
+                self._log.debug("%s will run due to a change in inputs or outputs." % self.URL)
+            else:
+                self._log.debug("%s will not run." % self.URL)
 
         return runFlag
 
@@ -119,7 +138,7 @@ class PypeTaskBase(PypeObject):
         
         if PYTHONVERSION == (2,5):
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
-            #print  (args, varargs, varkw, defaults)
+            print  (args, varargs, varkw, defaults)
         else:
             argspec = inspect.getargspec(self._taskFun)
             (args, varargs, varkw, defaults) = argspec.args, argspec.varargs, argspec.keywords, argspec.defaults
@@ -139,6 +158,7 @@ class PypeTaskBase(PypeObject):
                 self._taskFun(self)
         else:
             self._taskFun()
+
 
     def _updateRDFGraph(self):
         graph = self._RDFGraph = Graph()
@@ -171,13 +191,16 @@ class PypeTaskBase(PypeObject):
             graph.add(  ( URIRef(self.URL), pypeNS["codeMD5digest"], Literal(self._codeMD5digest) ) )
             graph.add(  ( URIRef(self.URL), pypeNS["parameterMD5digest"], Literal(self._paramMD5digest) ) )
     
-    def __call__(self, *argv, **kwargv):
+    def RDFXML(self):
+        return self._RDFGraph.serialize( )
 
+    def __call__(self, *argv, **kwargv):
+        
         """
         Determine whether a task should be run when called. If the dependency is
         not satisified then the _taskFun() will be called to generate the output data objects.
         """
-
+        
         argv = list(argv)
         argv.extend(self._argv)
         kwargv.update(self._kwargv)
@@ -205,7 +228,7 @@ class PypeTaskBase(PypeObject):
                 raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
 
             self._updateRDFGraph() #allow the task function to modify the output list if necessary
-
+        
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             self._status = TaskFail
         else:
@@ -347,7 +370,6 @@ def PypeTask(*argv, **kwargv):
     test/testfile_in
     test/testfile_out
     in finalize: TaskDone
-    True
     >>> #The following code show how to set up a task with a PypeThreadWorkflow that allows running multitple tasks in parallel. 
     >>> from PypeController import PypeThreadWorkflow
     >>> wf = PypeThreadWorkflow()
