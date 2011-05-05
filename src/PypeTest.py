@@ -102,7 +102,7 @@ def testDistributed(runmode, cleanup):
     import random
     random.seed(1984)
     #mq = Queue()
-    PypeThreadWorkflow.setNumThreadAllowed(20)
+    PypeThreadWorkflow.setNumThreadAllowed(8)
     #wf = PypeWorkflow(messageQueue=mq)
     wf = PypeThreadWorkflow()
     allTasks = []
@@ -131,7 +131,6 @@ def testDistributed(runmode, cleanup):
             shfile = open(shellFileName, 'w')
             print >> shfile, shellCmd
             shfile.close()
-
             if runmode == "internal":
                 def t1(self):
                     #self._queue.put( self.infile.localFileName) 
@@ -145,21 +144,19 @@ def testDistributed(runmode, cleanup):
                                 outputDataObjs = outputDataObjs, 
                                 URL="task://task_l%d_w%d" % (layer, w), 
                                 TaskType=PypeThreadTaskBase) ( t1 )
-                #task.setMessageQueue(mq)
 
             elif runmode == "localshell":
                 task = PypeShellTask(inputDataObjs = inputDataObjs,
                                      outputDataObjs = outputDataObjs, 
                                      URL="task://task_l%d_w%d" % (layer, w), 
+                                     parameters= {"nSlot":random.randint(1,5)},
                                      TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                #task.setMessageQueue(mq)
 
             elif runmode == "sge": 
                 task = PypeSGETask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs, 
                                    URL="task://task_l%d_w%d" % (layer, w), 
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                #task.setMessageQueue(mq)
 
             elif runmode == "mixed":
                 #distributed = random.choice( (False, True) )

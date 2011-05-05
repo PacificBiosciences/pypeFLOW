@@ -219,6 +219,26 @@ class PypeWorkflow(PypeObject):
             self.addObjects(taskObj.inputDataObjs.values())
             self.addObjects(taskObj.outputDataObjs.values())
             self.addObject(taskObj)
+            
+    def removeTask(self, taskObj):
+        self.removeTasks([taskObj])
+        
+    def removeTasks(self, taskObjs ):
+        """
+        Remove tasks from the workflow.
+        """
+        self.removeObjects(taskObjs)
+            
+    def removeObjects(self, objs):
+        """
+        Remove objects from the workflow. If the object cannot be found, a PypeError is raised.
+        """
+        for obj in objs:
+            if obj.URL in self._pypeObjects:
+                del self._pypeObjects[obj.URL]
+            else:
+                raise PypeError, "Unable to remove %s from the graph. (Object not found)" % obj.URL
+            
     @property
     def _RDFGraph(self):
         graph = Graph()
@@ -368,7 +388,8 @@ class PypeThreadWorkflow(PypeWorkflow):
     into the workflow and executed through the instanct methods.
     """
 
-    CONCURRENT_THREAD_ALLOWED = 8
+    CONCURRENT_THREAD_ALLOWED = 16
+    MAX_NUMBER_TASK_SLOT = CONCURRENT_THREAD_ALLOWED
 
     @classmethod
     def setNumThreadAllowed(cls, nT):
@@ -376,6 +397,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         Override the defualt number of threads used to run the tasks with this method.
         """
         cls.CONCURRENT_THREAD_ALLOWED = nT
+        cls.MAX_NUMBER_TASK_SLOT = nT
 
     def __init__(self, URL = None, **attributes ):
         PypeWorkflow.__init__(self, URL, **attributes )
@@ -401,6 +423,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             self.addObject(taskObj)
 
     def refreshTargets(self, objs = [], callback = (None, None, None) ):
+
         if len(objs) != 0:
             connectedPypeNodes = set()
             for obj in objs:
@@ -418,8 +441,11 @@ class PypeThreadWorkflow(PypeWorkflow):
                                     if isinstance(self._pypeObjects[str(u)], PypeTaskBase) and str(u) != URL ]
             prereqJobURLMap[URL] = prereqJobURLs
             self._logger.debug("Determined prereqs for %s to be %s" % (URL, ", ".join(prereqJobURLs)))
+            if taskObj.nSlot > PypeThreadWorkflow.MAX_NUMBER_TASK_SLOT:
+                raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" % (str(URL), taskObj.nSlot, PypeThreadWorkflow.MAX_NUMBER_TASK_SLOT) )  
 
         nSubmittedJob = 0
+        usedTaskSlots = 0
         loopN = 0
         task2thread = {}
         while 1:
@@ -434,16 +460,20 @@ class PypeThreadWorkflow(PypeWorkflow):
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
             self._logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
-            if threading.activeCount() == 1 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
+
+            numAliveThreads = len( [ t for t in task2thread.values() if t.isAlive() ] )
+            if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
                 break
 
-
             for URL, taskObj in jobsReadyToBeSubmitted:
-                if nSubmittedJob < PypeThreadWorkflow.CONCURRENT_THREAD_ALLOWED:
+                numberOfEmptySlot = PypeThreadWorkflow.MAX_NUMBER_TASK_SLOT - usedTaskSlots 
+                self._logger.info( "number of empty slot = %d/%d" % (numberOfEmptySlot, PypeThreadWorkflow.MAX_NUMBER_TASK_SLOT))
+                if numberOfEmptySlot >= taskObj.nSlot:
                     t = Thread(target = taskObj)
                     t.start()
                     task2thread[URL] = t
                     nSubmittedJob += 1
+                    usedTaskSlots += taskObj.nSlot
                 else:
                     break
 
@@ -452,12 +482,14 @@ class PypeThreadWorkflow(PypeWorkflow):
             faildJobCount = 0
 
             while not self.messageQueue.empty():
+
                 URL, message = self.messageQueue.get()
                 self.jobStatusMap[str(URL)] = message
 
                 if message in ["done", "continue"]:
                     successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
+                    usedTaskSlots -= successfullTask.nSlot
                     task2thread[URL].join()
                     successfullTask.finalize()
 
@@ -468,7 +500,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                     failedTask.finalize()
 
             for u,s in sorted(self.jobStatusMap.items()):
-                self._logger.info( "task status: %s, %s" % (str(u),str(s)) )
+                self._logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlot) )
 
             if faildJobCount != 0:
                 for thread in task2thread.values( ):

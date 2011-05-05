@@ -77,6 +77,7 @@ class PypeTaskBase(PypeObject):
         self._referenceMD5 = None
         self._status = TaskInitialized
         self._log = logging.Logger('task')
+        
 
 
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
@@ -107,7 +108,7 @@ class PypeTaskBase(PypeObject):
     def setOutputs( self, outputDataObjs ):
         self.outputDataObjs = outputDataObjs
         vars(self).update( outputDataObjs )
-
+        
     def setReferenceMD5(self, md5Str):
         self._referenceMD5 = md5Str
 
@@ -246,6 +247,13 @@ class PypeThreadTaskBase(PypeTaskBase):
     """
 
     def __init__(self, URL, *argv, **kwargv):
+
+        # required number of slots to run, total number of slots is determined by PypeThreadWorkflow.CONCURRENT_THREAD_ALLOWED, 
+        # increase this number by passing desired number through the "parameters" argument 
+        # (e.g parameters={"nSlot":2}) to avoid high computationa intensive job running concurrently in local machine
+        # One can set the max number of thread of a workflow by PypeThreadWorkflow.setNumThreadAllowed()
+        self.nSlot = 1
+
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
 
     def setMessageQueue(self, q):
