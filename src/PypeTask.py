@@ -85,13 +85,13 @@ class PypeTaskBase(PypeObject):
                 self.__dict__[defaultAttr] = {}
 
         # "input" and "output" short cut
-        if "input" in kwargv:
-            self.inputDataObjs.update(kwargv["input"])
-            del kwargv["input"]
+        if "inputs" in kwargv:
+            self.inputDataObjs.update(kwargv["inputs"])
+            del kwargv["inputs"]
 
-        if "output" in kwargv:
-            self.outputDataObjs.update(kwargv["output"])
-            del kwargv["output"]
+        if "outputs" in kwargv:
+            self.outputDataObjs.update(kwargv["outputs"])
+            del kwargv["outputs"]
 
         #the keys in inputDataObjs/outputDataObjs/parameters will become a task attribute 
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:

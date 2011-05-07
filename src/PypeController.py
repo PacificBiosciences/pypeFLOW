@@ -79,6 +79,12 @@ class PypeNode(object):
     @property
     def outDegree(self):
         return len(self._outNodes)
+    
+    @property
+    def depth(self):
+        if self.inDegree == 0:
+            return 1
+        return 1 + max([ node.depth for node in self._inNodes ])
 
 class PypeGraph(object):
 
@@ -96,18 +102,20 @@ class PypeGraph(object):
         self._RDFGraph = RDFGraph
         self._allEdges = set()
         self._allNodes = set()
-        obj2Node ={}
+        self.url2Node ={}
 
         for row in self._RDFGraph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
             if subGraphNodes != None:
                 if row[0] not in subGraphNodes: continue
                 if row[1] not in subGraphNodes: continue
+            
+            sURL, oURL = str(row[0]), str(row[1])
+            
+            self.url2Node[sURL] = self.url2Node.get( sURL, PypeNode(str(row[0])) )
+            self.url2Node[oURL] = self.url2Node.get( oURL, PypeNode(str(row[1])) )
 
-            obj2Node[row[0]] = obj2Node.get( row[0], PypeNode(str(row[0])) )
-            obj2Node[row[1]] = obj2Node.get( row[1], PypeNode(str(row[1])) )
-
-            n1 = obj2Node[row[1]]
-            n2 = obj2Node[row[0]]
+            n1 = self.url2Node[oURL]
+            n2 = self.url2Node[sURL]
             
             n1.addAnOutNode(n2)
             n2.addAnInNode(n1)
@@ -117,6 +125,10 @@ class PypeGraph(object):
             self._allNodes.add( n2 )
             self._allEdges.add( anEdge )
             
+    def __getitem__(self, url):
+        """PypeGraph["URL"] ==> PypeNode"""
+        return self.url2Node[url]
+
     def tSort(self): #return a topoloical sort node list
         
         """
