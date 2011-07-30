@@ -101,6 +101,10 @@ class PypeTaskBase(PypeObject):
         self._paramMD5digest = kwargv["_paramMD5digest"]
         self._compareFunctions = [ timeStampCompare ]
         
+    @property
+    def status(self):
+        return self._status
+        
     def setInputs( self, inputDataObjs ):
         self.inputDataObjs = inputDataObjs
         vars(self).update( inputDataObjs )

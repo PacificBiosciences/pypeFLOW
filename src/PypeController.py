@@ -1,3 +1,4 @@
+import datetime
 
 # @author Jason Chin
 #
@@ -434,7 +435,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             self.addObjects(taskObj.outputDataObjs.values())
             self.addObject(taskObj)
 
-    def refreshTargets(self, objs = [], callback = (None, None, None) ):
+    def refreshTargets(self, objs = [], callback = (None, None, None), updateFreq=None ):
 
         if len(objs) != 0:
             connectedPypeNodes = set()
@@ -460,6 +461,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         usedTaskSlots = 0
         loopN = 0
         task2thread = {}
+        lastUpdate = None
         while 1:
             loopN += 1
             self._logger.info( "tick: %d" % loopN )
@@ -490,6 +492,11 @@ class PypeThreadWorkflow(PypeWorkflow):
                     break
 
             time.sleep(0.25)
+            if updateFreq != None:
+                elapsedSeconds = updateFreq if lastUpdate==None else (datetime.datetime.now()-lastUpdate).seconds
+                if elapsedSeconds >= updateFreq:
+                    self._update( elapsedSeconds )
+                    lastUpdate = datetime.datetime.now( )
             self._logger.info ( "number of running tasks: %d" % (threading.activeCount()-1) )
             faildJobCount = 0
 
@@ -515,9 +522,11 @@ class PypeThreadWorkflow(PypeWorkflow):
                 self._logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlot) )
 
             if faildJobCount != 0:
-                for thread in task2thread.values( ):
+                for url, thread in task2thread.iteritems( ):
                     if thread.isAlive( ):
                         thread.join( )
+                        self._pypeObjects[str(url)].finalize()
+                        
                 return False
 
         for u,s in sorted(self.jobStatusMap.items()):
@@ -525,6 +534,10 @@ class PypeThreadWorkflow(PypeWorkflow):
 
         self._runCallback(callback)
         return True
+    
+    def _update(self, elapsed):
+        """Can be overridden to provide timed updates during execution"""
+        pass
 
     def _graphvizDot(self, shortName=False):
 
