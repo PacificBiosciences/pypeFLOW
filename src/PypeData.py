@@ -31,7 +31,7 @@ PypeData: This module defines the general interface and class for PypeData Objec
 
 from urlparse import urlparse
 import platform
-import os
+import os, shutil
 from PypeCommon import * 
 import logging
     
@@ -101,7 +101,6 @@ class PypeLocalFile(PypeDataObjectBase):
         self._log.debug("Verifying contents of %s" % self.URL)
         # Get around the NFS problem
         os.listdir(os.path.dirname(self.path)) 
-        open( self.path, 'r' ).close( )
         
         errors = [ ]
         for verifyFn in self.verification:
@@ -112,7 +111,7 @@ class PypeLocalFile(PypeDataObjectBase):
         if len(errors) > 0:
             for e in errors:
                 self._log.error(e)
-        return len(errors) == 0
+        return errors
     
     def __str__( self ):
         return self.URL
