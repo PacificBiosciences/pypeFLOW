@@ -32,7 +32,7 @@ PypeData: This module defines the general interface and class for PypeData Objec
 from urlparse import urlparse
 import platform
 import os, shutil
-from PypeCommon import * 
+from common import * 
 import logging
     
 class FileNotExistError(PypeError):

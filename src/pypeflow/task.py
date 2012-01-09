@@ -44,8 +44,8 @@ else:
 import os
 import shlex
 
-from PypeCommon import * 
-from PypeData import FileNotExistError
+from common import * 
+from data import FileNotExistError
 
 class TaskFunctionError(PypeError):
     pass

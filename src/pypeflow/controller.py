@@ -38,9 +38,9 @@ from Queue import Queue
 from cStringIO import StringIO 
 from urlparse import urlparse
 
-from PypeCommon import * 
-from PypeData import PypeDataObjectBase
-from PypeTask import *
+from common import * 
+from data import PypeDataObjectBase
+from task import *
 
 
 
