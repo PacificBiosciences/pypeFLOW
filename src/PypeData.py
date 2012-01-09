@@ -31,7 +31,7 @@ PypeData: This module defines the general interface and class for PypeData Objec
 
 from urlparse import urlparse
 import platform
-import os
+import os, shutil
 from PypeCommon import * 
 import logging
     
@@ -82,6 +82,7 @@ class PypeLocalFile(PypeDataObjectBase):
         self.localFileName = URLParseResult.path[1:]
         self._path = self.localFileName
         self.readOnly = readOnly
+        self.verification = []
 
     @property
     def timeStamp(self):
@@ -93,18 +94,24 @@ class PypeLocalFile(PypeDataObjectBase):
     def exists(self):
         return os.path.exists(self.localFileName)
     
-    def setVerifyFunction( self, verifyFunction ):
-        self._verify = verifyFunction
+    def addVerifyFunction( self, verifyFunction ):
+        self.verification.append( verifyFunction )
     
     def verify( self ):
-        if self._verify == None:
-            return True
         self._log.debug("Verifying contents of %s" % self.URL)
-        errors = self._verify( self.path )
+        # Get around the NFS problem
+        os.listdir(os.path.dirname(self.path)) 
+        
+        errors = [ ]
+        for verifyFn in self.verification:
+            try:
+                errors.extend( verifyFn(self.path) )
+            except Exception, e:
+                errors.append( str(e) )
         if len(errors) > 0:
             for e in errors:
                 self._log.error(e)
-        return len(errors) == 0
+        return errors
     
     def __str__( self ):
         return self.URL

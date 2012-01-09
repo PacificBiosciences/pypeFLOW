@@ -101,6 +101,10 @@ class PypeTaskBase(PypeObject):
         self._paramMD5digest = kwargv["_paramMD5digest"]
         self._compareFunctions = [ timeStampCompare ]
         
+    @property
+    def status(self):
+        return self._status
+        
     def setInputs( self, inputDataObjs ):
         self.inputDataObjs = inputDataObjs
         vars(self).update( inputDataObjs )
@@ -246,15 +250,13 @@ class PypeThreadTaskBase(PypeTaskBase):
     Subclass it to for different kind of task.
     """
 
-    def __init__(self, URL, *argv, **kwargv):
-
-        # required number of slots to run, total number of slots is determined by PypeThreadWorkflow.CONCURRENT_THREAD_ALLOWED, 
+    @property
+    def nSlots( self ):
+        # required number of slots to run, total number of slots is determined by PypeThreadWorkflow.MAX_NUMBER_TASK_SLOT, 
         # increase this number by passing desired number through the "parameters" argument 
         # (e.g parameters={"nSlot":2}) to avoid high computationa intensive job running concurrently in local machine
         # One can set the max number of thread of a workflow by PypeThreadWorkflow.setNumThreadAllowed()
-        self.nSlot = 1
-
-        PypeTaskBase.__init__(self, URL, *argv, **kwargv)
+        return 1
 
     def setMessageQueue(self, q):
         self._queue = q
