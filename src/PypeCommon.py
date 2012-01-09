@@ -113,7 +113,7 @@ def runShellCmd(args,**kwargs):
 
     """ 
     Utility function that runs a shell script command. 
-    I blocks until the command is finished. The return value
+    It blocks until the command is finished. The return value
     from the shell command is returned
     """
 
@@ -130,7 +130,7 @@ def runSgeSyncJob(args):
 
     """ 
     Utility function that runs a shell script with SGE. 
-    I blocks until the command is finished. The return value
+    It blocks until the command is finished. The return value
     from the shell command is returned
     """
 
