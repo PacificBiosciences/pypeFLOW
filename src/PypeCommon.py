@@ -33,14 +33,14 @@ from urlparse import urlparse
 
 import rdflib
 try:
-    from rdflib.Graph import ConjunctiveGraph as Graph #work for rdflib-2.4.2
-except:
     from rdflib import ConjunctiveGraph as Graph #work for rdflib-3.1.0
     # need to install rdfextras for rdflib-3.0.0
     rdflib.plugin.register('sparql', rdflib.query.Processor,
                            'rdfextras.sparql.processor', 'Processor')
     rdflib.plugin.register('sparql', rdflib.query.Result,
                            'rdfextras.sparql.query', 'SPARQLQueryResult')
+except:
+    from rdflib.Graph import ConjunctiveGraph as Graph #work for rdflib-2.4.2
 from rdflib import Namespace
 from rdflib import Literal
 from rdflib import URIRef

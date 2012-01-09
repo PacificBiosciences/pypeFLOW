@@ -94,11 +94,11 @@ def simpleTest():
 
 def testDistributed(runmode, cleanup):
     logger.info("test start")
-    baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
+    #baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
     #baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
     #baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
     #baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
-    #baseDir = "/home/cschin/Sandbox/PypeEngine/src"
+    baseDir = "/home/cschin/Sandbox/PypeEngine/src"
     import random
     random.seed(1984)
     #mq = Queue()
