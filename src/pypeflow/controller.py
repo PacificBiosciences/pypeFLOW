@@ -428,7 +428,8 @@ class PypeThreadWorkflow(PypeWorkflow):
 
         for taskObj in taskObjs:
             if not isinstance(taskObj, PypeThreadTaskBase):
-                raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow")
+                raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
+
             taskObj.setMessageQueue(self.messageQueue)
 
             self.addObjects(taskObj.inputDataObjs.values())

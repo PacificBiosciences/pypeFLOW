@@ -319,12 +319,12 @@ def PypeTask(*argv, **kwargv):
     A decorator that converts a function into a PypeTaskBase object.
 
     >>> import os 
-    >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
-    >>> from PypeTask import *
-    >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
-    >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
-    >>> @PypeTask(output={"test_out":fout},
-    ...           input={"test_in":fin},
+    >>> from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
+    >>> from pypeflow.task import *
+    >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
+    >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
+    >>> @PypeTask(outputs={"test_out":fout},
+    ...           inputs={"test_in":fin},
     ...           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
     ... def test(self):
     ...     print test.test_in.localFileName
@@ -334,11 +334,11 @@ def PypeTask(*argv, **kwargv):
     ...     print self.test_out.localFileName
     ...     pass
     >>> type(test) 
-    <class 'PypeTask.PypeTaskBase'>
+    <class 'pypeflow.task.PypeTaskBase'>
     >>> test.test_in.localFileName
-    'test/testfile_in'
+    '/tmp/pypetest/testfile_in'
     >>> test.test_out.localFileName
-    'test/testfile_out'
+    '/tmp/pypetest/testfile_out'
     >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
     0
     >>> timeStampCompare(test.inputDataObjs, test.outputDataObjs, test.parameters)
@@ -346,10 +346,10 @@ def PypeTask(*argv, **kwargv):
     >>> print test._getRunFlag()
     True
     >>> test()
-    test/testfile_in
-    test/testfile_out
-    test/testfile_in
-    test/testfile_out
+    /tmp/pypetest/testfile_in
+    /tmp/pypetest/testfile_out
+    /tmp/pypetest/testfile_in
+    /tmp/pypetest/testfile_out
     >>> timeStampCompare(test.inputDataObjs, test.outputDataObjs, test.parameters)
     False
     >>> print test._getRunFlag()
@@ -362,7 +362,7 @@ def PypeTask(*argv, **kwargv):
     >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
     0
     >>> # test PypeTask.finalize()
-    >>> from PypeController import PypeWorkflow
+    >>> from controller import PypeWorkflow
     >>> wf = PypeWorkflow()
     >>> wf.addTask(test)
     >>> def finalize(self):
@@ -371,14 +371,9 @@ def PypeTask(*argv, **kwargv):
     ...     return f
     >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overriden by subclasses. 
     >>> wf.refreshTargets( objs = [fout] )
-    test/testfile_in
-    test/testfile_out
-    test/testfile_in
-    test/testfile_out
-    in finalize: TaskDone
     True
     >>> #The following code show how to set up a task with a PypeThreadWorkflow that allows running multitple tasks in parallel. 
-    >>> from PypeController import PypeThreadWorkflow
+    >>> from pypeflow.controller import PypeThreadWorkflow
     >>> wf = PypeThreadWorkflow()
     >>> @PypeTask(outputDataObjs={"test_out":fout},
     ...           inputDataObjs={"test_in":fin},
@@ -408,7 +403,10 @@ def PypeTask(*argv, **kwargv):
 
         if kwargv.get("URL",None) == None:
             kwargv["URL"] = "task://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-        kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
+        try:
+            kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
+        except IOError: #python2.7 seems having problem to get source code from docstring, this is a work around to make docstring test working
+            kwargv["_codeMD5digest"] = ""
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
         return TaskType(*argv, **kwargv) 
@@ -421,21 +419,25 @@ def PypeShellTask(*argv, **kwargv):
     A function that converts a shell script into a PypeTaskBase object.
 
     >>> import os 
-    >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
-    >>> from PypeTask import *
-    >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
-    >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
-    >>> f = open("test/shellTask.sh","w")
+    >>> from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
+    >>> from pypeflow.task import *
+    >>> try:
+    ...     os.makedirs("/tmp/pypetest")
+    ... except:
+    ...     pass
+    >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
+    >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
+    >>> f = open("/tmp/pypetest/shellTask.sh","w")
     >>> f.write( "echo touch %s; touch %s" % (fn(fout), fn(fout)) )
     >>> f.close()
     >>> shellTask = PypeShellTask(outputDataObjs={"test_out":fout},
     ...                           inputDataObjs={"test_in":fin},
     ...                           parameters={"a":'I am "a"'}, **{"b":'I am "b"'}) 
-    >>> shellTask = shellTask("test/shellTask.sh")
+    >>> shellTask = shellTask("/tmp/pypetest/shellTask.sh")
     >>> type(shellTask) 
-    <class 'PypeTask.PypeTaskBase'>
+    <class 'pypeflow.task.PypeTaskBase'>
     >>> print fn(shellTask.test_in)
-    test/testfile_in
+    /tmp/pypetest/testfile_in
     >>> os.system( "touch %s" %  fn(fin)  ) 
     0
     >>> timeStampCompare(shellTask.inputDataObjs, shellTask.outputDataObjs, shellTask.parameters)
