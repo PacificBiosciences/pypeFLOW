@@ -1,24 +1,7 @@
-=======
-Modules
-=======
+pypeflow
+========
 
-PypeCommon
-----------
-.. automodule:: PypeCommon
-   :members:
+.. toctree::
+   :maxdepth: 4
 
-PypeController
---------------
-.. automodule:: PypeController
-   :members:
-
-PypeTask
---------
-.. automodule:: PypeTask
-   :members:
-
-PypeData
---------
-.. automodule:: PypeData
-   :members:
-   
+   pypeflow
