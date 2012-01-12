@@ -44,7 +44,6 @@ logger.addHandler(ch)
 
 def simpleTest():
 
-
     wf = PypeWorkflow()
 
     f1 = makePypeLocalFile("test.fa")
@@ -94,21 +93,14 @@ def simpleTest():
 
 def testDistributed(runmode, cleanup):
     logger.info("test start")
-    #baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
-    #baseDir = "/Users/cschin/Sandbox/PypeEngine/src"
-    #baseDir = "/home/UNIXHOME/jchin/task2011/PypeEngineIntegrationTest/src"
-    baseDir = "/Users/cschin/Sandbox/PypeEngine/src/test/"
-    #baseDir = "/home/cschin/Sandbox/PypeEngine/src/test/"
+    baseDir = "."
     import random
     random.seed(1984)
-    #mq = Queue()
     PypeThreadWorkflow.setNumThreadAllowed(20,20)
-    #wf = PypeWorkflow(messageQueue=mq)
     wf = PypeThreadWorkflow()
     allTasks = []
     for layer in range(5):
-        #fN = random.randint(3,7)
-        fN = 5
+        fN = random.randint(3,7)
         fin = [None] * fN
         fout = [None] * fN
         for w in range(fN):
@@ -119,7 +111,6 @@ def testDistributed(runmode, cleanup):
         for w in range(fN):
             inputDataObjs = {}
             outputDataObjs = {}
-            #for i in range(random.randint(1,5)):
             for i in range(5):
                 inputDataObjs["infile%d" % i] = random.choice(fin)
 
@@ -134,8 +125,6 @@ def testDistributed(runmode, cleanup):
 
             if runmode == "internal":
                 def t1(self):
-                    #self._queue.put( self.infile.localFileName) 
-                    #self._queue.put( self.outfile.localFileName)
                     runShellCmd(["sleep", "%d" % random.randint(0,20) ])
 
                     for of in self.outputDataObjs.values():
@@ -145,21 +134,18 @@ def testDistributed(runmode, cleanup):
                                 outputDataObjs = outputDataObjs, 
                                 URL="task://task_l%d_w%d" % (layer, w), 
                                 TaskType=PypeThreadTaskBase) ( t1 )
-                #task.setMessageQueue(mq)
 
             elif runmode == "localshell":
                 task = PypeShellTask(inputDataObjs = inputDataObjs,
                                      outputDataObjs = outputDataObjs, 
                                      URL="task://task_l%d_w%d" % (layer, w), 
                                      TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                #task.setMessageQueue(mq)
 
             elif runmode == "sge": 
                 task = PypeSGETask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs, 
                                    URL="task://task_l%d_w%d" % (layer, w), 
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                #task.setMessageQueue(mq)
 
             elif runmode == "mixed":
                 #distributed = random.choice( (False, True) )
@@ -169,9 +155,6 @@ def testDistributed(runmode, cleanup):
                                    URL="task://task_l%d_w%d" % (layer, w), 
                                    distributed=distributed,
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
-                #task.setMessageQueue(mq)
-                
-
 
             wf.addTasks([task])
             allTasks.append(task)
@@ -195,5 +178,10 @@ def testDistributed(runmode, cleanup):
     mkFile.close()
 
 if __name__ == "__main__":
-    testDistributed(sys.argv[1], sys.argv[2])
+    try:
+        testDistributed(sys.argv[1], sys.argv[2])
+    except IndexError:
+        print "try: python PypeTest.py localshell 1"
+        print "running simpleTest()"
+        simpleTest()
 
