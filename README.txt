@@ -1,7 +1,7 @@
 What is pypeFLOW
 ================
 
-pypeFLOW is light way and reusable make / flow data process
+pypeFLOW is light weight and reusable make / flow data process
 library written in Python.
 
 Most of bioinformatics analysis or general data analysis
