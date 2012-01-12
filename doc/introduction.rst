@@ -56,8 +56,7 @@ Features
 ========
 
     - Multiple concurrent task scheduling and running
-      Support task as simple shell script (considering clustering
+    - Support task as simple shell script (considering clustering
       job submission in mind)
-    - Less than 1000 lines of python for now Provide a
     - reasonable simple interface for declarative programming
 
