@@ -27,10 +27,10 @@ import os
 
 
 from pypeflow.common import * 
-from pypeflow.task import PypeTask, PypeShellTask, PypeSGETask, PypeThreadTaskBase, PypeTaskBase, PypeDistributibleTask
+from pypeflow.task import PypeThreadTaskBase, PypeTaskBase
+from pypeflow.task import PypeTask, PypeShellTask, PypeSGETask, PypeDistributibleTask
 from pypeflow.controller import PypeWorkflow, PypeThreadWorkflow
 from pypeflow.data import PypeLocalFile, makePypeLocalFile
-from Queue import Queue 
 import logging
 
 logger = logging.getLogger('workflow')
@@ -43,6 +43,68 @@ logger.addHandler(ch)
 
 
 def simpleTest():
+
+    wf = PypeWorkflow() 
+    
+    # f1 and f2 are the mock input files
+    f1 = makePypeLocalFile("test.fa")
+    f2 = makePypeLocalFile("ref.fa")
+    
+    # f3 is the object of the expected output of the "testTask"
+    f3 = makePypeLocalFile("aln.txt", readOnly=False)
+
+    # create the mock files
+    os.system("touch %s" % f1.localFileName)
+    os.system("touch %s" % f2.localFileName)
+   
+    # the testTask will take f1 (as "testTask.fasta") and f2 (as "testTask.ref") and generate f3 (as "testTask.aln")
+    @PypeTask(inputDataObjs={"fasta":f1, "ref":f2},
+              outputDataObjs={"aln":f3},
+              parameters={"a":10}, **{"b":12})
+    def testTask(*argv, **kwargv):
+        print("testTask is running")
+        print("fasta input filename is %s" %  testTask.fasta.localFileName)
+        for ft, f in testTask.outputDataObjs.iteritems():
+            #os.system("touch %s" % f.localFileName)
+            runShellCmd(["touch", "%s" % f.localFileName])
+            runShellCmd(["sleep", "5" ])
+
+    # the testTask will take f1 (as "testTask.fasta") and f3 (as "testTask.aln") and generate f4 (as "testTask.aln2")
+    f4 = makePypeLocalFile("aln2.txt", readOnly=False)
+    @PypeTask(inputDataObjs={"fasta":f1, "aln":f3},
+              outputDataObjs={"aln2":f4},
+              parameters={"a":10}, **{"b":12})
+    def testTask2(*argv, **kwargv):
+        print("testTask2 is running")
+        for ft, f in testTask2.outputDataObjs.iteritems():
+            #os.system("touch %s" % f.localFileName)
+            runShellCmd(["touch", "%s" % f.localFileName])
+    
+    # one can add objects one by one to the workflow
+    #wf.addObjects([f1,f2,f3,f4]) 
+    #wf.addObjects([testTask, testTask2])
+   
+    # or, one can add the "tasks" into the workflow, the input and output data objects will be added automatically
+    wf.addTasks([testTask, testTask2])
+
+    #print out the RDFXML file that represents the workflow
+    print (wf.RDFXML)
+    #a graphviz dot for rendering the dependency graph if one
+    print (wf.graphvizDot)
+
+    # execute the workflow until f4 is updated
+    wf.refreshTargets([f4])
+
+    # mock the case that f1 is updated
+    print("re-touch f1")
+    os.system("sleep 1;touch %s;" % f1.localFileName)
+    wf.refreshTargets([f4])
+
+    # mock the case that f3 is updated
+    print("re-touch f3")
+    os.system("sleep 1;touch %s;" % f3.localFileName)
+
+def simpleTest2():
 
     wf = PypeWorkflow()
 
@@ -132,19 +194,19 @@ def testDistributed(runmode, cleanup):
 
                 task = PypeTask(inputDataObjs = inputDataObjs,
                                 outputDataObjs = outputDataObjs, 
-                                URL="task://task_l%d_w%d" % (layer, w), 
+                                URL="task://internal/task_l%d_w%d" % (layer, w), 
                                 TaskType=PypeThreadTaskBase) ( t1 )
 
             elif runmode == "localshell":
                 task = PypeShellTask(inputDataObjs = inputDataObjs,
                                      outputDataObjs = outputDataObjs, 
-                                     URL="task://task_l%d_w%d" % (layer, w), 
+                                     URL="task://localshell/task_l%d_w%d" % (layer, w), 
                                      TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
 
             elif runmode == "sge": 
                 task = PypeSGETask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs, 
-                                   URL="task://task_l%d_w%d" % (layer, w), 
+                                   URL="task://sge/task_l%d_w%d" % (layer, w), 
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
 
             elif runmode == "mixed":
@@ -152,7 +214,7 @@ def testDistributed(runmode, cleanup):
                 distributed = True if w % 3 == 0 else False
                 task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs,
-                                   URL="task://task_l%d_w%d" % (layer, w), 
+                                   URL="task://sge/task_l%d_w%d" % (layer, w), 
                                    distributed=distributed,
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
 
@@ -168,6 +230,10 @@ def testDistributed(runmode, cleanup):
             pass
     wf.refreshTargets(allTasks)
     dotFile = open("test.dot","w")
+    #print >>dotFile, wf.graphvizShortNameDot
+    print >>dotFile, wf.graphvizDot
+    dotFile.close()
+    dotFile = open("test_short_name.dot","w")
     print >>dotFile, wf.graphvizShortNameDot
     dotFile.close()
     rdfFile = open("test.rdf","w")

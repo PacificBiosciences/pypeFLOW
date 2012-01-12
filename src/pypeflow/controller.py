@@ -165,10 +165,14 @@ class PypeWorkflow(PypeObject):
     into the workflow and executed through the instanct methods.
 
     >>> import os 
-    >>> from PypeData import PypeLocalFile, makePypeLocalFile, fn
-    >>> from PypeTask import *
-    >>> fin = makePypeLocalFile("test/testfile_in", readOnly=False)
-    >>> fout = makePypeLocalFile("test/testfile_out", readOnly=False)
+    >>> from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
+    >>> from pypeflow.task import *
+    >>> try:
+    ...     os.makedirs("/tmp/pypetest")
+    ... except:
+    ...     pass
+    >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
+    >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
     >>> @PypeTask(outputDataObjs={"test_out":fout},
     ...           inputDataObjs={"test_in":fin},
     ...           parameters={"a":'I am "a"'}, **{"b":'I am "b"'})
@@ -179,7 +183,7 @@ class PypeWorkflow(PypeObject):
     ...     pass
     >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
     0
-    >>> from PypeController import PypeWorkflow
+    >>> from pypeflow.controller import PypeWorkflow
     >>> wf = PypeWorkflow()
     >>> wf.addTask(test)
     >>> def finalize(self):
@@ -188,8 +192,8 @@ class PypeWorkflow(PypeObject):
     ...     return f
     >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overriden by subclasses. 
     >>> wf.refreshTargets( objs = [fout] )
-    test/testfile_in
-    test/testfile_out
+    /tmp/pypetest/testfile_in
+    /tmp/pypetest/testfile_out
     in finalize: TaskDone
     True
     """
