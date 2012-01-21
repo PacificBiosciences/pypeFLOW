@@ -38,6 +38,9 @@ import logging
 class FileNotExistError(PypeError):
     pass
 
+class TypeMismatchError(PypeError):
+    pass
+
 def fn(obj):
     return obj.localFileName
 
@@ -50,6 +53,7 @@ class PypeDataObjectBase(PypeObject):
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
         self._log = logging.Logger('dataobject')
+        self.verification = []
 
     @property
     def timeStamp(self):
@@ -58,6 +62,12 @@ class PypeDataObjectBase(PypeObject):
     @property
     def exists(self):
         raise NotImplementedError
+
+    def addVerifyFunction( self, verifyFunction ):
+        self.verification.append( verifyFunction )
+
+    def __str__( self ):
+        return self.URL
 
 class PypeLocalFile(PypeDataObjectBase):
 
@@ -82,7 +92,6 @@ class PypeLocalFile(PypeDataObjectBase):
         self.localFileName = URLParseResult.path[1:]
         self._path = self.localFileName
         self.readOnly = readOnly
-        self.verification = []
 
     @property
     def timeStamp(self):
@@ -93,9 +102,6 @@ class PypeLocalFile(PypeDataObjectBase):
     @property
     def exists(self):
         return os.path.exists(self.localFileName)
-    
-    def addVerifyFunction( self, verifyFunction ):
-        self.verification.append( verifyFunction )
     
     def verify( self ):
         self._log.debug("Verifying contents of %s" % self.URL)
@@ -113,8 +119,6 @@ class PypeLocalFile(PypeDataObjectBase):
                 self._log.error(e)
         return errors
     
-    def __str__( self ):
-        return self.URL
     
     @property
     def path( self ):
@@ -145,18 +149,100 @@ class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
         self.localFileName = URLParseResult.path[1:]
         #the rest of the URL goes to HDF5 DS
 
-class PypeLocalCompositeFile(PypeDataObjectBase):  #stub for now Mar 17, 2010
+class PypeLocalFileCollection(PypeDataObjectBase):  #stub for now Mar 17, 2010
 
     """ 
     Represent a PypeData object that is a composition of multiple files.
-    Not implemented yet.
+    It will provide a container that allows the tasks to choose one or all file to
+    process.
     """
 
-    supportedURLScheme = ["compositeFile"]
-    def __init__(self, URL, readOnly = True, **attributes):
+    supportedURLScheme = ["files"]
+    def __init__(self, URL, readOnly = True, select = 1, **attributes):
+        """
+           currently we only support select = 1, 
+           namely, we only pass the first file add to the collection to the tasks
+        """
+        PypeDataObjectBase.__init__(self, URL, **attributes)
+        URLParseResult = urlparse(URL)
+        self.compositedDataObjName = URLParseResult.path[1:]
+        self.localFileName =  None
+        self._path = None
+        self.readOnly = readOnly
+        self.verification = []
+        self.localFiles = [] # a list of all files within the obj
+        self.select = select
+
+    def addLocalFile(self, pLocalFile):
+        if not isinstance(pLocalFile, PypeLocalFile):
+            raise TypeMismatchError, "only PypeLocalFile object can be added into PypeLocalFileColletion"
+        self.localFiles.append(pLocalFile)
+        if self.select == 1:
+            self.localFileName = self.localFiles[0].localFileName
+            self._path = self.localFileName
+
+    @property
+    def timeStamp(self):
+        if self.localFileName == None:
+            raise PypeError, "No PypeLocalFile is added into the PypeLocalFileColletion yet"
+        if not os.path.exists(self.localFileName):
+            raise FileNotExistError("No such file:%s on %s" % (self.localFileName, platform.node()) )
+        return os.stat(self.localFileName).st_mtime 
+
+    @property
+    def exists(self):
+        if self.localFileName == None:
+            raise PypeError, "No PypeLocalFile is added into the PypeLocalFileColletion yet"
+        return os.path.exists(self.localFileName)
+
+class PypeScatteredFile(PypeDataObjectBase):
+    """
+    Representing a data file object that is composed as sub-files used in the scatter-gather 
+    pattern in distributed computing.
+    """
+    supportedURLScheme = ["sfile"]
+    def __init__(self, URL, readOnly = True, nChunk = 1, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
+        self._path = self.localFileName
+        self.readOnly = readOnly
+        self.nChunk = nChunk
+        self.scatterFiles = {}
+        for i in range(self.nChunk):
+            chunkFile = makePypeLocalFile(fn(self)+"-%03d-%03d" % (i, self.nChunk))
+            self._addChunk(i, chunkFile)
+        self.catchScatteredOutputs = False #if Ture, we don't need to run scatter. It will get scattered files from a task
+        self.scatterTask = None
+        self.gatherTask = None
+
+    def _addChunk(self, chunkId, f):
+        if chunkId < self.nChunk:
+            self.scatterFiles[chunkId] = f
+        else:
+            raise PypeError, "chunkId %d should be less than the number of the chunks nChunk = %d" % (chunkId, nChunk)
+        
+    def getChunkFile(self, chunkId):
+        return self.scatterFiles[chunkId]
+
+    def getChunkFileName(self, chunkId):
+        return fn(self.scatterFiles[chunkId])
+
+    def attachedScatterTask(self, scatterTask):
+        self.scatterTask = scatterTask
+    
+    def attatchGatherTask(self, gatherTask):
+        self.gatherTask = gatherTask
+        
+    @property
+    def timeStamp(self):
+        if not os.path.exists(self.localFileName):
+            raise FileNotExistError("No such file:%s on %s" % (self.localFileName, platform.node()) )
+        return os.stat(self.localFileName).st_mtime 
+
+    @property
+    def exists(self):
+        return os.path.exists(self.localFileName)
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     """

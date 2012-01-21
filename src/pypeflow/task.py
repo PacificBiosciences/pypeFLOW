@@ -312,6 +312,62 @@ class PypeDistributiableTaskBase(PypeThreadTaskBase):
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
         self.distributed = True
 
+class PypeScatteredShellTaskBase(PypeDistributiableTaskBase):
+
+    """
+    Represent a PypeTask that can be run within a thread or submit to
+    a grid-engine like job scheduling system. 
+    Subclass it to for different kind of task.
+    """
+
+    def __init__(self, URL, *argv, **kwargv):
+        PypeTaskBase.__init__(self, URL, *argv, **kwargv)
+        self.distributed = True
+        self.scattered = True
+        self.scatteredInputDataObjs = kwargv.get("scatteredInputs", None)
+        self.scatteredOutputDataObjs = kwargv.get("scatteredOutputs", None)
+        self.scripts = self._kwargv["scripts"]
+        self.subTasks = None
+        self.createSubTasks()
+
+    def _runTask(self, *argv, **kwargv):
+
+        """ 
+        The method to run the decorated function _taskFun(). It is called through __call__() of
+        the PypeTask object and it should never be called directly
+
+        TODO: the arg porcessing is still a mess, need to find a better way to do this 
+        """
+        pass
+
+    def createSubTasks(self):
+        self.subTasks = []
+        if self.scatteredInputDataObjs == None:
+            self.subTasks = [ PypeDistributibleTaskBase(self.URL, self._argv, self._kwargv) ]
+        else:
+            nChunk = self.scatteredInputDataObjs.values()[0].nChunk
+            for i in range(nChunk):
+                newInput = self.inputDataObjs.copy()
+                newOutput = self.outputDataObjs.copy()
+                newArg = self._argv
+                newKwargv = self._kwargv.copy()
+                for dataObjKey in self.scatteredInputDataObjs:
+                    newInput[dataObjKey] = self.scatteredInputDataObjs[dataObjKey].getChunkFile(i)
+                for dataObjKey in self.scatteredOutputDataObjs:
+                    newOutput[dataObjKey] = self.scatteredOutputDataObjs[dataObjKey].getChunkFile(i)
+
+                newKwargv["inputDataObjs"] = newInput 
+                newKwargv["outputDataObjs"] = newOutput 
+                newURL = self.URL + "/subtask%03d" % i
+                newKwargv["URL"] = newURL
+                self.subTasks.append( PypeDistributibleTask(*newArg, **newKwargv) ( self.scripts[i]) )
+            #add the scatter subtask 
+            #add the gather subtask
+    
+    def getSubTask(self,i):
+        if self.subTasks == None:
+            raise PypeError, "Subtasks not created"
+        return self.subTasks[i]
 
 def PypeTask(*argv, **kwargv):
 
@@ -508,6 +564,36 @@ def PypeDistributibleTask(*argv, **kwargv):
         return PypeTask(*argv, **kwargv)(taskFun) 
 
     return f
+
+def PypeScatteredShellTask(*argv, **kwargv):
+
+    """
+    create an arrary of tasks by specifying one of the input files can be splited
+    into small chunks
+    """
+
+    scatteredInputs = kwargv.get("scatteredInputs", None)
+    if scatteredInputs == None:
+        raise PypeError, "scatteredInputs should be specified for PypeScatteredShellTask"
+
+    nChunk = scatteredInputs.values()[0].nChunk
+    for inputDataObj in scatteredInputs.values():
+        assert inputDataObj.nChunk == nChunk
+
+    def f(scripts):
+        """
+            scriptGenerator should be a python function that generates sub-task script
+        """
+        kwargv["scripts"] = scripts
+        kwargv["URL"] = "task://test" 
+        kwargv['_taskFun'] = None
+        kwargv["_codeMD5digest"] = ""
+        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
+
+        return PypeScatteredShellTaskBase(*argv, **kwargv)
+
+    return f
+
 
 def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 

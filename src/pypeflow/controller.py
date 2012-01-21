@@ -233,9 +233,16 @@ class PypeWorkflow(PypeObject):
         Add tasks into the workflow. The dependent input and output data objects are added automatically too. 
         """
         for taskObj in taskObjs:
-            self.addObjects(taskObj.inputDataObjs.values())
-            self.addObjects(taskObj.outputDataObjs.values())
-            self.addObject(taskObj)
+            if not isinstance(taskObk, PypeScatteredShellTask):
+                self.addObjects(taskObj.inputDataObjs.values())
+                self.addObjects(taskObj.outputDataObjs.values())
+                self.addObject(taskObj)
+            else:
+                for subTaskObj in taskObj.getSubTask():
+                    self.addObjects(subTaskObj.inputDataObjs.values())
+                    self.addObjects(subTaskObj.outputDataObjs.values())
+                    self.addObject(subTaskObj)
+
             
     def removeTask(self, taskObj):
         self.removeTasks([taskObj])
