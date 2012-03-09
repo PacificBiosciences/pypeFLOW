@@ -313,6 +313,19 @@ class PypeDistributiableTaskBase(PypeThreadTaskBase):
         self.distributed = True
 
 
+class PypeTaskCollectionBase(PypeObject):
+
+    """
+    Represent an object that encapsules a number of tasks
+    """
+
+    def __init__(self, URL, tasks = []):
+        PypeObject.__init__(self, URL, **kwargv)
+        self._tasks = tasks
+
+    def getTasks(self):
+        return self._tasks
+
 def PypeTask(*argv, **kwargv):
 
     """

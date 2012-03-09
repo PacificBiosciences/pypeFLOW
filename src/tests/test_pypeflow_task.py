@@ -82,3 +82,13 @@ class TestTimeStampCompare:
         # assert_equal(expected, timeStampCompare(inputDataObjs, outputDataObjs, parameters))
         raise SkipTest # TODO: implement your test here
 
+class TestPypeTaskCollectionBase:
+    def test___init__(self):
+        # pype_task_collection_base = PypeTaskCollectionBase(URL, tasks)
+        raise SkipTest # TODO: implement your test here
+
+    def test_getTasks(self):
+        # pype_task_collection_base = PypeTaskCollectionBase(URL, tasks)
+        # assert_equal(expected, pype_task_collection_base.getTasks())
+        raise SkipTest # TODO: implement your test here
+
