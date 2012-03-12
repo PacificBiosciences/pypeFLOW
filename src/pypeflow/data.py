@@ -50,6 +50,7 @@ class PypeDataObjectBase(PypeObject):
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
         self._log = logging.Logger('dataobject')
+        self.verification = []
 
     @property
     def timeStamp(self):
@@ -58,6 +59,13 @@ class PypeDataObjectBase(PypeObject):
     @property
     def exists(self):
         raise NotImplementedError
+
+    def addVerifyFunction( self, verifyFunction ):
+        self.verification.append( verifyFunction )
+
+    def __str__( self ):
+        return self.URL
+
 
 class PypeLocalFile(PypeDataObjectBase):
 
@@ -82,7 +90,6 @@ class PypeLocalFile(PypeDataObjectBase):
         self.localFileName = URLParseResult.path[1:]
         self._path = self.localFileName
         self.readOnly = readOnly
-        self.verification = []
 
     @property
     def timeStamp(self):
@@ -93,9 +100,6 @@ class PypeLocalFile(PypeDataObjectBase):
     @property
     def exists(self):
         return os.path.exists(self.localFileName)
-    
-    def addVerifyFunction( self, verifyFunction ):
-        self.verification.append( verifyFunction )
     
     def verify( self ):
         self._log.debug("Verifying contents of %s" % self.URL)
@@ -112,9 +116,6 @@ class PypeLocalFile(PypeDataObjectBase):
             for e in errors:
                 self._log.error(e)
         return errors
-    
-    def __str__( self ):
-        return self.URL
     
     @property
     def path( self ):
