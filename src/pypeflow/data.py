@@ -182,7 +182,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
         self._scatterTask = None
         self._gatherTask = None
         self._splittedFiles = []
-        self._nChunk = nChunk
+        self.nChunk = nChunk
 
         cfURL = "file://%s/%s" % (URLParseResult.netloc, URLParseResult.path) 
 
