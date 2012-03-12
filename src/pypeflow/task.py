@@ -33,8 +33,9 @@ a regular python funtion into a PypeTask instance.
 import inspect
 import hashlib
 import logging
-
+import copy
 import sys
+
 PYTHONVERSION = sys.version_info[:2]
 if PYTHONVERSION == (2,5):
     import simplejson as json
@@ -97,6 +98,9 @@ class PypeTaskBase(PypeObject):
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
             vars(self).update(self.__dict__[defaultAttr]) 
 
+        if "chunk_id" in kwargv:
+            self.chunk_id = kwargv["chunk_id"]
+
         self._codeMD5digest = kwargv["_codeMD5digest"]
         self._paramMD5digest = kwargv["_paramMD5digest"]
         self._compareFunctions = [ timeStampCompare ]
@@ -130,6 +134,7 @@ class PypeTaskBase(PypeObject):
         if runFlag == False:
             runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFunctions] )
 
+
         return runFlag
 
     def _runTask(self, *argv, **kwargv):
@@ -149,20 +154,20 @@ class PypeTaskBase(PypeObject):
             (args, varargs, varkw, defaults) = argspec.args, argspec.varargs, argspec.keywords, argspec.defaults
 
         if varkw != None:
-            self._taskFun(*argv, **kwargv)
+            return self._taskFun(*argv, **kwargv)
         elif varargs != None:
-            self._taskFun(*argv)
+            return self._taskFun(*argv)
         elif len(args) != 0:
             nkwarg = {}
             if defaults != None:
                 defaultArg = args[-len(defaults):]
                 for a in defaultArg:
                     nkwarg[a] = kwargv[a]
-                self._taskFun(*argv, **nkwarg)
+                return self._taskFun(*argv, **nkwarg)
             else:
-                self._taskFun(self)
+                return self._taskFun(self)
         else:
-            self._taskFun()
+            return self._taskFun()
 
     @property
     def _RDFGraph(self):
@@ -225,15 +230,17 @@ class PypeTaskBase(PypeObject):
             
         if runFlag == True:
 
-            self._runTask(*argv, **kwargv)
+            rtn = self._runTask(*argv, **kwargv)
 
             if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
                 raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
 
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             self._status = TaskFail
+            return None
         else:
             self._status = TaskDone
+            return rtn
 
     def finalize(self): 
         """ 
@@ -369,6 +376,26 @@ class PypeScatteredShellTaskBase(PypeDistributiableTaskBase):
             raise PypeError, "Subtasks not created"
         return self.subTasks[i]
 
+class PypeTaskCollection(PypeObject):
+
+    """
+    Represent an object that encapsules a number of tasks
+    """
+
+    supportedURLScheme = ["tasks"]
+    def __init__(self, URL, tasks = [], **kwargv):
+        PypeObject.__init__(self, URL, **kwargv)
+        self._tasks = tasks[:]
+
+    def addTask(self, task):
+        self._tasks.append(task)
+
+    def getTasks(self):
+        return self._tasks
+
+    def __getitem__(self, k):
+        return self._tasks[k]
+
 def PypeTask(*argv, **kwargv):
 
     """
@@ -451,7 +478,9 @@ def PypeTask(*argv, **kwargv):
     """
 
     def f(taskFun):
+
         TaskType = kwargv.get("TaskType", PypeTaskBase)
+
         if "TaskType" in kwargv:
             del kwargv["TaskType"]
 
@@ -565,33 +594,78 @@ def PypeDistributibleTask(*argv, **kwargv):
 
     return f
 
-def PypeScatteredShellTask(*argv, **kwargv):
 
-    """
-    create an arrary of tasks by specifying one of the input files can be splited
-    into small chunks
-    """
+def PypeScatteredTasks(*argv, **kwargv):
 
-    scatteredInputs = kwargv.get("scatteredInputs", None)
-    if scatteredInputs == None:
-        raise PypeError, "scatteredInputs should be specified for PypeScatteredShellTask"
+    def f(taskFun):
 
-    nChunk = scatteredInputs.values()[0].nChunk
-    for inputDataObj in scatteredInputs.values():
-        assert inputDataObj.nChunk == nChunk
+        TaskType = kwargv.get("TaskType", PypeTaskBase)
 
-    def f(scripts):
-        """
-            scriptGenerator should be a python function that generates sub-task script
-        """
-        kwargv["scripts"] = scripts
-        kwargv["URL"] = "task://test" 
-        kwargv['_taskFun'] = None
-        kwargv["_codeMD5digest"] = ""
-        kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
+        if "TaskType" in kwargv:
+            del kwargv["TaskType"]
 
-        return PypeScatteredShellTaskBase(*argv, **kwargv)
+        kwargv["_taskFun"] = taskFun
 
+        inputDataObjs = kwargv["inputDataObjs"]
+        outputDataObjs = kwargv["outputDataObjs"]
+        nChunk = None
+        scatteredInput  = []
+        singleInput = []
+
+        for inputKey, inputDO in inputDataObjs.items():
+            if hasattr(inputDO, "nChunk"):
+                if nChunk != None and inputDO.nChunk != nChunk:
+                    raise
+                else:
+                    nChunk = inputDO.nChunk
+                scatteredInput.append( inputKey )
+
+        for outputKey, outputDO in outputDataObjs.items():
+            if hasattr(outputDO, "nChunk"):
+                if nChunk != None and outputDO.nChunk != nChunk:
+                    raise
+                else:
+                    nChunk = outputDO.nChunk
+
+        if kwargv.get("URL",None) == None:
+            kwargv["URL"] = "tasks://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+
+        tasks = PypeTaskCollection(kwargv["URL"])
+
+        for i in range(nChunk):
+
+            newKwargv = copy.deepcopy(kwargv)
+
+            subTaskInput = {}
+            for inputKey, inputDO in inputDataObjs.items():
+                if inputKey in scatteredInput:
+                    subTaskInput[inputKey] = inputDO.getSplittedFiles()[i]
+                else:
+                    subTaskInput[inputKey] = inputDO
+
+            subTaskOutput = {}
+            for outputKey, outputDO in outputDataObjs.items():
+                subTaskOutput[outputKey] = outputDO.getSplittedFiles()[i]
+
+            newKwargv["inputDataObjs"] = subTaskInput
+            newKwargv["outputDataObjs"] = subTaskOutput
+
+            #newKwargv["URL"] = "task://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name + "/%03d" % i
+            newKwargv["URL"] = kwargv["URL"].replace("tasks","task") + "/%03d" % i
+
+            try:
+                newKwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
+            except IOError: 
+                # python2.7 seems having problem to get source code from docstring, 
+                # this is a work around to make docstring test working
+                newKwargv["_codeMD5digest"] = ""
+
+            newKwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
+            newKwargv["chunk_id"] = i
+
+            
+            tasks.addTask( TaskType(*argv, **newKwargv) )
+        return tasks
     return f
 
 
@@ -624,7 +698,6 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 
 
     return runFlag
-
 if __name__ == "__main__":
     import doctest
     doctest.testmod()

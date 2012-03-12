@@ -29,7 +29,7 @@ PypeData: This module defines the general interface and class for PypeData Objec
 """
 
 
-from urlparse import urlparse
+from urlparse import urlparse, urljoin
 import platform
 import os, shutil
 from common import * 
@@ -68,6 +68,7 @@ class PypeDataObjectBase(PypeObject):
 
     def __str__( self ):
         return self.URL
+
 
 class PypeLocalFile(PypeDataObjectBase):
 
@@ -119,7 +120,6 @@ class PypeLocalFile(PypeDataObjectBase):
                 self._log.error(e)
         return errors
     
-    
     @property
     def path( self ):
         if self._path == None:
@@ -148,6 +148,7 @@ class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
         #the rest of the URL goes to HDF5 DS
+
 
 class PypeLocalFileCollection(PypeDataObjectBase):  #stub for now Mar 17, 2010
 
@@ -194,55 +195,85 @@ class PypeLocalFileCollection(PypeDataObjectBase):  #stub for now Mar 17, 2010
         if self.localFileName == None:
             raise PypeError, "No PypeLocalFile is added into the PypeLocalFileColletion yet"
         return os.path.exists(self.localFileName)
+        
 
-class PypeScatteredFile(PypeDataObjectBase):
+class PypeSplittableLocalFile(PypeDataObjectBase):
+    """ 
+    Represent a PypeData object that has two different local file representations:
+        (1) A whole file
+        (2) Split files
+    Such data object can have either a scatter task attached or a gather task attached.
+    If a scatter task is attached, the task will be inserted to generate the scattered files.
+    If a gather task is attached, the task will be inserted to generate the whole file.
+    If neither scatter task nor gather task is specified, then the file is mostly like intermediate data.
+    Namely, the whole file representation is not used any place else.
+    One can not specify scatter task and gather task for the same object since it will create a loop.
     """
-    Representing a data file object that is composed as sub-files used in the scatter-gather 
-    pattern in distributed computing.
-    """
-    supportedURLScheme = ["sfile"]
+    supportedURLScheme = ["splittablefile"]
+
     def __init__(self, URL, readOnly = True, nChunk = 1, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path[1:]
         self._path = self.localFileName
         self.readOnly = readOnly
+        self.verification = []
+        self._scatterTask = None
+        self._gatherTask = None
+        self._splittedFiles = []
         self.nChunk = nChunk
-        self.scatterFiles = {}
-        for i in range(self.nChunk):
-            chunkFile = makePypeLocalFile(fn(self)+"-%03d-%03d" % (i, self.nChunk))
-            self._addChunk(i, chunkFile)
-        self.catchScatteredOutputs = False #if Ture, we don't need to run scatter. It will get scattered files from a task
-        self.scatterTask = None
-        self.gatherTask = None
 
-    def _addChunk(self, chunkId, f):
-        if chunkId < self.nChunk:
-            self.scatterFiles[chunkId] = f
+        cfURL = "file://%s/%s" % (URLParseResult.netloc, URLParseResult.path) 
+
+        self._completeFile = PypeLocalFile(cfURL, readOnly, **attributes)
+
+        if nChunk == 1:
+            self._splittedFiles = [self._completeFile]
         else:
-            raise PypeError, "chunkId %d should be less than the number of the chunks nChunk = %d" % (chunkId, nChunk)
-        
-    def getChunkFile(self, chunkId):
-        return self.scatterFiles[chunkId]
+            dirname, basename = os.path.split(self._path)
 
-    def getChunkFileName(self, chunkId):
-        return fn(self.scatterFiles[chunkId])
+            for i in range(nChunk):
+                chunkBasename = "%03d_%s" % (i, basename)
+                if dirname != "":
+                    chunkURL = "file://%s/%s/%s" % (URLParseResult.netloc, dirname, chunkBasename) 
+                else:
+                    chunkURL = "file://%s/%s" % (URLParseResult.netloc, chunkBasename) 
 
-    def attachedScatterTask(self, scatterTask):
-        self.scatterTask = scatterTask
-    
-    def attatchGatherTask(self, gatherTask):
-        self.gatherTask = gatherTask
-        
-    @property
-    def timeStamp(self):
-        if not os.path.exists(self.localFileName):
-            raise FileNotExistError("No such file:%s on %s" % (self.localFileName, platform.node()) )
-        return os.stat(self.localFileName).st_mtime 
+                sFile = PypeLocalFile(chunkURL, readOnly, **attributes)
+                self._splittedFiles.append(sFile) 
 
-    @property
-    def exists(self):
-        return os.path.exists(self.localFileName)
+    def setGatherTask(self, TaskCreator, TaskType, function):
+        if self._scatterTask != None:
+            raise
+        inputDataObjs = dict( ( ("sf%03d" % c[0], c[1]) 
+                                for c in enumerate(self._splittedFiles) ) )
+        outputDataObjs = {"cf": self._completeFile}
+        gatherTask = TaskCreator( inputDataObjs = inputDataObjs,
+                                  outputDataObjs = outputDataObjs,
+                                  URL = "task://gather/%s" % self._path ,
+                                  TaskType=TaskType) ( function )
+        self._gatherTask = gatherTask
+
+    def setScatterTask(self, TaskCreator, TaskType, function):
+        if self._gatherTask != None:
+            raise
+        outputDataObjs = dict( ( ("sf%03d" % c[0], c[1]) 
+                                for c in enumerate(self._splittedFiles) ) )
+        inputDataObjs = {"cf": self._completeFile}
+        scatterTask = TaskCreator( inputDataObjs = inputDataObjs,
+                                   outputDataObjs = outputDataObjs,
+                                   URL = "task://scatter/%s" % self._path ,
+                                   TaskType=TaskType) ( function )
+        self._scatterTask = scatterTask
+
+    def getGatherTask(self):
+        return self._gatherTask
+
+    def getScatterTask(self):
+        return self._scatterTask
+
+    def getSplittedFiles(self):
+        return self._splittedFiles
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     """
