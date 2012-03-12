@@ -146,18 +146,53 @@ class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
         self.localFileName = URLParseResult.path[1:]
         #the rest of the URL goes to HDF5 DS
 
-class PypeLocalCompositeFile(PypeDataObjectBase):  #stub for now Mar 17, 2010
+
+class PypeLocalFileCollection(PypeDataObjectBase):  #stub for now Mar 17, 2010
 
     """ 
     Represent a PypeData object that is a composition of multiple files.
-    Not implemented yet.
+    It will provide a container that allows the tasks to choose one or all file to
+    process.
     """
 
-    supportedURLScheme = ["compositeFile"]
-    def __init__(self, URL, readOnly = True, **attributes):
+    supportedURLScheme = ["files"]
+    def __init__(self, URL, readOnly = True, select = 1, **attributes):
+        """
+           currently we only support select = 1, 
+           namely, we only pass the first file add to the collection to the tasks
+        """
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
-        self.localFileName = URLParseResult.path[1:]
+        self.compositedDataObjName = URLParseResult.path[1:]
+        self.localFileName =  None
+        self._path = None
+        self.readOnly = readOnly
+        self.verification = []
+        self.localFiles = [] # a list of all files within the obj
+        self.select = select
+
+    def addLocalFile(self, pLocalFile):
+        if not isinstance(pLocalFile, PypeLocalFile):
+            raise TypeMismatchError, "only PypeLocalFile object can be added into PypeLocalFileColletion"
+        self.localFiles.append(pLocalFile)
+        if self.select == 1:
+            self.localFileName = self.localFiles[0].localFileName
+            self._path = self.localFileName
+
+    @property
+    def timeStamp(self):
+        if self.localFileName == None:
+            raise PypeError, "No PypeLocalFile is added into the PypeLocalFileColletion yet"
+        if not os.path.exists(self.localFileName):
+            raise FileNotExistError("No such file:%s on %s" % (self.localFileName, platform.node()) )
+        return os.stat(self.localFileName).st_mtime 
+
+    @property
+    def exists(self):
+        if self.localFileName == None:
+            raise PypeError, "No PypeLocalFile is added into the PypeLocalFileColletion yet"
+        return os.path.exists(self.localFileName)
+        
 
 class PypeSplittableLocalFile(PypeDataObjectBase):
     """ 
