@@ -4,6 +4,10 @@ import tempfile
 import pypeflow.data
 import pypeflow.task
 
+PypeLocalFileCollection = pypeflow.data.PypeLocalFileCollection
+PypeLocalFile = pypeflow.data.PypeLocalFile
+fn = pypeflow.data.fn
+
 class TestFn:
     def test_fn(self):
         # assert_equal(expected, fn(obj))
@@ -83,62 +87,6 @@ class TestPypeLocalFileColletion:
 
     def exists(self):
         raise SkipTest # TODO: implement your test here
-
-class TestPypeScatteredFile:
-
-    def test___init__(self):
-        file = PypeScatteredFile("sfile://localhost//xyz/test1", nChunk =5)
-        assert file.URL == "sfile://localhost//xyz/test1"
-        assert file.nChunk == 5
-        assert fn(file.getChunkFile(0)) == "/xyz/test1-000-005"
-        assert fn(file.getChunkFile(1)) == "/xyz/test1-001-005"
-        assert fn(file.getChunkFile(2)) == "/xyz/test1-002-005"
-        assert fn(file.getChunkFile(3)) == "/xyz/test1-003-005"
-        assert fn(file.getChunkFile(4)) == "/xyz/test1-004-005"
-        
-    def test_attachedScatterTask(self):
-        file = PypeScatteredFile("sfile://localhost//tmp/test1", nChunk =5)
-        assert file.URL == "sfile://localhost//tmp/test1"
-        with open(fn(file),"w") as f:
-            for i in range(5):
-                f.write("file%03d\n" % i)
-        
-        with open("/tmp/split.sh","w") as f:
-            for i in range(5):
-                f.write("cat %s | awk 'NR-1 == %d {print}' > %s \n" % (fn(file), i, fn(file.getChunkFile(i))))
-        
-        outputDataObjs = dict(zip( [ "f1-%03d" % x for x in file.scatterFiles.keys()], file.scatterFiles.values()))
-        task = PypeShellTask(inputDataObjs = {"f1": file},
-                             outputDataObjs = outputDataObjs, 
-                             URL="task://localshell/scatterTask1", 
-                             TaskType=PypeThreadTaskBase) ( "/tmp/split.sh" )
-        task.setMessageQueue(Queue())
-        task()
-        for i in range(5):
-            with open(fn(file.getChunkFile(i))) as f:
-                assert f.read().strip() == "file%03d" % i
-
-    def test_attachedGatherTask(self):
-        self.test_attachedScatterTask()
-        file = PypeScatteredFile("sfile://localhost//tmp/test1", nChunk =5)
-        os.system("mv %s %s_bak" % (fn(file), fn(file)))
-        with open("/tmp/gather.sh","w") as f:
-            for i in range(5):
-                f.write("cat %s >> %s \n" % ( fn( file.getChunkFile(i) ), fn(file) ) )
-        
-        inputDataObjs = dict(zip( [ "f1-%03d" % x for x in file.scatterFiles.keys()], file.scatterFiles.values()))
-        task = PypeShellTask(inputDataObjs = inputDataObjs,
-                             outputDataObjs = {"f1": file}, 
-                             URL="task://localshell/gatherTask1", 
-                             TaskType=PypeThreadTaskBase) ( "/tmp/gather.sh" )
-        task.setMessageQueue(Queue())
-        task()
-        with open(fn(file)) as f1:
-            with open(fn(file)+"_bak") as f2:
-                l1 = f1.read()
-                l2 = f2.read()
-                assert l1 == l2
-
 
 class TestPypeHDF5Dataset:
     def test___init__(self):
