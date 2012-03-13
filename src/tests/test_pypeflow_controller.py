@@ -1,5 +1,8 @@
 from nose import SkipTest
 from nose.tools import assert_equal
+import pypeflow.task
+import pypeflow.data
+import pypeflow.controller
 
 class TestPypeNode:
     def test___init__(self):
@@ -131,6 +134,108 @@ class TestPypeWorkflow:
         # assert_equal(expected, pype_workflow.tasks())
         raise SkipTest # TODO: implement your test here
 
+    def test_scatterTask(self):
+        
+        import os
+        os.system("rm -rf /tmp/pypetest/*")
+        nChunk = 3 
+
+        infileObj0 =\
+        pypeflow.data.PypeLocalFile(
+                      "file://localhost//tmp/pypetest/test_in_0.txt")
+        with open(infileObj0.localFileName,"w") as f:
+            f.write("prefix4:")
+
+        infileObj4 =\
+        pypeflow.data.PypeSplittableLocalFile(
+                      "splittablefile://localhost//tmp/pypetest/test_in_4.txt", 
+                      nChunk = nChunk)
+
+        with open(infileObj4.localFileName, "w") as f:
+            for i in range(nChunk):
+                f.write("file%02d\n" % i)
+
+        def scatter(*argv, **kwargv):
+            outputObjs = sorted( kwargv["outputDataObjs"].items() )
+            nOut = len(outputObjs)
+            outputObjs = [ (o[0], o[1], open(o[1].localFileName, "w")) for o in outputObjs]
+            with open(kwargv["inputDataObjs"]["cf"].localFileName,"r") as f:
+                i = 0
+                for l in f:
+                    outf = outputObjs[i % nOut][2]
+                    outf.write(l)
+                    i += 1
+            for o in outputObjs:
+                o[2].close()
+
+        PypeShellTask = pypeflow.task.PypeShellTask
+        PypeTask = pypeflow.task.PypeTask
+        PypeTaskBase = pypeflow.task.PypeTaskBase
+        infileObj4.setScatterTask(PypeTask, PypeTaskBase, scatter)
+        
+        def gather(*argv, **kwargv):
+            inputObjs = sorted( kwargv["inputDataObjs"].items() )
+            with open(kwargv["outputDataObjs"]["cf"].localFileName,"w") as outf:
+                for k, sf in inputObjs:
+                    f = open(sf.localFileName)
+                    outf.write(f.read())
+                    f.close()
+
+        outfileObj4 =\
+        pypeflow.data.PypeSplittableLocalFile(
+                      "splittablefile://localhost//tmp/pypetest/test_out_4.txt", 
+                      nChunk = nChunk)
+
+        outfileObj4.setGatherTask(PypeTask, PypeTaskBase, gather)
+
+        PypeScatteredTasks = pypeflow.task.PypeScatteredTasks
+
+        @PypeScatteredTasks( inputDataObjs = {"inf":infileObj4, "prefix":infileObj0},
+                             outputDataObjs = {"outf":outfileObj4},
+                             URL="tasks://test_fun_4")
+        def test_fun_4(*argv, **kwargv):
+            chunk_id = kwargv["chunk_id"]
+            self = test_fun_4[chunk_id]
+
+            assert self.inf._path == "/tmp/pypetest/%03d_test_in_4.txt" % chunk_id
+            with open( self.prefix.localFileName, "r") as f:
+                prefix = f.read()
+
+            with open( self.outf._path, "w") as f:
+                in_f = open(self.inf.localFileName,"r")
+                f.write(prefix + in_f.read())
+                in_f.close()
+            return self.inf._path
+
+        outfileObj5 =\
+        pypeflow.data.PypeSplittableLocalFile(
+                      "splittablefile://localhost//tmp/pypetest/test_out_5.txt", 
+                      nChunk = nChunk)
+        outfileObj5.setGatherTask(PypeTask, PypeTaskBase, gather)
+
+        @PypeScatteredTasks( inputDataObjs = {"inf":infileObj4, "prefix":infileObj0},
+                             outputDataObjs = {"outf":outfileObj5},
+                             URL="tasks://test_fun_5")
+        def test_fun_5(*argv, **kwargv):
+            chunk_id = kwargv["chunk_id"]
+            self = test_fun_5[chunk_id]
+
+            assert self.inf._path == "/tmp/pypetest/%03d_test_in_4.txt" % chunk_id
+            with open( self.prefix.localFileName, "r") as f:
+                prefix = f.read()
+
+            with open( self.outf._path, "w") as f:
+                in_f = open(self.inf.localFileName,"r")
+                f.write(prefix +"2:"+ in_f.read())
+                in_f.close()
+            return self.inf._path
+        assert len(test_fun_4.getTasks()) == nChunk 
+
+        wf = pypeflow.controller.PypeWorkflow()
+        wf.addTasks( [test_fun_4, test_fun_5] )
+        print wf.graphvizDot
+        wf.refreshTargets( [outfileObj4, outfileObj5] )
+    
 class TestPypeThreadWorkflow:
     def test___init__(self):
         # pype_thread_workflow = PypeThreadWorkflow(URL, **attributes)

@@ -243,8 +243,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
                 self._splittedFiles.append(sFile) 
 
     def setGatherTask(self, TaskCreator, TaskType, function):
-        if self._scatterTask != None:
-            raise
+        assert self._scatterTask == None
         inputDataObjs = dict( ( ("sf%03d" % c[0], c[1]) 
                                 for c in enumerate(self._splittedFiles) ) )
         outputDataObjs = {"cf": self._completeFile}
@@ -255,8 +254,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
         self._gatherTask = gatherTask
 
     def setScatterTask(self, TaskCreator, TaskType, function):
-        if self._gatherTask != None:
-            raise
+        assert self._gatherTask == None
         outputDataObjs = dict( ( ("sf%03d" % c[0], c[1]) 
                                 for c in enumerate(self._splittedFiles) ) )
         inputDataObjs = {"cf": self._completeFile}

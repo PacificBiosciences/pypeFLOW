@@ -39,7 +39,7 @@ from cStringIO import StringIO
 from urlparse import urlparse
 
 from common import * 
-from data import PypeDataObjectBase
+from data import PypeDataObjectBase, PypeSplittableLocalFile
 from task import *
 
 
@@ -362,6 +362,8 @@ class PypeWorkflow(PypeObject):
         if len(objs) != 0:
             connectedPypeNodes = set()
             for obj in objs:
+                if isinstance(obj, PypeSplittableLocalFile):
+                    obj = obj._completeFile
                 for x in self._RDFGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
                     connectedPypeNodes.add(x)
             tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort()

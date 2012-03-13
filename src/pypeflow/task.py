@@ -572,10 +572,11 @@ def PypeScatteredTasks(*argv, **kwargv):
             if hasattr(inputDO, "nChunk"):
                 if nChunk != None:
                     assert inputDO.nChunk == nChunk
-                    if inputDO.getScatterTask() != None:
-                        tasks.addScatterGatherTask( inputDO.getScatterTask() )
                 else:
                     nChunk = inputDO.nChunk
+                    if inputDO.getScatterTask() != None:
+                        tasks.addScatterGatherTask( inputDO.getScatterTask() )
+
                 scatteredInput.append( inputKey )
 
         for outputKey, outputDO in outputDataObjs.items():
