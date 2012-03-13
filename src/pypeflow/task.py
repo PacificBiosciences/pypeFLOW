@@ -154,20 +154,20 @@ class PypeTaskBase(PypeObject):
             (args, varargs, varkw, defaults) = argspec.args, argspec.varargs, argspec.keywords, argspec.defaults
 
         if varkw != None:
-            return self._taskFun(*argv, **kwargv)
+            return self._taskFun(self, *argv, **kwargv)
         elif varargs != None:
-            return self._taskFun(*argv)
+            return self._taskFun(self, *argv)
         elif len(args) != 0:
             nkwarg = {}
             if defaults != None:
                 defaultArg = args[-len(defaults):]
                 for a in defaultArg:
                     nkwarg[a] = kwargv[a]
-                return self._taskFun(*argv, **nkwarg)
+                return self._taskFun(self, *argv, **nkwarg)
             else:
                 return self._taskFun(self)
         else:
-            return self._taskFun()
+            return self._taskFun(self)
 
     @property
     def _RDFGraph(self):
@@ -489,7 +489,7 @@ def PypeShellTask(*argv, **kwargv):
     """
 
     def f(scriptToRun):
-        def taskFun():
+        def taskFun(self):
             """make shell script using a template"""
             """run shell command"""
             shellCmd = "/bin/bash %s" % scriptToRun
