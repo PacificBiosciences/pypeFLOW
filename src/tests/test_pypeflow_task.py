@@ -175,7 +175,7 @@ class TestPypeScatteredTasks:
                 in_f.close()
             return self.inf._path
 
-        assert len(test_fun.getTasks()) == nChunk
+        assert len(test_fun.getTasks()) == nChunk 
         for i in range(nChunk):
             test_fun[i]()
 
@@ -240,7 +240,7 @@ class TestPypeScatteredTasks:
                 f.write("file%02d\n" % chunk_id)
             return self.inf._path
 
-        assert len(test_fun_2.getTasks()) == nChunk
+        assert len(test_fun_2.getTasks()) == nChunk 
         for i in range(nChunk):
             test_fun_2[i]()
 
@@ -319,7 +319,7 @@ class TestPypeScatteredTasks:
                 in_f.close()
             return self.inf._path
 
-        assert len(test_fun_3.getTasks()) == nChunk
+        assert len(test_fun_3.getTasks()) == nChunk 
         for i in range(nChunk):
             test_fun_3[i]()
 

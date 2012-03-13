@@ -237,10 +237,10 @@ class PypeTaskBase(PypeObject):
 
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             self._status = TaskFail
-            return None
         else:
             self._status = TaskDone
-            return rtn
+
+        return runFlag
 
     def finalize(self): 
         """ 
@@ -319,62 +319,6 @@ class PypeDistributiableTaskBase(PypeThreadTaskBase):
         PypeTaskBase.__init__(self, URL, *argv, **kwargv)
         self.distributed = True
 
-class PypeScatteredShellTaskBase(PypeDistributiableTaskBase):
-
-    """
-    Represent a PypeTask that can be run within a thread or submit to
-    a grid-engine like job scheduling system. 
-    Subclass it to for different kind of task.
-    """
-
-    def __init__(self, URL, *argv, **kwargv):
-        PypeTaskBase.__init__(self, URL, *argv, **kwargv)
-        self.distributed = True
-        self.scattered = True
-        self.scatteredInputDataObjs = kwargv.get("scatteredInputs", None)
-        self.scatteredOutputDataObjs = kwargv.get("scatteredOutputs", None)
-        self.scripts = self._kwargv["scripts"]
-        self.subTasks = None
-        self.createSubTasks()
-
-    def _runTask(self, *argv, **kwargv):
-
-        """ 
-        The method to run the decorated function _taskFun(). It is called through __call__() of
-        the PypeTask object and it should never be called directly
-
-        TODO: the arg porcessing is still a mess, need to find a better way to do this 
-        """
-        pass
-
-    def createSubTasks(self):
-        self.subTasks = []
-        if self.scatteredInputDataObjs == None:
-            self.subTasks = [ PypeDistributibleTaskBase(self.URL, self._argv, self._kwargv) ]
-        else:
-            nChunk = self.scatteredInputDataObjs.values()[0].nChunk
-            for i in range(nChunk):
-                newInput = self.inputDataObjs.copy()
-                newOutput = self.outputDataObjs.copy()
-                newArg = self._argv
-                newKwargv = self._kwargv.copy()
-                for dataObjKey in self.scatteredInputDataObjs:
-                    newInput[dataObjKey] = self.scatteredInputDataObjs[dataObjKey].getChunkFile(i)
-                for dataObjKey in self.scatteredOutputDataObjs:
-                    newOutput[dataObjKey] = self.scatteredOutputDataObjs[dataObjKey].getChunkFile(i)
-
-                newKwargv["inputDataObjs"] = newInput 
-                newKwargv["outputDataObjs"] = newOutput 
-                newURL = self.URL + "/subtask%03d" % i
-                newKwargv["URL"] = newURL
-                self.subTasks.append( PypeDistributibleTask(*newArg, **newKwargv) ( self.scripts[i]) )
-            #add the scatter subtask 
-            #add the gather subtask
-    
-    def getSubTask(self,i):
-        if self.subTasks == None:
-            raise PypeError, "Subtasks not created"
-        return self.subTasks[i]
 
 class PypeTaskCollection(PypeObject):
 
@@ -383,15 +327,22 @@ class PypeTaskCollection(PypeObject):
     """
 
     supportedURLScheme = ["tasks"]
-    def __init__(self, URL, tasks = [], **kwargv):
+    def __init__(self, URL, tasks = [], scatterGatherTasks = [], **kwargv):
         PypeObject.__init__(self, URL, **kwargv)
         self._tasks = tasks[:]
+        self._scatterGatherTasks = scatterGatherTasks[:]
 
     def addTask(self, task):
         self._tasks.append(task)
 
     def getTasks(self):
         return self._tasks
+
+    def addScatterGatherTask(self, task):
+        self._scatterGatherTasks.append(task)
+
+    def getScatterGatherTasks(self):
+        return self._scatterGatherTasks
 
     def __getitem__(self, k):
         return self._tasks[k]
@@ -612,25 +563,30 @@ def PypeScatteredTasks(*argv, **kwargv):
         scatteredInput  = []
         singleInput = []
 
+        if kwargv.get("URL",None) == None:
+            kwargv["URL"] = "tasks://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+
+        tasks = PypeTaskCollection(kwargv["URL"])
+
         for inputKey, inputDO in inputDataObjs.items():
             if hasattr(inputDO, "nChunk"):
-                if nChunk != None and inputDO.nChunk != nChunk:
-                    raise
+                if nChunk != None:
+                    assert inputDO.nChunk == nChunk
+                    if inputDO.getScatterTask() != None:
+                        tasks.addScatterGatherTask( inputDO.getScatterTask() )
                 else:
                     nChunk = inputDO.nChunk
                 scatteredInput.append( inputKey )
 
         for outputKey, outputDO in outputDataObjs.items():
             if hasattr(outputDO, "nChunk"):
-                if nChunk != None and outputDO.nChunk != nChunk:
-                    raise
+                if nChunk != None:
+                    assert outputDO.nChunk == nChunk
+                    if outputDO.getGatherTask() != None:
+                        tasks.addScatterGatherTask( outputDO.getGatherTask() )
                 else:
                     nChunk = outputDO.nChunk
 
-        if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "tasks://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-
-        tasks = PypeTaskCollection(kwargv["URL"])
 
         for i in range(nChunk):
 
