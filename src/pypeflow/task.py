@@ -230,7 +230,7 @@ class PypeTaskBase(PypeObject):
             
         if runFlag == True:
 
-            rtn = self._runTask(*argv, **kwargv)
+            rtn = self._runTask(self, *argv, **kwargv)
 
             if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
                 raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
