@@ -444,17 +444,32 @@ class PypeThreadWorkflow(PypeWorkflow):
         """
 
         for taskObj in taskObjs:
-            if not isinstance(taskObj, PypeThreadTaskBase):
-                raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
 
-            taskObj.setMessageQueue(self.messageQueue)
+            if isinstance(taskObj, PypeTaskCollection):
 
-            self.addObjects(taskObj.inputDataObjs.values())
-            self.addObjects(taskObj.outputDataObjs.values())
-            self.addObject(taskObj)
+                for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
+
+                    if not isinstance(subTaskObj, PypeThreadTaskBase):
+                        raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
+
+                    subTaskObj.setMessageQueue(self.messageQueue)
+                    self.addObjects(subTaskObj.inputDataObjs.values())
+                    self.addObjects(subTaskObj.outputDataObjs.values())
+                    self.addObject(subTaskObj)
+
+            else:
+                if not isinstance(taskObj, PypeThreadTaskBase):
+
+                    raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
+
+                taskObj.setMessageQueue(self.messageQueue)
+
+                self.addObjects(taskObj.inputDataObjs.values())
+                self.addObjects(taskObj.outputDataObjs.values())
+                self.addObject(taskObj)
+
 
     def refreshTargets(self, objs = [], callback = (None, None, None), updateFreq=None, exitOnFailure=True ):
-
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
         if len(objs) != 0:
             connectedPypeNodes = set()
