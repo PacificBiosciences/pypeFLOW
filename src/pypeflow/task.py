@@ -445,7 +445,10 @@ def PypeTask(*argv, **kwargv):
             kwargv["_codeMD5digest"] = ""
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
-        return TaskType(*argv, **kwargv) 
+        task = TaskType(*argv, **kwargv)
+        task.__doc__ = taskFun.__doc__
+
+        return task
 
     return f
 
