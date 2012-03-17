@@ -57,7 +57,7 @@ class PypeDataObjectBase(PypeObject):
 
     @property
     def timeStamp(self):
-        raise NotImplementedError
+        raise NotImplementedError, self.__expr__()
 
     @property
     def exists(self):
@@ -272,6 +272,10 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
 
     def getSplittedFiles(self):
         return self._splittedFiles
+
+    @property
+    def timeStamp(self):
+        return self._completeFile.timeStamp
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     """
