@@ -674,8 +674,8 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
         if min(outputDataObjsTS) < max(inputDataObjsTS):
             runFlag = True
 
-
     return runFlag
+
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
