@@ -46,7 +46,7 @@ import os
 import shlex
 
 from common import * 
-from data import FileNotExistError
+from data import FileNotExistError, PypeSplittableLocalFile
 
 class TaskFunctionError(PypeError):
     pass
@@ -445,7 +445,26 @@ def PypeTask(*argv, **kwargv):
             kwargv["_codeMD5digest"] = ""
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
-        return TaskType(*argv, **kwargv) 
+        newKwargv = copy.deepcopy(kwargv)
+        inputDataObjs = kwargv["inputDataObjs"]
+        outputDataObjs = kwargv["outputDataObjs"]
+        newInputs = {}
+        for inputKey, inputDO in inputDataObjs.items():
+            if isinstance(inputDO, PypeSplittableLocalFile):
+                newInputs[inputKey] = inputDO._completeFile
+            else:
+                newInputs[inputKey] = inputDO
+
+        newOutputs = {}
+        for outputKey, outputDO in outputDataObjs.items():
+            if isinstance(outputDO, PypeSplittableLocalFile):
+                newOutputs[outputKey] = outputDO._completeFile
+            else:
+                newOutputs[outputKey] = outputDO
+
+        newKwargv["inputDataObjs"] = newInputs
+        newKwargv["outputDataObjs"] = newOutputs
+        return TaskType(*argv, **newKwargv) 
 
     return f
 

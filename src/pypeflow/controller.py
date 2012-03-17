@@ -157,7 +157,6 @@ class PypeGraph(object):
         else:
             return [x.obj for x in L]
                     
-
 class PypeWorkflow(PypeObject):
 
     """ 
@@ -453,11 +452,13 @@ class PypeThreadWorkflow(PypeWorkflow):
                 for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
                     if not isinstance(subTaskObj, PypeThreadTaskBase):
                         raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
+                    subTaskObj.setMessageQueue(self.messageQueue)
             else:
                 if not isinstance(taskObj, PypeThreadTaskBase):
                     raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
+                taskObj.setMessageQueue(self.messageQueue)
 
-        PypeWorkflow.addTasks(self, taskObj)
+        PypeWorkflow.addTasks(self, taskObjs)
 
 
     def refreshTargets(self, objs = [], callback = (None, None, None), updateFreq=None, exitOnFailure=True ):
