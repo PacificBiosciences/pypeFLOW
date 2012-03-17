@@ -157,7 +157,6 @@ class PypeGraph(object):
         else:
             return [x.obj for x in L]
                     
-
 class PypeWorkflow(PypeObject):
 
     """ 
@@ -228,23 +227,28 @@ class PypeWorkflow(PypeObject):
     def addTask(self, taskObj):
         self.addTasks([taskObj])
 
+
     def addTasks(self, taskObjs):
+
         """
         Add tasks into the workflow. The dependent input and output data objects are added automatically too. 
+        It sets the message queue used for communicating between the task thread and the main thread. One has
+        to use addTasks() or addTask() to add task objects to a threaded workflow.
         """
+
         for taskObj in taskObjs:
-
             if isinstance(taskObj, PypeTaskCollection):
-
                 for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
                     self.addObjects(subTaskObj.inputDataObjs.values())
                     self.addObjects(subTaskObj.outputDataObjs.values())
                     self.addObject(subTaskObj)
 
             else:
+                for dObj in taskObj.inputDataObjs.values() + taskObj.outputDataObjs.values() :
+                    if isinstance(dObj, PypeSplittableLocalFile):
+                        self.addObjects([dObj._completeFile])
+                    self.addObjects([dObj])
 
-                self.addObjects(taskObj.inputDataObjs.values())
-                self.addObjects(taskObj.outputDataObjs.values())
                 self.addObject(taskObj)
 
             
@@ -444,29 +448,17 @@ class PypeThreadWorkflow(PypeWorkflow):
         """
 
         for taskObj in taskObjs:
-
             if isinstance(taskObj, PypeTaskCollection):
-
                 for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
-
                     if not isinstance(subTaskObj, PypeThreadTaskBase):
                         raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
-
                     subTaskObj.setMessageQueue(self.messageQueue)
-                    self.addObjects(subTaskObj.inputDataObjs.values())
-                    self.addObjects(subTaskObj.outputDataObjs.values())
-                    self.addObject(subTaskObj)
-
             else:
                 if not isinstance(taskObj, PypeThreadTaskBase):
-
                     raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
-
                 taskObj.setMessageQueue(self.messageQueue)
 
-                self.addObjects(taskObj.inputDataObjs.values())
-                self.addObjects(taskObj.outputDataObjs.values())
-                self.addObject(taskObj)
+        PypeWorkflow.addTasks(self, taskObjs)
 
 
     def refreshTargets(self, objs = [], callback = (None, None, None), updateFreq=None, exitOnFailure=True ):
