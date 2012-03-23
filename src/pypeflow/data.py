@@ -35,6 +35,8 @@ import os, shutil
 from common import * 
 import logging
     
+logger = logging.getLogger(__name__)
+
 class FileNotExistError(PypeError):
     pass
 
@@ -52,7 +54,6 @@ class PypeDataObjectBase(PypeObject):
 
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
-        self._log = logging.Logger('dataobject')
         self.verification = []
 
     @property
@@ -105,7 +106,7 @@ class PypeLocalFile(PypeDataObjectBase):
         return os.path.exists(self.localFileName)
     
     def verify( self ):
-        self._log.debug("Verifying contents of %s" % self.URL)
+        logger.debug("Verifying contents of %s" % self.URL)
         # Get around the NFS problem
         os.listdir(os.path.dirname(self.path)) 
         
@@ -117,7 +118,7 @@ class PypeLocalFile(PypeDataObjectBase):
                 errors.append( str(e) )
         if len(errors) > 0:
             for e in errors:
-                self._log.error(e)
+                logger.error(e)
         return errors
     
     @property
@@ -129,7 +130,7 @@ class PypeLocalFile(PypeDataObjectBase):
     
     def clean( self ):
         if os.path.exists( self.path ):
-            self._log.info("Removing %s" % self.path )
+            logger.info("Removing %s" % self.path )
             if os.path.isdir( self.path ):
                 shutil.rmtree( self.path )
             else:

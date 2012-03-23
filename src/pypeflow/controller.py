@@ -42,7 +42,7 @@ from common import *
 from data import PypeDataObjectBase, PypeSplittableLocalFile
 from task import *
 
-
+logger = logging.getLogger(__name__)
 
 class TaskExecutionError(PypeError):
     pass
@@ -437,7 +437,6 @@ class PypeThreadWorkflow(PypeWorkflow):
         PypeWorkflow.__init__(self, URL, **attributes )
         self.messageQueue = Queue()
         self.jobStatusMap = {}
-        self._logger = logging.getLogger('workflow')
 
     def addTasks(self, taskObjs):
 
@@ -479,7 +478,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             prereqJobURLs = [str(u) for u in rdfGraph.transitive_objects(URIRef(URL), pypeNS["prereq"])
                                     if isinstance(self._pypeObjects[str(u)], PypeTaskBase) and str(u) != URL ]
             prereqJobURLMap[URL] = prereqJobURLs
-            self._logger.debug("Determined prereqs for %s to be %s" % (URL, ", ".join(prereqJobURLs)))
+            logger.debug("Determined prereqs for %s to be %s" % (URL, ", ".join(prereqJobURLs)))
             if taskObj.nSlots > self.MAX_NUMBER_TASK_SLOT:
                 raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" % (str(URL), taskObj.nSlots, self.MAX_NUMBER_TASK_SLOT) )  
 
@@ -490,7 +489,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         lastUpdate = None
         while 1:
             loopN += 1
-            self._logger.info( "tick: %d" % loopN )
+            logger.info( "tick: %d" % loopN )
             jobsReadyToBeSubmitted = []
             for URL, taskObj, tStatus in sortedTaskList:
                 prereqJobURLs = prereqJobURLMap[URL]
@@ -499,7 +498,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                 elif all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and self.jobStatusMap[URL] == None:
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
-            self._logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
+            logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
 
             numAliveThreads = len( [ t for t in task2thread.values() if t.isAlive() ] )
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
@@ -507,7 +506,7 @@ class PypeThreadWorkflow(PypeWorkflow):
 
             for URL, taskObj in jobsReadyToBeSubmitted:
                 numberOfEmptySlot = self.MAX_NUMBER_TASK_SLOT - usedTaskSlots 
-                self._logger.info( "number of empty slot = %d/%d" % (numberOfEmptySlot, self.MAX_NUMBER_TASK_SLOT))
+                logger.info( "number of empty slot = %d/%d" % (numberOfEmptySlot, self.MAX_NUMBER_TASK_SLOT))
                 if numberOfEmptySlot >= taskObj.nSlots and numAliveThreads < self.CONCURRENT_THREAD_ALLOWED:
                     t = Thread(target = taskObj)
                     t.start()
@@ -525,7 +524,8 @@ class PypeThreadWorkflow(PypeWorkflow):
                 if elapsedSeconds >= updateFreq:
                     self._update( elapsedSeconds )
                     lastUpdate = datetime.datetime.now( )
-            self._logger.info ( "number of running tasks: %d" % (threading.activeCount()-1) )
+            logger.info ( "number of running tasks: %d" % (threading.activeCount()-1) )
+
             faildJobCount = 0
 
             while not self.messageQueue.empty():
@@ -547,7 +547,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                     failedTask.finalize()
 
             for u,s in sorted(self.jobStatusMap.items()):
-                self._logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
+                logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
 
             if faildJobCount != 0 and exitOnFailure:
                 for url, thread in task2thread.iteritems( ):
@@ -558,7 +558,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                 return False
 
         for u,s in sorted(self.jobStatusMap.items()):
-            self._logger.info( "task status: %s, %s" % (str(u),str(s)) )
+            logger.info( "task status: %s, %s" % (str(u),str(s)) )
 
         self._runCallback(callback)
         return True

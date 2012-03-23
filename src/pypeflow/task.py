@@ -48,6 +48,8 @@ import shlex
 from common import * 
 from data import FileNotExistError, PypeSplittableLocalFile
 
+logger = logging.getLogger(__name__)
+
 class TaskFunctionError(PypeError):
     pass
 
@@ -77,7 +79,6 @@ class PypeTaskBase(PypeObject):
         self._taskFun = kwargv['_taskFun']
         self._referenceMD5 = None
         self._status = TaskInitialized
-        self._log = logging.Logger('task')
         
 
 
@@ -301,6 +302,7 @@ class PypeThreadTaskBase(PypeTaskBase):
                 pass
 
         if any([o.exists == False for o in self.outputDataObjs.values()]):
+            logger.debug("%s fails to generate all outputs" % self.URL)
             self._status = TaskFail
             self._queue.put( (self.URL, "fail") )
         else:
