@@ -356,7 +356,8 @@ class PypeWorkflow(PypeObject):
                 makeStr.write( "\t%s\n\n" % taskObj.script )
         makeStr.write("all: %s" %  " ".join([o.localFileName for o in outputFiles.values()]) )
         return makeStr.getvalue()
-     
+
+
     def refreshTargets(self, objs = [], callback = (None, None, None) ):
 
         """
@@ -413,6 +414,26 @@ class PypeWorkflow(PypeObject):
     @property
     def tasks( self ):
         return [ o for o in self._pypeObjects.values( ) if isinstance( o, PypeTaskBase )]
+
+    @property
+    def inputDataObjects(self):
+        graph = self._RDFGraph
+        inputObjs = []
+        for obj in self.dataObjects:
+            r = graph.query('SELECT ?o WHERE {<%s> pype:prereq ?o .  }' % obj.URL, initNs=dict(pype=pypeNS))
+            if len(r) == 0:
+                inputObjs.append(obj)
+        return inputObjs
+     
+    @property
+    def outputDataObjects(self):
+        graph = self._RDFGraph
+        outputObjs = []
+        for obj in self.dataObjects:
+            r = graph.query('SELECT ?s WHERE {?s pype:prereq <%s> .  }' % obj.URL, initNs=dict(pype=pypeNS))
+            if len(r) == 0:
+                outputObjs.append(obj)
+        return outputObjs
 
 class PypeThreadWorkflow(PypeWorkflow):
 
