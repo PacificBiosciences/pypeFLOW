@@ -483,7 +483,10 @@ class PypeThreadWorkflow(PypeWorkflow):
         PypeWorkflow.addTasks(self, taskObjs)
 
 
-    def refreshTargets(self, objs = [], callback = (None, None, None), updateFreq=None, exitOnFailure=True ):
+    def refreshTargets(self, objs = [], 
+                             callback = (None, None, None), 
+                             updateFreq=None, 
+                             exitOnFailure=True ):
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
         if len(objs) != 0:
             connectedPypeNodes = set()
@@ -494,31 +497,59 @@ class PypeThreadWorkflow(PypeWorkflow):
         else:
             tSortedURLs = PypeGraph(rdfGraph).tSort( )
 
-        sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs if isinstance(self._pypeObjects[u], PypeTaskBase) ]
+        sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs 
+                            if isinstance(self._pypeObjects[u], PypeTaskBase) ]
+
         self.jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
+
         prereqJobURLMap = {}
+
         for URL, taskObj, tStatus in sortedTaskList:
             prereqJobURLs = [str(u) for u in rdfGraph.transitive_objects(URIRef(URL), pypeNS["prereq"])
                                     if isinstance(self._pypeObjects[str(u)], PypeTaskBase) and str(u) != URL ]
+
             prereqJobURLMap[URL] = prereqJobURLs
+
             logger.debug("Determined prereqs for %s to be %s" % (URL, ", ".join(prereqJobURLs)))
+            
             if taskObj.nSlots > self.MAX_NUMBER_TASK_SLOT:
-                raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" % (str(URL), taskObj.nSlots, self.MAX_NUMBER_TASK_SLOT) )  
+                raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" %
+                                          (str(URL), taskObj.nSlots, self.MAX_NUMBER_TASK_SLOT) )  
 
         nSubmittedJob = 0
         usedTaskSlots = 0
         loopN = 0
         task2thread = {}
         lastUpdate = None
+        activeDataObjs = set() #keep a set of output and mutable data object. a task can not be submitted if a running task has the same output
+
         while 1:
+
             loopN += 1
             logger.info( "tick: %d" % loopN )
             jobsReadyToBeSubmitted = []
+
             for URL, taskObj, tStatus in sortedTaskList:
                 prereqJobURLs = prereqJobURLMap[URL]
-                if len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None:
+                outputCollision = False
+
+                for o in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
+                    if o in activeDataObjs:
+                        outputCollision = True
+                        break
+
+                if not outputCollision:
+
+                    for o in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
+                        activeDataObjs.add(o)
+                    
+                if len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None and not outputCollision:
+
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
-                elif all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and self.jobStatusMap[URL] == None:
+
+                elif ( all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and
+                       self.jobStatusMap[URL] == None and not outputCollision ):
+
                     jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
             logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
@@ -547,9 +578,10 @@ class PypeThreadWorkflow(PypeWorkflow):
                 if elapsedSeconds >= updateFreq:
                     self._update( elapsedSeconds )
                     lastUpdate = datetime.datetime.now( )
+
             logger.info ( "number of running tasks: %d" % (threading.activeCount()-1) )
 
-            faildJobCount = 0
+            failedJobCount = 0
 
             while not self.messageQueue.empty():
 
@@ -563,16 +595,22 @@ class PypeThreadWorkflow(PypeWorkflow):
                     task2thread[URL].join()
                     successfullTask.finalize()
 
+                    for o in successfullTask.outputDataObjs.values() + successfullTask.mutableDataObjs.values():
+                        activeDataObjs.remove(o)
+
                 elif message in ["fail"]:
                     failedTask = self._pypeObjects[str(URL)]
                     task2thread[URL].join()
-                    faildJobCount += 1
+                    failedJobCount += 1
                     failedTask.finalize()
+
+                    for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
+                        activeDataObjs.remove(o)
 
             for u,s in sorted(self.jobStatusMap.items()):
                 logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
 
-            if faildJobCount != 0 and exitOnFailure:
+            if failedJobCount != 0 and exitOnFailure:
                 for url, thread in task2thread.iteritems( ):
                     if thread.isAlive( ):
                         thread.join( )

@@ -82,7 +82,7 @@ class PypeTaskBase(PypeObject):
         
 
 
-        for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
+        for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters", "mutableDataObjs"]:
             if defaultAttr not in self.__dict__:
                 self.__dict__[defaultAttr] = {}
 
@@ -95,8 +95,12 @@ class PypeTaskBase(PypeObject):
             self.outputDataObjs.update(kwargv["outputs"])
             del kwargv["outputs"]
 
+        if "mutables" in kwargv:
+            self.mutableDataObjs.update(kwargv["mutables"])
+            del kwargv["mutables"]
+
         #the keys in inputDataObjs/outputDataObjs/parameters will become a task attribute 
-        for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters"]:
+        for defaultAttr in ["inputDataObjs", "outputDataObjs", "mutableDataObjs", "parameters"]:
             vars(self).update(self.__dict__[defaultAttr]) 
 
         if "chunk_id" in kwargv:
@@ -176,13 +180,16 @@ class PypeTaskBase(PypeObject):
         for k,v in self.__dict__.iteritems():
             if k == "URL": continue
             if k[0] == "_": continue
-            if k in ["inputDataObjs", "outputDataObjs", "parameters"]:
+            if k in ["inputDataObjs", "outputDataObjs", "mutableDataObjs", "parameters"]:
                 if k == "inputDataObjs":
                     for ft, f in v.iteritems():
                         graph.add( (URIRef(self.URL), pypeNS["prereq"], URIRef(f.URL) ) )
                 elif k == "outputDataObjs":
                     for ft, f in v.iteritems():
                         graph.add( (URIRef(f.URL), pypeNS["prereq"], URIRef(self.URL) ) )
+                elif k == "mutableDataObjs":
+                    for ft, f in v.iteritems():
+                        graph.add( (URIRef(self.URL), pypeNS["hasMutables"], URIRef(f.URL)   ) )
                 elif k == "parameters":
                     graph.add( (URIRef(self.URL), pypeNS["hasParameters"], Literal(json.dumps(v)) ) )
             
@@ -196,6 +203,10 @@ class PypeTaskBase(PypeObject):
                 graph.add( ( URIRef(self.URL), pypeNS["outputDataObject"], URIRef(v.URL) ) )
                 continue
 
+            if k in self.mutableDataObjs:
+                graph.add( ( URIRef(self.URL), pypeNS["mutableDataObject"], URIRef(v.URL) ) )
+
+                continue
             if hasattr(v, "URL"):
                 graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
 

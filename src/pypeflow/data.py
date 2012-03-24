@@ -55,10 +55,15 @@ class PypeDataObjectBase(PypeObject):
     def __init__(self, URL, **attributes):
         PypeObject.__init__(self, URL, **attributes)
         self.verification = []
+        self._mutatble = False
 
     @property
     def timeStamp(self):
         raise NotImplementedError, self.__expr__()
+
+    @property
+    def isMutable(self):
+        return self._mutatble
 
     @property
     def exists(self):
@@ -93,6 +98,8 @@ class PypeLocalFile(PypeDataObjectBase):
         self.localFileName = URLParseResult.path
         self._path = self.localFileName
         self.readOnly = readOnly
+        self._mutable = attributes.get("mutable", False)
+
 
     @property
     def timeStamp(self):
@@ -104,7 +111,7 @@ class PypeLocalFile(PypeDataObjectBase):
     def exists(self):
         return os.path.exists(self.localFileName)
     
-    def verify( self ):
+    def verify(self):
         logger.debug("Verifying contents of %s" % self.URL)
         # Get around the NFS problem
         os.listdir(os.path.dirname(self.path)) 
@@ -121,13 +128,13 @@ class PypeLocalFile(PypeDataObjectBase):
         return errors
     
     @property
-    def path( self ):
+    def path(self):
         if self._path == None:
             raise IOError, "Must resolve this file (%s) with a context " + \
                             "before you can access .path"
         return self._path
     
-    def clean( self ):
+    def clean(self):
         if os.path.exists( self.path ):
             logger.info("Removing %s" % self.path )
             if os.path.isdir( self.path ):
