@@ -142,13 +142,13 @@ class TestPypeWorkflow:
 
         infileObj0 =\
         pypeflow.data.PypeLocalFile(
-                      "file://localhost//tmp/pypetest/test_in_0.txt")
+                      "file://localhost/tmp/pypetest/test_in_0.txt")
         with open(infileObj0.localFileName,"w") as f:
             f.write("prefix4:")
 
         infileObj4 =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_in_4.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_in_4.txt", 
                       nChunk = nChunk)
 
         with open(infileObj4.localFileName, "w") as f:
@@ -183,7 +183,7 @@ class TestPypeWorkflow:
 
         outfileObj4 =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_out_4.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_out_4.txt", 
                       nChunk = nChunk)
 
         outfileObj4.setGatherTask(PypeTask, PypeTaskBase, gather)
@@ -209,7 +209,7 @@ class TestPypeWorkflow:
 
         outfileObj5 =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_out_5.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_out_5.txt", 
                       nChunk = nChunk)
         outfileObj5.setGatherTask(PypeTask, PypeTaskBase, gather)
 

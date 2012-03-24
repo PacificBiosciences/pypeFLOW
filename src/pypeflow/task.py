@@ -354,9 +354,15 @@ def PypeTask(*argv, **kwargv):
     """
     A decorator that converts a function into a PypeTaskBase object.
 
-    >>> import os 
+    >>> import os,time 
     >>> from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
     >>> from pypeflow.task import *
+    >>> try:
+    ...     os.makedirs("/tmp/pypetest")
+    ...     os.system("rm /tmp/pypetest/*")   
+    ... except:
+    ...     pass
+    >>> time.sleep(1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
     >>> @PypeTask(outputs={"test_out":fout},
@@ -375,7 +381,7 @@ def PypeTask(*argv, **kwargv):
     '/tmp/pypetest/testfile_in'
     >>> test.test_out.localFileName
     '/tmp/pypetest/testfile_out'
-    >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
+    >>> os.system( "touch %s" %  ( fn(fin))  )
     0
     >>> timeStampCompare(test.inputDataObjs, test.outputDataObjs, test.parameters)
     True
@@ -386,16 +392,18 @@ def PypeTask(*argv, **kwargv):
     /tmp/pypetest/testfile_out
     /tmp/pypetest/testfile_in
     /tmp/pypetest/testfile_out
+    True
     >>> timeStampCompare(test.inputDataObjs, test.outputDataObjs, test.parameters)
     False
     >>> print test._getRunFlag()
     False
-    >>> test() #return nothing, since the test_out is newer than the test_in
+    >>> test() #return False, the task is no run 
+    False
     >>> print test.a
     I am "a"
     >>> print test.b
     I am "b"
-    >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
+    >>> os.system( "touch %s" %  (fn(fin))  )
     0
     >>> # test PypeTask.finalize()
     >>> from controller import PypeWorkflow
@@ -448,8 +456,10 @@ def PypeTask(*argv, **kwargv):
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
         newKwargv = copy.deepcopy(kwargv)
-        inputDataObjs = kwargv["inputDataObjs"]
-        outputDataObjs = kwargv["outputDataObjs"]
+        inputDataObjs = kwargv.get("inputDataObjs",{}) 
+        inputDataObjs.update(kwargv.get("inputs", {}))
+        outputDataObjs = kwargv.get("outputDataObjs",{}) 
+        outputDataObjs.update(kwargv.get("outputs", {}))
         newInputs = {}
         for inputKey, inputDO in inputDataObjs.items():
             if isinstance(inputDO, PypeSplittableLocalFile):
@@ -477,13 +487,15 @@ def PypeShellTask(*argv, **kwargv):
     """
     A function that converts a shell script into a PypeTaskBase object.
 
-    >>> import os 
+    >>> import os, time 
     >>> from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
     >>> from pypeflow.task import *
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
+    ...     os.system("rm /tmp/pypetest/*")   
     ... except:
     ...     pass
+    >>> time.sleep(1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
     >>> f = open("/tmp/pypetest/shellTask.sh","w")
@@ -504,11 +516,13 @@ def PypeShellTask(*argv, **kwargv):
     >>> print shellTask._getRunFlag()
     True
     >>> shellTask()
+    True
     >>> timeStampCompare(shellTask.inputDataObjs, shellTask.outputDataObjs, shellTask.parameters)
     False
     >>> print shellTask._getRunFlag()
     False
     >>> shellTask()
+    False
     """
 
     def f(scriptToRun):

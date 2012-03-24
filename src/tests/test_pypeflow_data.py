@@ -41,7 +41,7 @@ class TestPypeDataObjectBase:
 class TestPypeLocalFile:
     def test___init__(self):
         file = PypeLocalFile("file://localhost/test2")
-        assert fn(file) == "test2"
+        assert fn(file) == "/test2"
 
     def test_clean(self):
         # pype_local_file = PypeLocalFile(URL, readOnly, **attributes)

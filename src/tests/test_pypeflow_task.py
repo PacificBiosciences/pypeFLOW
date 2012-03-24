@@ -120,7 +120,7 @@ class TestPypeScatteredTasks:
 
         infileObj =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_in_1.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_in_1.txt", 
                       nChunk = nChunk)
 
         with open(infileObj.localFileName, "w") as f:
@@ -156,7 +156,7 @@ class TestPypeScatteredTasks:
 
         outfileObj =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_out_1.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_out_1.txt", 
                       nChunk = nChunk)
 
         outfileObj.setGatherTask(PypeTask, PypeTaskBase, gather)
@@ -189,7 +189,7 @@ class TestPypeScatteredTasks:
 
         infileObj =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_in_2.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_in_2.txt", 
                       nChunk = nChunk)
 
         with open(infileObj.localFileName, "w") as f:
@@ -221,7 +221,7 @@ class TestPypeScatteredTasks:
 
         outfileObj =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_out_2.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_out_2.txt", 
                       nChunk = nChunk)
 
         outfileObj.setGatherTask(PypeTask, PypeTaskBase, gather)
@@ -254,13 +254,13 @@ class TestPypeScatteredTasks:
 
         infileObj0 =\
         pypeflow.data.PypeLocalFile(
-                      "file://localhost//tmp/pypetest/test_in_0.txt")
+                      "file://localhost/tmp/pypetest/test_in_0.txt")
         with open(infileObj0.localFileName,"w") as f:
             f.write("prefix:")
 
         infileObj =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_in_3.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_in_3.txt", 
                       nChunk = nChunk)
 
         with open(infileObj.localFileName, "w") as f:
@@ -296,7 +296,7 @@ class TestPypeScatteredTasks:
 
         outfileObj3 =\
         pypeflow.data.PypeSplittableLocalFile(
-                      "splittablefile://localhost//tmp/pypetest/test_out_3.txt", 
+                      "splittablefile://localhost/tmp/pypetest/test_out_3.txt", 
                       nChunk = nChunk)
 
         outfileObj3.setGatherTask(PypeTask, PypeTaskBase, gather)

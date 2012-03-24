@@ -70,7 +70,6 @@ class PypeDataObjectBase(PypeObject):
     def __str__( self ):
         return self.URL
 
-
 class PypeLocalFile(PypeDataObjectBase):
 
     """ 
@@ -78,10 +77,10 @@ class PypeLocalFile(PypeDataObjectBase):
     filesystem.
 
     >>> f = PypeLocalFile("file://localhost/test.txt")
-    >>> f.localFileName == "test.txt"
+    >>> f.localFileName == "/test.txt"
     True
     >>> fn(f)
-    'test.txt'
+    '/test.txt'
     >>> f = PypeLocalFile("file://localhost/test.txt", False, isFasta = True)
     >>> f.isFasta == True
     True
@@ -91,7 +90,7 @@ class PypeLocalFile(PypeDataObjectBase):
     def __init__(self, URL, readOnly = True, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
-        self.localFileName = URLParseResult.path[1:]
+        self.localFileName = URLParseResult.path
         self._path = self.localFileName
         self.readOnly = readOnly
 
@@ -147,7 +146,7 @@ class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
     def __init__(self, URL, readOnly = True, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
-        self.localFileName = URLParseResult.path[1:]
+        self.localFileName = URLParseResult.path
         #the rest of the URL goes to HDF5 DS
 
 
@@ -167,7 +166,7 @@ class PypeLocalFileCollection(PypeDataObjectBase):  #stub for now Mar 17, 2010
         """
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
-        self.compositedDataObjName = URLParseResult.path[1:]
+        self.compositedDataObjName = URLParseResult.path
         self.localFileName =  None
         self._path = None
         self.readOnly = readOnly
@@ -215,7 +214,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
     def __init__(self, URL, readOnly = True, nChunk = 1, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
-        self.localFileName = URLParseResult.path[1:]
+        self.localFileName = URLParseResult.path
         self._path = self.localFileName
         self.readOnly = readOnly
         self.verification = []
@@ -224,7 +223,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
         self._splittedFiles = []
         self.nChunk = nChunk
 
-        cfURL = "file://%s/%s" % (URLParseResult.netloc, URLParseResult.path) 
+        cfURL = "file://%s%s" % (URLParseResult.netloc, URLParseResult.path) 
 
         self._completeFile = PypeLocalFile(cfURL, readOnly, **attributes)
 
@@ -236,7 +235,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
             for i in range(nChunk):
                 chunkBasename = "%03d_%s" % (i, basename)
                 if dirname != "":
-                    chunkURL = "file://%s/%s/%s" % (URLParseResult.netloc, dirname, chunkBasename) 
+                    chunkURL = "file://%s%s/%s" % (URLParseResult.netloc, dirname, chunkBasename) 
                 else:
                     chunkURL = "file://%s/%s" % (URLParseResult.netloc, chunkBasename) 
 
@@ -280,13 +279,18 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
 
 def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     """
-    >>> f = makePypeLocalFile("./test.txt")
-    >>> f.localFileName == "./test.txt"
+    >>> f = makePypeLocalFile("/tmp/test.txt")
+    >>> f.localFileName == "/tmp/test.txt"
     True
     >>> fn(f)
-    './test.txt'
+    '/tmp/test.txt'
     """
-    return PypeLocalFile("file://localhost/%s" % aLocalFileName, readOnly, **attributes)
+    aLocalFileName = os.path.abspath(aLocalFileName)
+
+    #if aLocalFileName.startswith("/"):
+    #    aLocalFileName.lstrip("/")
+    
+    return PypeLocalFile("file://localhost%s" % aLocalFileName, readOnly, **attributes)
 
 if __name__ == "__main__":
     import doctest
