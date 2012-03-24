@@ -163,13 +163,15 @@ class PypeWorkflow(PypeObject):
     Representing a PypeWorkflow. PypeTask and PypeDataObjects can be added
     into the workflow and executed through the instanct methods.
 
-    >>> import os 
+    >>> import os, time 
     >>> from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
     >>> from pypeflow.task import *
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
+    ...     os.system("rm /tmp/pypetest/*")
     ... except:
     ...     pass
+    >>> time.sleep(1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
     >>> @PypeTask(outputDataObjs={"test_out":fout},
@@ -180,7 +182,7 @@ class PypeWorkflow(PypeObject):
     ...     print test.test_out.localFileName
     ...     os.system( "touch %s" % fn(test.test_out) )
     ...     pass
-    >>> os.system( "rm %s; touch %s" %  (fn(fout), fn(fin))  )
+    >>> os.system( "touch %s" %  (fn(fin))  )
     0
     >>> from pypeflow.controller import PypeWorkflow
     >>> wf = PypeWorkflow()
