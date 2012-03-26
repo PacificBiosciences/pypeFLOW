@@ -81,7 +81,6 @@ class PypeTaskBase(PypeObject):
         self._status = TaskInitialized
         
 
-
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters", "mutableDataObjs"]:
             if defaultAttr not in self.__dict__:
                 self.__dict__[defaultAttr] = {}
@@ -109,6 +108,10 @@ class PypeTaskBase(PypeObject):
         self._codeMD5digest = kwargv["_codeMD5digest"]
         self._paramMD5digest = kwargv["_paramMD5digest"]
         self._compareFunctions = [ timeStampCompare ]
+
+        for o in self.outputDataObjs.values():
+            if o.readOnly == True:
+                raise PypeError, "Cannot assign read only data object %s for task %s" % (o.URL, self.URL) 
         
     @property
     def status(self):

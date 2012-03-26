@@ -92,7 +92,7 @@ class PypeLocalFile(PypeDataObjectBase):
     """
 
     supportedURLScheme = ["file"]
-    def __init__(self, URL, readOnly = True, **attributes):
+    def __init__(self, URL, readOnly = False, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path
@@ -150,7 +150,7 @@ class PypeHDF5Dataset(PypeDataObjectBase):  #stub for now Mar 17, 2010
     """
 
     supportedURLScheme = ["hdf5ds"]
-    def __init__(self, URL, readOnly = True, **attributes):
+    def __init__(self, URL, readOnly = False, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path
@@ -166,7 +166,7 @@ class PypeLocalFileCollection(PypeDataObjectBase):  #stub for now Mar 17, 2010
     """
 
     supportedURLScheme = ["files"]
-    def __init__(self, URL, readOnly = True, select = 1, **attributes):
+    def __init__(self, URL, readOnly = False, select = 1, **attributes):
         """
            currently we only support select = 1, 
            namely, we only pass the first file add to the collection to the tasks
@@ -218,7 +218,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
     """
     supportedURLScheme = ["splittablefile"]
 
-    def __init__(self, URL, readOnly = True, nChunk = 1, **attributes):
+    def __init__(self, URL, readOnly = False, nChunk = 1, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
         self.localFileName = URLParseResult.path
@@ -284,7 +284,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
     def timeStamp(self):
         return self._completeFile.timeStamp
 
-def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
+def makePypeLocalFile(aLocalFileName, readOnly = False, **attributes):
     """
     >>> f = makePypeLocalFile("/tmp/test.txt")
     >>> f.localFileName == "/tmp/test.txt"
@@ -298,6 +298,11 @@ def makePypeLocalFile(aLocalFileName, readOnly = True, **attributes):
     #    aLocalFileName.lstrip("/")
     
     return PypeLocalFile("file://localhost%s" % aLocalFileName, readOnly, **attributes)
+
+def makePypeLocalStateFile(stateName, readOnly = False, **attributes):
+    dirname, basename  = os.path.split(stateName)
+    stateFileName = os.path.join(dirname, "."+basename)
+    return makePypeLocalFile( stateFileName, readOnly = readOnly, **attributes)
 
 if __name__ == "__main__":
     import doctest

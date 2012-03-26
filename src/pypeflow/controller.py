@@ -533,15 +533,17 @@ class PypeThreadWorkflow(PypeWorkflow):
                 prereqJobURLs = prereqJobURLMap[URL]
                 outputCollision = False
 
-                for o in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
-                    if o in activeDataObjs:
-                        outputCollision = True
-                        break
+                for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
+                    for fromTask, activeDataObj in activeDataObjs:
+                        if dataObj == activeDataObj and fromTask != taskObj:
+                            logger.debug( "output collision detected for data object:"+str(dataObj))
+                            outputCollision = True
+                            break
 
                 if not outputCollision:
-
-                    for o in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
-                        activeDataObjs.add(o)
+                    for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
+                        logger.debug( "add active data obj:"+str(dataObj))
+                        activeDataObjs.add( (taskObj, dataObj) )
                     
                 if len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None and not outputCollision:
 
@@ -596,7 +598,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                     successfullTask.finalize()
 
                     for o in successfullTask.outputDataObjs.values() + successfullTask.mutableDataObjs.values():
-                        activeDataObjs.remove(o)
+                        activeDataObjs.remove( (successfullTask,o) )
 
                 elif message in ["fail"]:
                     failedTask = self._pypeObjects[str(URL)]
@@ -605,7 +607,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                     failedTask.finalize()
 
                     for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
-                        activeDataObjs.remove(o)
+                        activeDataObjs.remove( (failedTask, o) )
 
             for u,s in sorted(self.jobStatusMap.items()):
                 logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )

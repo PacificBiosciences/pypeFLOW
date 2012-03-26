@@ -256,7 +256,7 @@ class TestPypeThreadWorkflow:
         # assert_equal(expected, pype_thread_workflow.setNumThreadAllowed(nT, nS))
         raise SkipTest # TODO: implement your test here
 
-    def test_sharedOutputDataObjects(self):
+    def test_mutableDataObjects(self):
 
         infileObj =\
         pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_in.txt")
@@ -291,6 +291,8 @@ class TestPypeThreadWorkflow:
         def task1(task):
             with open(task.out.localFileName, "a") as f:
                 print >>f, "written by task1"
+            with open(task.out1.localFileName, "w") as f:
+                print >>f, "written by task1"
 
         @PypeTask(mutableDataObjs={"out":outfileObj},
                   outputDataObjs={"out2":out2},
@@ -299,6 +301,8 @@ class TestPypeThreadWorkflow:
         def task2(task):
             with open(task.out.localFileName, "a") as f:
                 print >>f, "written by task2"
+            with open(task.out2.localFileName, "w") as f:
+                print >>f, "written by task2"
 
         @PypeTask(mutableDataObjs={"out":outfileObj},
                   outputDataObjs={"out3":out3},
@@ -306,6 +310,8 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task3(task):
             with open(task.out.localFileName, "a") as f:
+                print >>f, "written by task3"
+            with open(task.out3.localFileName, "w") as f:
                 print >>f, "written by task3"
 
         wf = PypeThreadWorkflow()
@@ -319,6 +325,173 @@ class TestPypeThreadWorkflow:
         outputSet.add("written by task3")
 
         with open(outfileObj.localFileName) as f:
+            i = 0
             for l in f:
                 l = l.strip()
                 assert l in outputSet
+                i += 1
+            assert i == 3
+
+    def test_stateDataObjects(self):
+
+        infileObj =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_in.txt")
+
+        outfileObj =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out.txt")
+
+        out1 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out1.txt")
+
+        out2 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out2.txt")
+
+        out3 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out3.txt")
+
+        s1 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state1")
+
+        s2 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state2")
+
+        s3 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state3")
+
+        import os
+        import time
+        os.system("rm -rf /tmp/pypetest/*")
+        time.sleep(2)
+
+        with open(infileObj.localFileName,"w") as f:
+            f.write("test")
+
+        PypeThreadWorkflow = pypeflow.controller.PypeThreadWorkflow
+        PypeThreadTaskBase = pypeflow.controller.PypeThreadTaskBase
+        PypeTask = pypeflow.task.PypeTask
+        wf = PypeThreadWorkflow()
+
+        @PypeTask(mutableDataObjs = {"out":outfileObj},
+                  outputDataObjs = {"out1":out1, "s1":s1},
+                  inputDataObjs = {"in":infileObj},
+                  TaskType=PypeThreadTaskBase)
+        def task1(task):
+            with open(task.out.localFileName, "a") as f:
+                print >>f, "written by task1"
+            with open(task.s1.localFileName, "w") as f:
+                print >>f, "state set"
+            with open(task.out1.localFileName, "w") as f:
+                print >>f, "written by task1"
+
+        @PypeTask(mutableDataObjs = {"out":outfileObj},
+                  outputDataObjs = {"out2":out2, "s2":s2},
+                  inputDataObjs = {"in":infileObj, "s1":s1},
+                  TaskType=PypeThreadTaskBase)
+        def task2(task):
+            with open(task.out.localFileName, "a") as f:
+                print >>f, "written by task2"
+            with open(task.s2.localFileName, "w") as f:
+                print >>f, "state set"
+            with open(task.out2.localFileName, "w") as f:
+                print >>f, "written by task2"
+
+        @PypeTask(mutableDataObjs = {"out":outfileObj},
+                  outputDataObjs = {"out3":out3, "s3":s3},
+                  inputDataObjs = {"in":infileObj, "s2":s2},
+                  TaskType=PypeThreadTaskBase)
+        def task3(task):
+            with open(task.out.localFileName, "a") as f:
+                print >>f, "written by task3"
+            with open(task.s3.localFileName, "w") as f:
+                print >>f, "state set"
+            with open(task.out3.localFileName, "w") as f:
+                print >>f, "written by task3"
+
+        wf = PypeThreadWorkflow()
+        wf.addTasks([task1, task2, task3])
+
+        wf.refreshTargets()
+
+        with open(outfileObj.localFileName) as f:
+            i = 0
+            for l in f:
+                i += 1
+                l = l.strip()
+                assert l == "written by task%d" % i
+        assert i == 3
+
+    def test_stateDataObjects2(self):
+
+        infileObj =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_in.txt")
+
+        outfileObj =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out.txt")
+
+        out1 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out1.txt")
+
+        out2 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out2.txt")
+
+        out3 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out3.txt")
+
+        s1 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state1")
+
+        s2 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state2")
+
+        s3 =\
+        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state3")
+
+        import os
+        import time
+        os.system("rm -rf /tmp/pypetest/*")
+        time.sleep(2)
+
+        with open(infileObj.localFileName,"w") as f:
+            f.write("test")
+
+        PypeThreadWorkflow = pypeflow.controller.PypeThreadWorkflow
+        PypeThreadTaskBase = pypeflow.controller.PypeThreadTaskBase
+        PypeTask = pypeflow.task.PypeTask
+        wf = PypeThreadWorkflow()
+
+        @PypeTask( outputDataObjs = {"out1":out1, "s1":s1},
+                  inputDataObjs = {"in":infileObj},
+                  TaskType=PypeThreadTaskBase)
+        def task1(task):
+            with open(task.s1.localFileName, "w") as f:
+                print >>f, "state set"
+            with open(task.out1.localFileName, "w") as f:
+                print >>f, "written by task1"
+
+        @PypeTask(outputDataObjs = {"out2":out2, "s2":s2},
+                  inputDataObjs = {"in":infileObj, "s1":s1},
+                  TaskType=PypeThreadTaskBase)
+        def task2(task):
+            with open(task.s2.localFileName, "w") as f:
+                print >>f, "state set"
+            with open(task.out2.localFileName, "w") as f:
+                print >>f, "written by task2"
+
+        @PypeTask(outputDataObjs = {"out3":out3, "s3":s3},
+                  inputDataObjs = {"in":infileObj, "s2":s2},
+                  TaskType=PypeThreadTaskBase)
+        def task3(task):
+            with open(task.s3.localFileName, "w") as f:
+                print >>f, "state set"
+            with open(task.out3.localFileName, "w") as f:
+                print >>f, "written by task3"
+
+        wf = PypeThreadWorkflow()
+        wf.addTasks([task1, task2, task3])
+
+        wf.refreshTargets([s3])
+
+        for i in range(1,4):
+            with open("/tmp/pypetest/test_for_shared_output_out%d.txt" % i) as f:
+                l = f.read().strip()
+                assert l == "written by task%d" % i
