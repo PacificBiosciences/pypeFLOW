@@ -3,6 +3,7 @@ from nose import SkipTest
 import tempfile
 import pypeflow.data
 import pypeflow.task
+import os
 
 PypeLocalFileCollection = pypeflow.data.PypeLocalFileCollection
 PypeLocalFile = pypeflow.data.PypeLocalFile
@@ -10,38 +11,24 @@ fn = pypeflow.data.fn
 
 class TestFn:
     def test_fn(self):
-        # assert_equal(expected, fn(obj))
-        raise SkipTest # TODO: implement your test here
+        file = PypeLocalFile("file://localhost/test1")
+        assert fn(file) == "/test1"
+        file = PypeLocalFile("file://localhost/test1/")
+        assert fn(file) == "/test1/"
+        file = PypeLocalFile("file://localhost/tmp/test1")
+        assert fn(file) == "/tmp/test1"
+        file = PypeLocalFile("file://localhost"+ os.path.abspath("./test1"))
+        assert fn(file) == os.path.abspath("./test1") 
 
-class TestPypeDataObjectBase:
-    def test___init__(self):
-        # pype_data_object_base = PypeDataObjectBase(URL, **attributes)
-        raise SkipTest # TODO: implement your test here
-
-    def test_exists(self):
-        # pype_data_object_base = PypeDataObjectBase(URL, **attributes)
-        # assert_equal(expected, pype_data_object_base.exists())
-        raise SkipTest # TODO: implement your test here
-
-    def test_timeStamp(self):
-        # pype_data_object_base = PypeDataObjectBase(URL, **attributes)
-        # assert_equal(expected, pype_data_object_base.timeStamp())
-        raise SkipTest # TODO: implement your test here
-
-    def test___str__(self):
-        # pype_local_file = PypeLocalFile(URL, readOnly, **attributes)
-        # assert_equal(expected, pype_local_file.__str__())
-        raise SkipTest # TODO: implement your test here
-
-    def test_addVerifyFunction(self):
-        # pype_local_file = PypeLocalFile(URL, readOnly, **attributes)
-        # assert_equal(expected, pype_local_file.addVerifyFunction(verifyFunction))
-        raise SkipTest # TODO: implement your test here
+class TestPypeDataObjectBase: #this class can not be tested directly
+    pass
 
 class TestPypeLocalFile:
     def test___init__(self):
-        file = PypeLocalFile("file://localhost/test2")
-        assert fn(file) == "/test2"
+        obj = PypeLocalFile("file://localhost/test")
+        assert fn(obj) == "/test"
+        obj = PypeLocalFile("file://localhost/test", **{"x":123})
+        assert obj.x == 123
 
     def test_clean(self):
         # pype_local_file = PypeLocalFile(URL, readOnly, **attributes)
@@ -49,6 +36,13 @@ class TestPypeLocalFile:
         raise SkipTest # TODO: implement your test here
 
     def test_exists(self):
+        obj = PypeLocalFile("file://localhost/tmp/pypetest/test")
+        os.system("mkdir -p /tmp/pypetest/; touch /tmp/pypetest/test")
+        assert obj.exists == True
+        os.system("rm /tmp/pypetest/test")
+        assert obj.exists == False
+
+
         # pype_local_file = PypeLocalFile(URL, readOnly, **attributes)
         # assert_equal(expected, pype_local_file.exists())
         raise SkipTest # TODO: implement your test here
@@ -71,13 +65,13 @@ class TestPypeLocalFile:
 class TestPypeLocalFileColletion:
 
     def test___init__(self):
-        files = PypeLocalFileCollection("files://localhost/./test1")
-        assert files.URL == "files://localhost/./test1"
+        files = PypeLocalFileCollection("files://localhost/tmp/pypetest/test1")
+        assert files.URL == "files://localhost/tmp/pypetest/test1"
         assert files.localFileName == None
 
     def test_addLocalFile(self):
-        files = PypeLocalFileCollection("files://localhost/./test1")
-        aNewFile = PypeLocalFile("file://localhost/./test2")
+        files = PypeLocalFileCollection("files://localhost/tmp/pypetest/test1")
+        aNewFile = PypeLocalFile("file://localhost/tmp/pypetest/test2")
         files.addLocalFile(aNewFile)
         assert files.localFileName == files.localFiles[0].localFileName 
         assert fn(files) == fn(files.localFiles[0])
@@ -89,9 +83,7 @@ class TestPypeLocalFileColletion:
         raise SkipTest # TODO: implement your test here
 
 class TestPypeHDF5Dataset:
-    def test___init__(self):
-        # pype_hd_f5_dataset = PypeHDF5Dataset(URL, readOnly, **attributes)
-        raise SkipTest # TODO: implement your test here
+    pass
 
 class TestPypeLocalCompositeFile:
     def test___init__(self):
@@ -119,7 +111,7 @@ class TestPypeSplittableLocalFile:
                 f.write("file%02d\n" % i)
 
         pype_splittable_local_file =\
-        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost//tmp/pypetest/test_fofn.txt", 
+        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost/tmp/pypetest/test_fofn.txt", 
                                               nChunk=5)
         with open("/tmp/pypetest/gather.sh", "w") as f:
             f.write("#!/bin/bash\n")
@@ -153,7 +145,7 @@ class TestPypeSplittableLocalFile:
                 f.write("file%02d\n" % i)
 
         pype_splittable_local_file =\
-        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost//tmp/pypetest/test_fofn.txt", 
+        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost/tmp/pypetest/test_fofn.txt", 
                                               nChunk=5)
 
         with open("/tmp/pypetest/scatter.sh", "w") as f:
@@ -180,7 +172,7 @@ class TestPypeSplittableLocalFile:
 
     def test_getGatherTask(self):
         pype_splittable_local_file =\
-        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost//tmp/pypetest/test_fofn.txt", 
+        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost/tmp/pypetest/test_fofn.txt", 
                                               nChunk=5)
         PypeShellTask = pypeflow.task.PypeShellTask
         PypeTaskBase = pypeflow.task.PypeTaskBase
@@ -190,7 +182,7 @@ class TestPypeSplittableLocalFile:
 
     def test_getScatterTask(self):
         pype_splittable_local_file =\
-        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost//tmp/pypetest/test_fofn.txt", 
+        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost/tmp/pypetest/test_fofn.txt", 
                                               nChunk=5)
         PypeShellTask = pypeflow.task.PypeShellTask
         PypeTaskBase = pypeflow.task.PypeTaskBase
@@ -201,10 +193,10 @@ class TestPypeSplittableLocalFile:
 
     def test_getSplittedFiles(self):
         pype_splittable_local_file =\
-        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost/./test.txt", 
+        pypeflow.data.PypeSplittableLocalFile("splittablefile://localhost/tmp/pypetest/test.txt", 
                                               nChunk=5)
         i = 0
         for f in pype_splittable_local_file.getSplittedFiles():
             assert f.URL ==\
-            'file://localhost/./%03d_test.txt' % i
+            'file://localhost/tmp/pypetest/%03d_test.txt' % i
             i += 1
