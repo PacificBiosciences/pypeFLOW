@@ -192,7 +192,7 @@ class PypeTaskBase(PypeObject):
                         graph.add( (URIRef(f.URL), pypeNS["prereq"], URIRef(self.URL) ) )
                 elif k == "mutableDataObjs":
                     for ft, f in v.iteritems():
-                        graph.add( (URIRef(self.URL), pypeNS["hasMutables"], URIRef(f.URL)   ) )
+                        graph.add( (URIRef(self.URL), pypeNS["hasMutable"], URIRef(f.URL)   ) )
                 elif k == "parameters":
                     graph.add( (URIRef(self.URL), pypeNS["hasParameters"], Literal(json.dumps(v)) ) )
             
@@ -208,8 +208,8 @@ class PypeTaskBase(PypeObject):
 
             if k in self.mutableDataObjs:
                 graph.add( ( URIRef(self.URL), pypeNS["mutableDataObject"], URIRef(v.URL) ) )
-
                 continue
+
             if hasattr(v, "URL"):
                 graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
 
