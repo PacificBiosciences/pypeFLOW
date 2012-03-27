@@ -94,11 +94,14 @@ class PypeLocalFile(PypeDataObjectBase):
     supportedURLScheme = ["file", "state"]
     def __init__(self, URL, readOnly = False, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
-        URLParseResult = urlparse(URL)
-        self.localFileName = URLParseResult.path
-        self._path = self.localFileName
+        self._updatePath()
         self.readOnly = readOnly
         self._mutable = attributes.get("mutable", False)
+
+    def _updatePath(self):
+        URLParseResult = urlparse(self.URL)
+        self.localFileName = URLParseResult.path
+        self._path = self.localFileName
 
 
     @property
@@ -220,9 +223,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
 
     def __init__(self, URL, readOnly = False, nChunk = 1, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
-        URLParseResult = urlparse(URL)
-        self.localFileName = URLParseResult.path
-        self._path = self.localFileName
+        self._updatePath()
         self.readOnly = readOnly
         self.verification = []
         self._scatterTask = None
@@ -230,6 +231,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
         self._splittedFiles = []
         self.nChunk = nChunk
 
+        URLParseResult = urlparse(self.URL)
         cfURL = "file://%s%s" % (URLParseResult.netloc, URLParseResult.path) 
 
         self._completeFile = PypeLocalFile(cfURL, readOnly, **attributes)
@@ -245,6 +247,11 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
 
             sFile = PypeLocalFile(chunkURL, readOnly, **attributes)
             self._splittedFiles.append(sFile) 
+
+    def _updatePath(self):
+        URLParseResult = urlparse(self.URL)
+        self.localFileName = URLParseResult.path
+        self._path = self.localFileName
 
     def setGatherTask(self, TaskCreator, TaskType, function):
         assert self._scatterTask == None
