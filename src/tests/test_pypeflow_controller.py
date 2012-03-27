@@ -438,13 +438,13 @@ class TestPypeThreadWorkflow:
         pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/test_for_shared_output_out3.txt")
 
         s1 =\
-        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state1")
+        pypeflow.data.PypeLocalFile("state://localhost/tmp/pypetest/.state1")
 
         s2 =\
-        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state2")
+        pypeflow.data.PypeLocalFile("state://localhost/tmp/pypetest/.state2")
 
         s3 =\
-        pypeflow.data.PypeLocalFile("file://localhost/tmp/pypetest/.state3")
+        pypeflow.data.PypeLocalFile("state://localhost/tmp/pypetest/.state3")
 
         import os
         import time

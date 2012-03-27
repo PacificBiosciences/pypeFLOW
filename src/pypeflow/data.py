@@ -91,7 +91,7 @@ class PypeLocalFile(PypeDataObjectBase):
     True
     """
 
-    supportedURLScheme = ["file"]
+    supportedURLScheme = ["file", "state"]
     def __init__(self, URL, readOnly = False, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
@@ -284,7 +284,7 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
     def timeStamp(self):
         return self._completeFile.timeStamp
 
-def makePypeLocalFile(aLocalFileName, readOnly = False, **attributes):
+def makePypeLocalFile(aLocalFileName, readOnly = False, scheme="file", **attributes):
     """
     >>> f = makePypeLocalFile("/tmp/test.txt")
     >>> f.localFileName == "/tmp/test.txt"
@@ -297,12 +297,12 @@ def makePypeLocalFile(aLocalFileName, readOnly = False, **attributes):
     #if aLocalFileName.startswith("/"):
     #    aLocalFileName.lstrip("/")
     
-    return PypeLocalFile("file://localhost%s" % aLocalFileName, readOnly, **attributes)
+    return PypeLocalFile("%s://localhost%s" % (scheme, aLocalFileName), readOnly, **attributes)
 
 def makePypeLocalStateFile(stateName, readOnly = False, **attributes):
     dirname, basename  = os.path.split(stateName)
     stateFileName = os.path.join(dirname, "."+basename)
-    return makePypeLocalFile( stateFileName, readOnly = readOnly, **attributes)
+    return makePypeLocalFile( stateFileName, readOnly = readOnly, scheme = "state", **attributes)
 
 if __name__ == "__main__":
     import doctest
