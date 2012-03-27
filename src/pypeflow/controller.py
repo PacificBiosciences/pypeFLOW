@@ -243,10 +243,13 @@ class PypeWorkflow(PypeObject):
                 for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
                     self.addObjects(subTaskObj.inputDataObjs.values())
                     self.addObjects(subTaskObj.outputDataObjs.values())
+                    self.addObjects(subTaskObj.mutableDataObjs.values())
                     self.addObject(subTaskObj)
 
             else:
-                for dObj in taskObj.inputDataObjs.values() + taskObj.outputDataObjs.values() :
+                for dObj in taskObj.inputDataObjs.values() +\
+                            taskObj.outputDataObjs.values() +\
+                            taskObj.mutableDataObjs.values() :
                     if isinstance(dObj, PypeSplittableLocalFile):
                         self.addObjects([dObj._completeFile])
                     self.addObjects([dObj])
@@ -292,8 +295,8 @@ class PypeWorkflow(PypeObject):
     def _graphvizDot(self, shortName=False):
         graph = self._RDFGraph
         dotStr = StringIO()
-        shapeMap = {"file":"box", "task":"component"}
-        colorMap = {"file":"yellow", "task":"green"}
+        shapeMap = {"file":"box", "state":"box", "task":"component"}
+        colorMap = {"file":"yellow", "state":"cyan", "task":"green"}
         dotStr.write( 'digraph "%s" {\n' % self.URL)
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
@@ -305,15 +308,21 @@ class PypeWorkflow(PypeObject):
 
                 s = URL
                 if shortName == True:
-                    s = URLParseResult.path.split("/")[-1] 
+                    s = URLParseResult.scheme + "://..." + URLParseResult.path.split("/")[-1] 
                 dotStr.write( '"%s" [shape=%s, fillcolor=%s, style=filled];\n' % (s, shape, color))
 
         for row in graph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
             s, o = row
             if shortName == True:
-                s = urlparse(s).path.split("/")[-1] 
-                o = urlparse(o).path.split("/")[-1]
+                    s = urlparse(s).scheme + "://..." + urlparse(s).path.split("/")[-1] 
+                    o = urlparse(o).scheme + "://..." + urlparse(o).path.split("/")[-1] 
             dotStr.write( '"%s" -> "%s";\n' % (o, s))
+        for row in graph.query('SELECT ?s ?o WHERE {?s pype:hasMutable ?o . }', initNs=dict(pype=pypeNS)):
+            s, o = row
+            if shortName == True:
+                    s = urlparse(s).scheme + "://..." + urlparse(s).path.split("/")[-1] 
+                    o = urlparse(o).scheme + "://..." + urlparse(o).path.split("/")[-1] 
+            dotStr.write( '"%s" -- "%s" [arrowhead=both, style=dashed ];\n' % (s, o))
         dotStr.write ("}")
         return dotStr.getvalue()
 
@@ -634,8 +643,8 @@ class PypeThreadWorkflow(PypeWorkflow):
 
         graph = self._RDFGraph
         dotStr = StringIO()
-        shapeMap = {"file":"box", "task":"component"}
-        colorMap = {"file":"yellow", "task":"green"}
+        shapeMap = {"file":"box", "state":"box", "task":"component"}
+        colorMap = {"file":"yellow", "state":"cyan", "task":"green"}
         dotStr.write( 'digraph "%s" {\n' % self.URL)
 
 
@@ -649,24 +658,32 @@ class PypeThreadWorkflow(PypeWorkflow):
 
                 s = URL
                 if shortName == True:
-                    s = URLParseResult.path.split("/")[-1] 
-                jobStatus = self.jobStatusMap.get(URL, None)
-                if jobStatus != None:
-                    if jobStatus == "fail":
-                        color = 'red'
-                    elif jobStatus == "done":
-                        color = 'green'
-                else:
-                    color = 'white'
+                    s = URLParseResult.scheme + "://..." + URLParseResult.path.split("/")[-1] 
+
+                if URLParseResult.scheme == "task":
+                    jobStatus = self.jobStatusMap.get(URL, None)
+                    if jobStatus != None:
+                        if jobStatus == "fail":
+                            color = 'red'
+                        elif jobStatus == "done":
+                            color = 'green'
+                    else:
+                        color = 'white'
                     
                 dotStr.write( '"%s" [shape=%s, fillcolor=%s, style=filled];\n' % (s, shape, color))
 
         for row in graph.query('SELECT ?s ?o WHERE {?s pype:prereq ?o . }', initNs=dict(pype=pypeNS)):
             s, o = row
             if shortName == True:
-                s = urlparse(s).path.split("/")[-1] 
-                o = urlparse(o).path.split("/")[-1]
+                s = urlparse(s).scheme + "://..." + urlparse(s).path.split("/")[-1] 
+                o = urlparse(o).scheme + "://..." + urlparse(o).path.split("/")[-1] 
             dotStr.write( '"%s" -> "%s";\n' % (o, s))
+        for row in graph.query('SELECT ?s ?o WHERE {?s pype:hasMutable ?o . }', initNs=dict(pype=pypeNS)):
+            s, o = row
+            if shortName == True:
+                    s = urlparse(s).scheme + "://..." + urlparse(s).path.split("/")[-1] 
+                    o = urlparse(o).scheme + "://..." + urlparse(o).path.split("/")[-1] 
+            dotStr.write( '"%s" -- "%s" [arrowhead=both, style=dashed ];\n' % (s, o))
         dotStr.write ("}")
         return dotStr.getvalue()
 

@@ -91,7 +91,7 @@ class PypeLocalFile(PypeDataObjectBase):
     True
     """
 
-    supportedURLScheme = ["file"]
+    supportedURLScheme = ["file", "state"]
     def __init__(self, URL, readOnly = False, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
         URLParseResult = urlparse(URL)
