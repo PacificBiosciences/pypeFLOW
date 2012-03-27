@@ -234,20 +234,17 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
 
         self._completeFile = PypeLocalFile(cfURL, readOnly, **attributes)
 
-        if nChunk == 1:
-            self._splittedFiles = [self._completeFile]
-        else:
-            dirname, basename = os.path.split(self._path)
+        dirname, basename = os.path.split(self._path)
 
-            for i in range(nChunk):
-                chunkBasename = "%03d_%s" % (i, basename)
-                if dirname != "":
-                    chunkURL = "file://%s%s/%s" % (URLParseResult.netloc, dirname, chunkBasename) 
-                else:
-                    chunkURL = "file://%s/%s" % (URLParseResult.netloc, chunkBasename) 
+        for i in range(nChunk):
+            chunkBasename = "%03d_%s" % (i, basename)
+            if dirname != "":
+                chunkURL = "file://%s%s/%s" % (URLParseResult.netloc, dirname, chunkBasename) 
+            else:
+                chunkURL = "file://%s/%s" % (URLParseResult.netloc, chunkBasename) 
 
-                sFile = PypeLocalFile(chunkURL, readOnly, **attributes)
-                self._splittedFiles.append(sFile) 
+            sFile = PypeLocalFile(chunkURL, readOnly, **attributes)
+            self._splittedFiles.append(sFile) 
 
     def setGatherTask(self, TaskCreator, TaskType, function):
         assert self._scatterTask == None

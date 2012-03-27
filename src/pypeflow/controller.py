@@ -482,11 +482,11 @@ class PypeThreadWorkflow(PypeWorkflow):
             if isinstance(taskObj, PypeTaskCollection):
                 for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
                     if not isinstance(subTaskObj, PypeThreadTaskBase):
-                        raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
+                        raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object %s has type %s " % (subTaskObj.URL, repr(type(subTaskObj))))
                     subTaskObj.setMessageQueue(self.messageQueue)
             else:
                 if not isinstance(taskObj, PypeThreadTaskBase):
-                    raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
+                    raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(subTaskObj)))
                 taskObj.setMessageQueue(self.messageQueue)
 
         PypeWorkflow.addTasks(self, taskObjs)
@@ -500,6 +500,8 @@ class PypeThreadWorkflow(PypeWorkflow):
         if len(objs) != 0:
             connectedPypeNodes = set()
             for obj in objs:
+                if isinstance(obj, PypeSplittableLocalFile):
+                    obj = obj._completeFile
                 for x in rdfGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
                     connectedPypeNodes.add(x)
             tSortedURLs = PypeGraph(rdfGraph, connectedPypeNodes).tSort( )
