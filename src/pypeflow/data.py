@@ -82,7 +82,7 @@ class PypeDataObjectBase(PypeObject):
     def _updatePath(self):
         URLParseResult = urlparse(self.URL)
         self.localFileName = URLParseResult.path
-        self._path = self.localFileName
+        self._path = self.localFileName #for local file, _path is the same as full local file name
 
 class PypeLocalFile(PypeDataObjectBase):
 
