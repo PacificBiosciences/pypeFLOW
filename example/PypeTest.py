@@ -33,7 +33,7 @@ from pypeflow.controller import PypeWorkflow, PypeThreadWorkflow
 from pypeflow.data import PypeLocalFile, makePypeLocalFile
 import logging
 
-logger = logging.getLogger('workflow')
+logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch = logging.StreamHandler()
