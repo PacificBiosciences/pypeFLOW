@@ -642,7 +642,7 @@ def PypeScatteredTasks(*argv, **kwargv):
 
         for i in range(nChunk):
 
-            newKwargv = copy.deepcopy(kwargv)
+            newKwargv = copy.copy(kwargv)
 
             subTaskInput = {}
             for inputKey, inputDO in inputDataObjs.items():
