@@ -469,7 +469,7 @@ def PypeTask(*argv, **kwargv):
             kwargv["_codeMD5digest"] = ""
         kwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
-        newKwargv = copy.deepcopy(kwargv)
+        newKwargv = copy.copy(kwargv)
         inputDataObjs = kwargv.get("inputDataObjs",{}) 
         inputDataObjs.update(kwargv.get("inputs", {}))
         outputDataObjs = kwargv.get("outputDataObjs",{}) 
