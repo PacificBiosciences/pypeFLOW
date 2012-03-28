@@ -31,10 +31,12 @@ PypeController: This module provides the PypeWorkflow that controlls how a workf
 
 
 import threading 
-from threading import Thread 
 import time 
 import logging
+from threading import Thread 
 from Queue import Queue 
+#from multiprocessing import Process as Thread
+#from multiprocessing import Queue
 from cStringIO import StringIO 
 from urlparse import urlparse
 
@@ -576,7 +578,7 @@ class PypeThreadWorkflow(PypeWorkflow):
 
             logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
 
-            numAliveThreads = len( [ t for t in task2thread.values() if t.isAlive() ] )
+            numAliveThreads = len( [ t for t in task2thread.values() if t.is_alive() ] )
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
                 break
 
