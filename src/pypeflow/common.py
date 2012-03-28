@@ -62,7 +62,6 @@ class NotImplementedError(PypeError):
 class URLSchemeNotSupportYet(PypeError):
     pass
 
-
 class PypeObject(object):
 
     """ 
@@ -85,6 +84,12 @@ class PypeObject(object):
                 if k not in self.__dict__:
                     self.__dict__[k] = v
 
+    def _updateURL(self, newURL):
+        URLParseResult = urlparse(self.URL)
+        newURLParseResult = urlparse(newURL)
+        if URLParseResult.scheme != newURLParseResult.scheme:
+            raise PypeError, "the URL scheme can not be changed for obj %s" % self.URL
+        self.URL = newURL
      
     @property 
     def _RDFGraph(self):
@@ -107,7 +112,6 @@ class PypeObject(object):
         """
 
         return self._RDFGraph.serialize() 
-
 
 def runShellCmd(args,**kwargs):
 

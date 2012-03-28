@@ -275,6 +275,14 @@ class PypeWorkflow(PypeObject):
                 del self._pypeObjects[obj.URL]
             else:
                 raise PypeError, "Unable to remove %s from the graph. (Object not found)" % obj.URL
+
+    def updateURL(self, oldURL, newURL):
+        obj = self._pypeObjects[oldURL]
+        obj._updateURL(newURL)
+        self._pypeObjects[newURL] = obj
+        del self._pypeObjects[oldURL]
+
+
             
     @property
     def _RDFGraph(self):

@@ -75,6 +75,15 @@ class PypeDataObjectBase(PypeObject):
     def __str__( self ):
         return self.URL
 
+    def _updateURL(self, newURL):
+        super(PypeDataObjectBase, self)._updateURL(newURL)
+        self._updatePath()
+
+    def _updatePath(self):
+        URLParseResult = urlparse(self.URL)
+        self.localFileName = URLParseResult.path
+        self._path = self.localFileName
+
 class PypeLocalFile(PypeDataObjectBase):
 
     """ 
@@ -97,12 +106,6 @@ class PypeLocalFile(PypeDataObjectBase):
         self._updatePath()
         self.readOnly = readOnly
         self._mutable = attributes.get("mutable", False)
-
-    def _updatePath(self):
-        URLParseResult = urlparse(self.URL)
-        self.localFileName = URLParseResult.path
-        self._path = self.localFileName
-
 
     @property
     def timeStamp(self):
@@ -247,11 +250,6 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
 
             sFile = PypeLocalFile(chunkURL, readOnly, **attributes)
             self._splittedFiles.append(sFile) 
-
-    def _updatePath(self):
-        URLParseResult = urlparse(self.URL)
-        self.localFileName = URLParseResult.path
-        self._path = self.localFileName
 
     def setGatherTask(self, TaskCreator, TaskType, function):
         assert self._scatterTask == None
