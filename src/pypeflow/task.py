@@ -273,12 +273,15 @@ class PypeThreadTaskBase(PypeTaskBase):
     """
 
     @property
-    def nSlots( self ):
-        # required number of slots to run, total number of slots is determined by PypeThreadWorkflow.MAX_NUMBER_TASK_SLOT, 
-        # increase this number by passing desired number through the "parameters" argument 
-        # (e.g parameters={"nSlot":2}) to avoid high computationa intensive job running concurrently in local machine
-        # One can set the max number of thread of a workflow by PypeThreadWorkflow.setNumThreadAllowed()
-        return 1
+    def nSlots(self):
+        try:
+            nSlots = self.parameters["nSlots"]
+        except AttributeError:
+            nSlots = 1
+        except KeyError:
+            nSlots = 1
+        return nSlots
+
 
     def setMessageQueue(self, q):
         self._queue = q
