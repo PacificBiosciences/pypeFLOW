@@ -29,7 +29,7 @@ import os
 from pypeflow.common import * 
 from pypeflow.task import PypeThreadTaskBase, PypeTaskBase
 from pypeflow.task import PypeTask, PypeShellTask, PypeSGETask, PypeDistributibleTask
-from pypeflow.controller import PypeWorkflow, PypeThreadWorkflow
+from pypeflow.controller import PypeWorkflow, PypeThreadWorkflow, PypeMPWorkflow
 from pypeflow.data import PypeLocalFile, makePypeLocalFile
 import logging
 
@@ -159,8 +159,10 @@ def testDistributed(runmode, cleanup):
     baseDir = "."
     import random
     random.seed(1984)
-    PypeThreadWorkflow.setNumThreadAllowed(20,20)
-    wf = PypeThreadWorkflow()
+    #PypeThreadWorkflow.setNumThreadAllowed(20,20)
+    #wf = PypeThreadWorkflow()
+    PypeMPWorkflow.setNumThreadAllowed(20,20)
+    wf = PypeMPWorkflow()
     allTasks = []
     for layer in range(5):
         fN = random.randint(3,7)
@@ -182,7 +184,7 @@ def testDistributed(runmode, cleanup):
 
             i = 0
             for obj in random.sample(fmut,2):
-                mutableDataObjs["outfile%d" % i] = obj
+                #mutableDataObjs["outfile%d" % i] = obj
                 i += 1
             outputDataObjs["outfile%d" % i] = fout[w]
 
@@ -251,9 +253,10 @@ def testDistributed(runmode, cleanup):
     rdfFile = open("test.rdf","w")
     print >>rdfFile, wf.RDFXML
     rdfFile.close()
-    mkFile = open("test.mk","w")
-    print >>mkFile, wf.makeFileStr
-    mkFile.close()
+    if runmode != "internal":
+        mkFile = open("test.mk","w")
+        print >>mkFile, wf.makeFileStr
+        mkFile.close()
 
 if __name__ == "__main__":
     try:

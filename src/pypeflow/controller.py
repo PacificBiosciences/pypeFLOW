@@ -34,9 +34,9 @@ import threading
 import time 
 import logging
 from threading import Thread 
-from Queue import Queue 
-#from multiprocessing import Process as Thread
-#from multiprocessing import Queue
+from Queue import Queue
+from multiprocessing import Process 
+from multiprocessing import Queue as MPQueue
 from cStringIO import StringIO 
 from urlparse import urlparse
 
@@ -477,7 +477,10 @@ class PypeThreadWorkflow(PypeWorkflow):
 
     def __init__(self, URL = None, **attributes ):
         PypeWorkflow.__init__(self, URL, **attributes )
-        self.messageQueue = Queue()
+        if self.__class__ == PypeThreadWorkflow:
+            self.messageQueue = Queue()
+        if self.__class__ == PypeMPWorkflow:
+            self.messageQueue = MPQueue()
         self.jobStatusMap = {}
 
     def addTasks(self, taskObjs):
@@ -506,6 +509,12 @@ class PypeThreadWorkflow(PypeWorkflow):
                              callback = (None, None, None), 
                              updateFreq=None, 
                              exitOnFailure=True ):
+
+        if self.__class__ == PypeThreadWorkflow:
+            thread = Thread
+        if self.__class__ == PypeMPWorkflow:
+            thread = Process
+
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
         if len(objs) != 0:
             connectedPypeNodes = set()
@@ -586,7 +595,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                 numberOfEmptySlot = self.MAX_NUMBER_TASK_SLOT - usedTaskSlots 
                 logger.info( "number of empty slot = %d/%d" % (numberOfEmptySlot, self.MAX_NUMBER_TASK_SLOT))
                 if numberOfEmptySlot >= taskObj.nSlots and numAliveThreads < self.CONCURRENT_THREAD_ALLOWED:
-                    t = Thread(target = taskObj)
+                    t = thread(target = taskObj)
                     t.start()
                     task2thread[URL] = t
                     nSubmittedJob += 1
@@ -699,6 +708,11 @@ class PypeThreadWorkflow(PypeWorkflow):
             dotStr.write( '"%s" -- "%s" [arrowhead=both, style=dashed ];\n' % (s, o))
         dotStr.write ("}")
         return dotStr.getvalue()
+
+class PypeMPWorkflow(PypeThreadWorkflow):
+    """ Just for a name space to indicate the workflow using multiprocessing.
+    """
+    pass
 
 if __name__ == "__main__":
     import doctest
