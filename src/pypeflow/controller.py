@@ -553,25 +553,26 @@ class PypeThreadWorkflow(PypeWorkflow):
                 outputCollision = False
 
                 for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
-                    for fromTask, activeDataObj in activeDataObjs:
-                        if dataObj == activeDataObj and fromTask != taskObj:
+                    for fromTaskObjURL, activeDataObjURL in activeDataObjs:
+                        if dataObj.URL == activeDataObjURL and taskObj.URL != fromTaskObjURL:
                             logger.debug( "output collision detected for data object:"+str(dataObj))
                             outputCollision = True
                             break
+                
+                if outputCollision:
+                    continue
 
-                if not outputCollision:
+                if (len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None) or\
+                   (all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and self.jobStatusMap[URL] == None):
+
+                    jobsReadyToBeSubmitted.append( (URL, taskObj) )
+
                     for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
                         logger.debug( "add active data obj:"+str(dataObj))
-                        activeDataObjs.add( (taskObj, dataObj) )
-                    
-                if len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None and not outputCollision:
+                        activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
-                    jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
-                elif ( all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and
-                       self.jobStatusMap[URL] == None and not outputCollision ):
 
-                    jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
             logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
 
@@ -617,7 +618,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                     successfullTask.finalize()
 
                     for o in successfullTask.outputDataObjs.values() + successfullTask.mutableDataObjs.values():
-                        activeDataObjs.remove( (successfullTask,o) )
+                        activeDataObjs.remove( (successfullTask.URL, o.URL) )
 
                 elif message in ["fail"]:
                     failedTask = self._pypeObjects[str(URL)]
@@ -626,7 +627,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                     failedTask.finalize()
 
                     for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
-                        activeDataObjs.remove( (failedTask, o) )
+                        activeDataObjs.remove( (failedTask.URL, o.URL) )
 
             for u,s in sorted(self.jobStatusMap.items()):
                 logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )

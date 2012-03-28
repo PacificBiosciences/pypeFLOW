@@ -47,7 +47,7 @@ General Design Principles
 
     - Explicitly modeling data and task dependency
     - Support declarative programming style within Python while
-      maintaining some thing that imperative programming dose the
+      maintaining something that imperative programming dose the
       best
     - Utilize RDF meta-data framework
     - Keep it simple if possible
@@ -55,8 +55,8 @@ General Design Principles
 Features
 ========
 
-    - Multiple concurrent task scheduling and running
-    - Support task as simple shell script (considering clustering
+    - Multiple concurrent tasks scheduling and running
+    - Support tasks as simple shell script (considering clustering
       job submission in mind)
     - reasonable simple interface for declarative programming
 

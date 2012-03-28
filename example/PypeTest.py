@@ -34,10 +34,11 @@ from pypeflow.data import PypeLocalFile, makePypeLocalFile
 import logging
 
 logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+#logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
+ch.setLevel(logging.DEBUG)
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
@@ -165,21 +166,28 @@ def testDistributed(runmode, cleanup):
         fN = random.randint(3,7)
         fin = [None] * fN
         fout = [None] * fN
+        fmut = [None] * fN
         for w in range(fN):
             fin[w] = makePypeLocalFile(baseDir + "/testdata/testfile_l%d_w%d.dat" % (layer, w) )
             fout[w] = makePypeLocalFile(baseDir + "/testdata/testfile_l%d_w%d.dat" % (layer+1, w) )
-            wf.addObjects([fin[w], fout[w]])
+            fmut[w] = makePypeLocalFile(baseDir + "/testdata/m_testfile_l%d_w%d.dat" % (layer+1, w) )
+            #wf.addObjects([fin[w], fout[w], fmut[w]])
 
         for w in range(fN):
             inputDataObjs = {}
             outputDataObjs = {}
+            mutableDataObjs = {}
             for i in range(5):
                 inputDataObjs["infile%d" % i] = random.choice(fin)
 
-            outputDataObjs["outfile%d" % w] = fout[w] 
+            i = 0
+            for obj in random.sample(fmut,2):
+                mutableDataObjs["outfile%d" % i] = obj
+                i += 1
+            outputDataObjs["outfile%d" % i] = fout[w]
 
-
-            shellCmd = "sleep 1\n" + "\n".join([ "echo %d %d ...  > %s" % (layer, w, of.localFileName) for of in outputDataObjs.values() ]) + "\nsleep 10"
+            shellCmd = "sleep 1\n" + "\n".join([ "echo %d %d ...  >> %s" % (layer, w, of.localFileName) for of in outputDataObjs.values() ]) + "\nsleep 10"
+            shellCmd += "sleep 1\n" + "\n".join([ "echo %d %d ...  >> %s" % (layer, w, of.localFileName) for of in mutableDataObjs.values() ]) + "\nsleep 10"
             shellFileName = baseDir + "/testdata/task_l%d_w%d.sh" % (layer, w)
             shfile = open(shellFileName, 'w')
             print >> shfile, shellCmd
@@ -194,18 +202,21 @@ def testDistributed(runmode, cleanup):
 
                 task = PypeTask(inputDataObjs = inputDataObjs,
                                 outputDataObjs = outputDataObjs, 
+                                mutableDataObjs = mutableDataObjs,
                                 URL="task://internal/task_l%d_w%d" % (layer, w), 
                                 TaskType=PypeThreadTaskBase) ( t1 )
 
             elif runmode == "localshell":
                 task = PypeShellTask(inputDataObjs = inputDataObjs,
                                      outputDataObjs = outputDataObjs, 
+                                     mutableDataObjs = mutableDataObjs,
                                      URL="task://localshell/task_l%d_w%d" % (layer, w), 
                                      TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
 
             elif runmode == "sge": 
                 task = PypeSGETask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs, 
+                                   mutableDataObjs = mutableDataObjs,
                                    URL="task://sge/task_l%d_w%d" % (layer, w), 
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
 
@@ -214,6 +225,7 @@ def testDistributed(runmode, cleanup):
                 distributed = True if w % 3 == 0 else False
                 task = PypeDistributibleTask(inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs,
+                                   mutableDataObjs = mutableDataObjs,
                                    URL="task://sge/task_l%d_w%d" % (layer, w), 
                                    distributed=distributed,
                                    TaskType=PypeThreadTaskBase) ( "%s" % shellFileName )
