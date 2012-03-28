@@ -614,7 +614,7 @@ def PypeScatteredTasks(*argv, **kwargv):
         scatteredInput  = []
         singleInput = []
 
-        if kwargv.get("URL",None) == None:
+        if kwargv.get("URL", None) == None:
             kwargv["URL"] = "tasks://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
 
         tasks = PypeTaskCollection(kwargv["URL"])

@@ -305,7 +305,7 @@ class PypeWorkflow(PypeObject):
         dotStr = StringIO()
         shapeMap = {"file":"box", "state":"box", "task":"component"}
         colorMap = {"file":"yellow", "state":"cyan", "task":"green"}
-        dotStr.write( 'digraph "%s" {\n' % self.URL)
+        dotStr.write( 'digraph "%s" {\n rankdir=LR;' % self.URL)
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
             if URLParseResult.scheme not in shapeMap:
@@ -655,7 +655,7 @@ class PypeThreadWorkflow(PypeWorkflow):
         dotStr = StringIO()
         shapeMap = {"file":"box", "state":"box", "task":"component"}
         colorMap = {"file":"yellow", "state":"cyan", "task":"green"}
-        dotStr.write( 'digraph "%s" {\n' % self.URL)
+        dotStr.write( 'digraph "%s" {\n rankdir=LR;' % self.URL)
 
 
         for URL in self._pypeObjects.keys():
