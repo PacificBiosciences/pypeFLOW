@@ -225,7 +225,10 @@ class PypeWorkflow(PypeObject):
         """
         for obj in objs:
             if obj.URL in self._pypeObjects:
-                continue
+                if id(self._pypeObjects[obj.URL]) != id(obj):
+                    raise PypeError, "Add different objects with the same URL %s" % obj.URL
+                else:
+                    continue
             self._pypeObjects[obj.URL] = obj
 
     def addTask(self, taskObj):
