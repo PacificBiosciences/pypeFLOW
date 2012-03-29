@@ -14,6 +14,7 @@ Contents:
    introduction
    installation
    examples
+   concurrent_execution
    modules
 
 
