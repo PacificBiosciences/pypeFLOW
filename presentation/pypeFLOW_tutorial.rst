@@ -162,9 +162,10 @@ Task Objects IV
 Task Objects V
 ==================
 
-A ``PythonTaskBase`` is a "callable" object, namely, it implements ``__call__``
-method.  When it gets called, it will check the dependency of the input and
-output objects and make a decision whether to execute the wrapped function.
+An instance of the ``PythonTaskBase`` class is a "callable" object, namely, 
+it implements ``__call__`` method.  When it gets called, it will check the 
+dependency of the input and output objects and make a decision whether to 
+execute the wrapped function.
 
 .. code-block:: python
 
