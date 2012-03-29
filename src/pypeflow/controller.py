@@ -364,7 +364,6 @@ class PypeWorkflow(PypeObject):
                 raise TaskTypeError("can not convert non shell script based workflow to a makefile") 
 
         makeStr = StringIO()
-        shapeMap = {"file":"box", "task":"component"}
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
             if URLParseResult.scheme != "task": continue
@@ -636,6 +635,8 @@ class PypeThreadWorkflow(PypeWorkflow):
 
                 elif message in ["fail"]:
                     failedTask = self._pypeObjects[str(URL)]
+                    nSubmittedJob -= 1
+                    usedTaskSlots -= failedTask.nSlots
                     task2thread[URL].join()
                     failedJobCount += 1
                     failedTask.finalize()
@@ -651,8 +652,8 @@ class PypeThreadWorkflow(PypeWorkflow):
                     if thread.isAlive( ):
                         thread.join( )
                         self._pypeObjects[str(url)].finalize()
-                        
                 return False
+
 
         for u,s in sorted(self.jobStatusMap.items()):
             logger.info( "task status: %s, %s" % (str(u),str(s)) )
