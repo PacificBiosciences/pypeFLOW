@@ -46,7 +46,9 @@ import os
 import shlex
 
 from common import * 
-from data import FileNotExistError, PypeSplittableLocalFile
+from data import FileNotExistError
+from data import PypeSplittableLocalFile
+from data import makePypeLocalFile
 
 logger = logging.getLogger(__name__)
 
@@ -622,7 +624,6 @@ def PypeScatteredTasks(*argv, **kwargv):
         outputDataObjs = kwargv["outputDataObjs"]
         nChunk = None
         scatteredInput  = []
-        singleInput = []
 
         if kwargv.get("URL", None) == None:
             kwargv["URL"] = "tasks://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
@@ -686,6 +687,51 @@ def PypeScatteredTasks(*argv, **kwargv):
         return tasks
     return f
 
+
+def PypeFofnMapTasks(*argv, **kwargv):
+
+    def f(taskFun):
+
+        TaskType = kwargv.get("TaskType", PypeTaskBase)
+
+        if "TaskType" in kwargv:
+            del kwargv["TaskType"]
+
+        kwargv["_taskFun"] = taskFun
+
+        fofnFileName = kwargv["fofnFileName"]
+        outTemplateFunc = kwargv["outTemplateFunc"]
+
+        if kwargv.get("URL", None) == None:
+            kwargv["URL"] = "tasks://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+
+        tasks = PypeTaskCollection(kwargv["URL"])
+
+        with open(fofnFileName,"r") as fofn:
+
+            newKwargv = copy.copy(kwargv)
+            
+            for fn in fofn:
+                fn = fn.strip()
+                newKwargv["inputDataObjs"] = {"in_f": makePypeLocalFile(fn) } 
+                outfileName = outTemplateFunc(fn)
+                newKwargv["outputDataObjs"] = {"out_f": makePypeLocalFile(outfileName) } 
+                newKwargv["URL"] = kwargv["URL"].replace("tasks","task") + "/%s" % hashlib.md5(fn).hexdigest() 
+
+                try:
+                    newKwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
+                except IOError: 
+                    # python2.7 seems having problem to get source code from docstring, 
+                    # this is a work around to make docstring test working
+                    newKwargv["_codeMD5digest"] = ""
+
+
+                newKwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
+
+                tasks.addTask( TaskType(*argv, **newKwargv) )
+        return tasks
+
+    return f
 
 def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 
