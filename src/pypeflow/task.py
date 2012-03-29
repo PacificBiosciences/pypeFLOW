@@ -81,6 +81,7 @@ class PypeTaskBase(PypeObject):
         self._taskFun = kwargv['_taskFun']
         self._referenceMD5 = None
         self._status = TaskInitialized
+        self._queue = None
         
 
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters", "mutableDataObjs"]:
@@ -302,6 +303,10 @@ class PypeThreadTaskBase(PypeTaskBase):
         back to the main thread that run this task in a sepearated thread through the standard python
         queue from the Queue module.
         """
+
+        if self._queue == None:
+            super(PypeThreadTaskBase, self).__call__(*argv, **kwargv)
+
 
         try:
             runFlag = self._getRunFlag()
