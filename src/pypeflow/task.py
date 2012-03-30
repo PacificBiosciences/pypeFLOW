@@ -693,7 +693,7 @@ def PypeScatteredTasks(*argv, **kwargv):
     return f
 
 
-def PypeFofnMapTasks(*argv, **kwargv):
+def PypeFOFNMapTasks(*argv, **kwargv):
 
     def f(taskFun):
 
@@ -704,7 +704,7 @@ def PypeFofnMapTasks(*argv, **kwargv):
 
         kwargv["_taskFun"] = taskFun
 
-        fofnFileName = kwargv["fofnFileName"]
+        FOFNFileName = kwargv["FOFNFileName"]
         outTemplateFunc = kwargv["outTemplateFunc"]
 
         if kwargv.get("URL", None) == None:
@@ -712,11 +712,11 @@ def PypeFofnMapTasks(*argv, **kwargv):
 
         tasks = PypeTaskCollection(kwargv["URL"])
 
-        with open(fofnFileName,"r") as fofn:
+        with open(FOFNFileName,"r") as FOFN:
 
             newKwargv = copy.copy(kwargv)
             
-            for fn in fofn:
+            for fn in FOFN:
                 fn = fn.strip()
                 newKwargv["inputDataObjs"] = {"in_f": makePypeLocalFile(fn) } 
                 outfileName = outTemplateFunc(fn)
@@ -734,9 +734,26 @@ def PypeFofnMapTasks(*argv, **kwargv):
                 newKwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
                 tasks.addTask( TaskType(*argv, **newKwargv) )
+
+            allFOFNOutDataObjs = dict( [ ("in_f%03d" % t[0], t[1].in_f) for t in enumerate(tasks) ] )
+
+            def pseudoScatterTask(*argv, **kwargv):
+                pass
+
+            newKwargv = dict( inputDataObjs = {"FOFNin": makePypeLocalFile(FOFNFileName)}, 
+                              outputDataObjs = allFOFNOutDataObjs,
+                              _taskFun = pseudoScatterTask,
+                              URL = "task://pseudoScatterTask/%s" % FOFNFileName,
+                              _codeMD5digest = "",
+                              _paramMD5digest ="")
+
+            tasks.addTask( TaskType(**newKwargv) )
+
         return tasks
 
     return f
+
+getFOFNMapTasks = PypeFOFNMapTasks
 
 def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 

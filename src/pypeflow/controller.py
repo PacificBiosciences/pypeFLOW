@@ -718,6 +718,27 @@ class PypeMPWorkflow(PypeThreadWorkflow):
     """
     pass
 
+
+def defaultOutputTemplate(fn):
+    return fn + ".out"
+
+def applyFOFN( task_fun = None, 
+               fofonFileName = None, 
+               outTemplateFunc = defaultOutputTemplate,
+               nproc = 8 ):
+               
+    tasks = getFOFNMapTasks( FOFNFileName = fofonFileName, 
+                             outTemplateFunc = outTemplateFunc, 
+                             TaskType=PypeThreadTaskBase,
+                             parameters = dict(nSlots = 1))( task_fun )
+
+    wf = PypeThreadWorkflow()
+    wf.CONCURRENT_THREAD_ALLOWED = nproc 
+    wf.MAX_NUMBER_TASK_SLOT = nproc
+    wf.addTasks(tasks)
+    wf.refreshTargets(exitOnFailure=False)
+
+
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
