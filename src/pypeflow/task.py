@@ -108,9 +108,9 @@ class PypeTaskBase(PypeObject):
         if "chunk_id" in kwargv:
             self.chunk_id = kwargv["chunk_id"]
 
-        self._codeMD5digest = kwargv["_codeMD5digest"]
-        self._paramMD5digest = kwargv["_paramMD5digest"]
-        self._compareFunctions = [ timeStampCompare ]
+        self._codeMD5digest = kwargv.get("_codeMD5digest", "")
+        self._paramMD5digest = kwargv.get("_paramMD5digest", "")
+        self._compareFunctions = kwargv.get("_compareFunctions", [ timeStampCompare ])
 
         for o in self.outputDataObjs.values():
             if o.readOnly == True:
@@ -694,6 +694,26 @@ def PypeScatteredTasks(*argv, **kwargv):
 
 
 def PypeFOFNMapTasks(*argv, **kwargv):
+    """
+    A special decorator that takes a FOFN (file of file names) as the main
+    input and generate the tasks with the inputs are the files specified in
+    the FOFN
+
+    Example:
+
+        def outTemplate(fn):
+            return fn + ".out"
+
+        def task(self, *argv, **kwargv):
+            in_f = self.in_f
+            out_f = self.out_f
+            #do something with in_f, and write something to out_f
+
+        tasks = PypeFOFNMapTasks(FOFNFileName = "./file.fofn", 
+                outTemplateFunc = outTemplate, 
+                TaskType = PypeThreadTaskBase,
+                parameters = dict(nSlots = 8))( alignTask )
+    """
 
     def f(taskFun):
 
@@ -717,7 +737,12 @@ def PypeFOFNMapTasks(*argv, **kwargv):
             newKwargv = copy.copy(kwargv)
             
             for fn in FOFN:
+
                 fn = fn.strip()
+
+                if len(fn) == 0:
+                    continue
+
                 newKwargv["inputDataObjs"] = {"in_f": makePypeLocalFile(fn) } 
                 outfileName = outTemplateFunc(fn)
                 newKwargv["outputDataObjs"] = {"out_f": makePypeLocalFile(outfileName) } 
@@ -735,7 +760,7 @@ def PypeFOFNMapTasks(*argv, **kwargv):
 
                 tasks.addTask( TaskType(*argv, **newKwargv) )
 
-            allFOFNOutDataObjs = dict( [ ("in_f%03d" % t[0], t[1].in_f) for t in enumerate(tasks) ] )
+            allFOFNOutDataObjs = dict( [ ("FOFNout%03d" % t[0], t[1].in_f) for t in enumerate(tasks) ] )
 
             def pseudoScatterTask(*argv, **kwargv):
                 pass
@@ -743,9 +768,8 @@ def PypeFOFNMapTasks(*argv, **kwargv):
             newKwargv = dict( inputDataObjs = {"FOFNin": makePypeLocalFile(FOFNFileName)}, 
                               outputDataObjs = allFOFNOutDataObjs,
                               _taskFun = pseudoScatterTask,
-                              URL = "task://pseudoScatterTask/%s" % FOFNFileName,
-                              _codeMD5digest = "",
-                              _paramMD5digest ="")
+                              _compareFunctions = [lambda inObjs, outObj, params: False],
+                              URL = "task://pseudoScatterTask/%s" % FOFNFileName)
 
             tasks.addTask( TaskType(**newKwargv) )
 
