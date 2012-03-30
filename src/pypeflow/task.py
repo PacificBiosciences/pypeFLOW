@@ -768,7 +768,7 @@ def PypeFOFNMapTasks(*argv, **kwargv):
             newKwargv = dict( inputDataObjs = {"FOFNin": makePypeLocalFile(FOFNFileName)}, 
                               outputDataObjs = allFOFNOutDataObjs,
                               _taskFun = pseudoScatterTask,
-                              _compareFunctions = [lambda inObjs, outObj, params: False],
+                              _compareFunctions = [lambda inObjs, outObj, params: False], #this task is never meant to be run
                               URL = "task://pseudoScatterTask/%s" % FOFNFileName)
 
             tasks.addTask( TaskType(**newKwargv) )
