@@ -692,6 +692,7 @@ def PypeScatteredTasks(*argv, **kwargv):
         return tasks
     return f
 
+getPypeScatteredTasks = PypeScatteredTasks
 
 def PypeFOFNMapTasks(*argv, **kwargv):
     """

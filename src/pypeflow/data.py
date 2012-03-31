@@ -212,15 +212,16 @@ class PypeLocalFileCollection(PypeDataObjectBase):  #stub for now Mar 17, 2010
 
 class PypeSplittableLocalFile(PypeDataObjectBase):
     """ 
-    Represent a PypeData object that has two different local file representations:
-        (1) A whole file
-        (2) Split files
-    Such data object can have either a scatter task attached or a gather task attached.
-    If a scatter task is attached, the task will be inserted to generate the scattered files.
-    If a gather task is attached, the task will be inserted to generate the whole file.
-    If neither scatter task nor gather task is specified, then the file is mostly like intermediate data.
-    Namely, the whole file representation is not used any place else.
-    One can not specify scatter task and gather task for the same object since it will create a loop.
+    Represent a PypeData object that has two different local file
+      (1) the whole file (could be a virtual one)
+      (2) the split files
+
+    * Such data object can have either a scatter task attached or a gather task attached.
+    * If a scatter task is attached, the task will be inserted to generate the scattered files.
+    * If a gather task is attached, the task will be inserted to generate the whole file.
+    * If neither scatter task nor gather task is specified, then the file is mostly like interme
+      Namely, the whole file representation is not used any place else.
+    * One can not specify scatter task and gather task for the same object since it will create
     """
     supportedURLScheme = ["splittablefile"]
 
