@@ -219,6 +219,7 @@ Set up a workflow object
     wf = PypeMPWorkflow(...)
 
 Set up a task
+
     - Set up data objects
     - Define a ``task_func`` to be wrapped
     - Use ``PypeTask`` decorator to create the real ``PypeTaskBase`` object
