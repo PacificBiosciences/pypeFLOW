@@ -131,7 +131,7 @@ class TestPypeScatteredTasks:
             outputObjs = sorted( kwargv["outputDataObjs"].items() )
             nOut = len(outputObjs)
             outputObjs = [ (o[0], o[1], open(o[1].localFileName, "w")) for o in outputObjs]
-            with open(kwargv["inputDataObjs"]["cf"].localFileName,"r") as f:
+            with open(kwargv["inputDataObjs"]["completeFile"].localFileName,"r") as f:
                 i = 0
                 for l in f:
                    outf = outputObjs[i % nOut][2]
@@ -148,9 +148,9 @@ class TestPypeScatteredTasks:
         
         def gather(*argv, **kwargv):
             inputObjs = sorted( kwargv["inputDataObjs"].items() )
-            with open(kwargv["outputDataObjs"]["cf"].localFileName,"w") as outf:
-                for k, sf in inputObjs:
-                    f = open(sf.localFileName)
+            with open(kwargv["outputDataObjs"]["completeFile"].localFileName,"w") as outf:
+                for k, subfile in inputObjs:
+                    f = open(subfile.localFileName)
                     outf.write(f.read())
                     f.close()
 
@@ -213,9 +213,9 @@ class TestPypeScatteredTasks:
         
         def gather(*argv, **kwargv):
             inputObjs = sorted( kwargv["inputDataObjs"].items() )
-            with open(kwargv["outputDataObjs"]["cf"].localFileName,"w") as outf:
-                for k, sf in inputObjs:
-                    f = open(sf.localFileName)
+            with open(kwargv["outputDataObjs"]["completeFile"].localFileName,"w") as outf:
+                for k, subfile in inputObjs:
+                    f = open(subfile.localFileName)
                     outf.write("out:"+f.read())
                     f.close()
 
@@ -271,7 +271,7 @@ class TestPypeScatteredTasks:
             outputObjs = sorted( kwargv["outputDataObjs"].items() )
             nOut = len(outputObjs)
             outputObjs = [ (o[0], o[1], open(o[1].localFileName, "w")) for o in outputObjs]
-            with open(kwargv["inputDataObjs"]["cf"].localFileName,"r") as f:
+            with open(kwargv["inputDataObjs"]["completeFile"].localFileName,"r") as f:
                 i = 0
                 for l in f:
                     outf = outputObjs[i % nOut][2]
@@ -288,9 +288,9 @@ class TestPypeScatteredTasks:
         
         def gather(*argv, **kwargv):
             inputObjs = sorted( kwargv["inputDataObjs"].items() )
-            with open(kwargv["outputDataObjs"]["cf"].localFileName,"w") as outf:
-                for k, sf in inputObjs:
-                    f = open(sf.localFileName)
+            with open(kwargv["outputDataObjs"]["completeFile"].localFileName,"w") as outf:
+                for k, subfile in inputObjs:
+                    f = open(subfile.localFileName)
                     outf.write(f.read())
                     f.close()
 

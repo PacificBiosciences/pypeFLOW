@@ -469,3 +469,14 @@ Debugging Support
 graphviz dot output
 
 logging
+
+test coverage about 70%, 22 tests now
+
+::
+    0       0       0 src/pypeflow/__init__.py
+    148     539    4428 src/pypeflow/common.py
+    744    2603   28166 src/pypeflow/controller.py
+    313    1140   11096 src/pypeflow/data.py
+    814    2645   28005 src/pypeflow/task.py
+    2019    6927   71695 total
+

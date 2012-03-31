@@ -249,14 +249,14 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
             else:
                 chunkURL = "file://%s/%s" % (URLParseResult.netloc, chunkBasename) 
 
-            sFile = PypeLocalFile(chunkURL, readOnly, **attributes)
-            self._splittedFiles.append(sFile) 
+            subfile = PypeLocalFile(chunkURL, readOnly, **attributes)
+            self._splittedFiles.append(subfile) 
 
     def setGatherTask(self, TaskCreator, TaskType, function):
         assert self._scatterTask == None
-        inputDataObjs = dict( ( ("sf%03d" % c[0], c[1]) 
+        inputDataObjs = dict( ( ("subfile%03d" % c[0], c[1]) 
                                 for c in enumerate(self._splittedFiles) ) )
-        outputDataObjs = {"cf": self._completeFile}
+        outputDataObjs = {"completeFile": self._completeFile}
         gatherTask = TaskCreator( inputDataObjs = inputDataObjs,
                                   outputDataObjs = outputDataObjs,
                                   URL = "task://gather/%s" % self._path ,
@@ -265,9 +265,9 @@ class PypeSplittableLocalFile(PypeDataObjectBase):
 
     def setScatterTask(self, TaskCreator, TaskType, function):
         assert self._gatherTask == None
-        outputDataObjs = dict( ( ("sf%03d" % c[0], c[1]) 
+        outputDataObjs = dict( ( ("subfile%03d" % c[0], c[1]) 
                                 for c in enumerate(self._splittedFiles) ) )
-        inputDataObjs = {"cf": self._completeFile}
+        inputDataObjs = {"completeFile": self._completeFile}
         scatterTask = TaskCreator( inputDataObjs = inputDataObjs,
                                    outputDataObjs = outputDataObjs,
                                    URL = "task://scatter/%s" % self._path ,
