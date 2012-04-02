@@ -13,6 +13,7 @@ Contents:
 
    introduction
    installation
+   pypeFLOW_tutorial
    examples
    concurrent_execution
    modules

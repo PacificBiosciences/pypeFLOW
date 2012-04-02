@@ -1,6 +1,6 @@
 
 pypeFLOW Tutorial
-==================
+=================
 
 .. image:: escher--unbelievable-527581_1024_768.jpg
    :scale: 40%
@@ -9,7 +9,7 @@ pypeFLOW Tutorial
 -----------------
 
 What is pypeFLOW?
-=================
+-----------------
 
 What is pypeFLOW?  A toolkit to contruct data processing work flow
 
@@ -22,7 +22,7 @@ Tracking data processing within the Python language
 -----------------
 
 Basic Objects
-=============
+-------------
 
 data objects (defined in ``pypeflow.data.*``)
 
@@ -51,7 +51,7 @@ is equivalent to
 ---------------------
 
 Data Objects
-============
+------------
 
 ``PypeLocalFile`` is an object representing a reference to local file
 
@@ -70,7 +70,7 @@ Data Objects
 ------------------------
 
 Basic Task Objects
-==================
+------------------
 
 `PypeTaskBase`` is the base class representing a `task` that converts some 
 input files to some output files. 
@@ -99,7 +99,7 @@ Example:
 ------------------------
 
 Task Decorator is Actually a Function
-=====================================
+-------------------------------------
 
 If you don't like Python's decorator, you can generate tasks by calling the
 decorator function directly. This is useful to generate a number of tasks 
@@ -124,7 +124,7 @@ programmatically, e.g., using a loop to generate a number of tasks.
 -----------------------
 
 Different Kind of Task Objects 
-==============================
+------------------------------
 
 Different ``*Task`` decorators can wrap different kind of function (or
 objects, e.g shell script strings)
@@ -148,7 +148,7 @@ output task types
 -----------------------
 
 Some Examples About Tasks I
-============================
+---------------------------
 
 .. code-block:: python
 
@@ -167,7 +167,7 @@ Some Examples About Tasks I
 -----------------------
 
 Some Examples About Tasks II
-============================
+----------------------------
 
 An instance of the ``PythonTaskBase`` class is a "callable" object, namely, 
 it implements ``__call__`` method.  When it gets called, it will check the 
@@ -194,7 +194,7 @@ execute the wrapped function.
 -----------------------
 
 Workflow Objects 
-===================
+----------------
 
 A ``PypeWorkflow`` object contains a collection of ``PypeDataObjects`` and
 ``PypeTaskBase`` objects. It calculates the dependency graph and executes all
@@ -209,7 +209,7 @@ tasks with the correct order.
 -----------------------
 
 Workflow Building Pattern  
-==========================
+-------------------------
 
 Set up a workflow object 
 
@@ -234,7 +234,7 @@ satisfy the dependency constrain will be execute)
 -----------------------
 
 Put It All Together
-==========================
+-------------------
 
 `Code Demo <http://localhost:8888/e6df660e-5dd7-4328-852b-2ae47f68719a#>`_.
 
@@ -243,7 +243,7 @@ Put It All Together
 ------------------------
 
 Mutable Data Objects & State Objects
-====================================
+------------------------------------
 
 Issue:
 
@@ -267,7 +267,7 @@ Solution
 -------------------------
 
 Output Collision Detection
-==========================
+--------------------------
 
 The dependency graph as a direct acyclic graph helps to find 
 independent tasks that can be run concurrently
@@ -301,7 +301,7 @@ Code snippet finding tasks that can be submitted
 -------------------------
 
 Scatter-Gather Pattern
-======================
+----------------------
 
 Pattern:
 
@@ -324,7 +324,7 @@ Complexity
 ------------------------------------
 
 Encapsulating Scattered Files 
-====================================
+-----------------------------
 
 ``PypeSplittableLocalFile``: Represent a PypeData object that has two
 different local file representations:
@@ -354,7 +354,7 @@ attached.
 ------------------------------------
 
 Generate Scattered Tasks
-====================================
+------------------------
     
 Special decorator to generate a set of "scattered tasks":
     
@@ -377,7 +377,7 @@ added automatically.
 -------------------------
 
 FOFN Mapper
-==========================
+-----------
 
 A special decorator/function that takes a FOFN (file of file names) as the main
 input and generate the tasks with the inputs are the files specified in
@@ -412,7 +412,7 @@ type the same. )
 ---------------------------------
 
 Query Workflow Objects
-=================================
+----------------------
 
 Workflows has a canonical RDF representation. One can query the DAG using SPARQ
 
@@ -437,7 +437,7 @@ For example, give a workflow DAG, what are the workflow inputs and outputs
 ----------------------------
 
 Update Workflow Objects
-=================================
+-----------------------
 
 We can redirect the inputs and outputs to different underlying files using
 ``workflow.updateURL()``
@@ -465,7 +465,7 @@ command line options and/or an XML configuration file.
 -------------------------
 
 Debugging Support
-==========================
+-----------------
 
 graphviz dot output
 
@@ -488,7 +488,7 @@ testing code.)::
 ----------------------------
 
 What's Next?
-============================
+------------
 
 * I will use this PypeFLOW for producing better reproducible 
   bioinformatics analysis developed with in Python/IPython notebook
@@ -502,7 +502,4 @@ What's Next?
 
 * Similar framework for streaming data processing rather than batch data
   processing
-
-
-
 
