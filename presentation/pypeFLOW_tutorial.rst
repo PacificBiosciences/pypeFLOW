@@ -255,11 +255,11 @@ Issue:
 Solution
 
   * Be explicit.
-  * introduce "mutableDataObjs" for a tasks indicating those data objects that a 
+  * introduce "mutableDataObjs" for a task indicating those data objects that a 
     task can modified.  If an object is used as "mutableDataObjs", it is not used
     for calculating the task dependency.
   * The standard "inputs" and "outputs" should be "immutable" objects within the
-    scope of the code.
+    scope of the workflow.
   * Special state objects to keep track the states. The state objects are used as
     the input objects and/or output objects to control the task dependency (see 
     `Example <http://localhost:8888/1cc16008-e0a2-4f0a-87d2-23445e85012a>`_)
@@ -372,7 +372,7 @@ Special decorator to generate a set of "scattered tasks":
 When a ``PypeTaskCollection`` object is added into a workflow, the real sub-tasks are 
 added automatically.
 
-Example / Demo
+`Example / Demo <http://localhost:8888/75ea4c43-ec5a-4287-8eca-51884fdd8a13>`_
 
 -------------------------
 
@@ -484,4 +484,25 @@ testing code.)::
     313    1140   11096 src/pypeflow/data.py
     814    2645   28005 src/pypeflow/task.py
    2019    6927   71695 total
+
+----------------------------
+
+What's Next?
+============================
+
+* I will use this PypeFLOW for producing better reproducible 
+  bioinformatics analysis developed with in Python/IPython notebook
+
+* Some new features:
+
+  - Supporting data object in memory? mmap file? numpy array?
+  - Remote data objects
+  - HDF5 data sets as native data objects
+  - direct python function execution (through IPython parallel or Pyro like RPC call)
+
+* Similar framework for streaming data processing rather than batch data
+  processing
+
+
+
 
