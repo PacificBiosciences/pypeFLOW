@@ -80,7 +80,7 @@ to wrap a function into a ``PypeTaskBase`` objects (or objects of the
 subclasses of ``PypeTaskBase``)
 
 One needs to specify the input and output data objects within the decorator.
-The data objects can be referred with the task function that gets wrapped.
+The data objects can be referred within the task function that gets wrapped.
 
 Example:
 
@@ -227,9 +227,9 @@ Set up a task
 Add the task into the workflow (The inputs and outputs will be added automatically)
 
 Set up more tasks and add them into the workflow (``wf.addTasks([t1,t2,...])``)
-call ``wf.refreshTargets(target_list)`` to execute the tasks (only task that does not
-satisfy the dependency constrain will be execute)
 
+Call ``wf.refreshTargets(target_list)`` to execute the tasks (only task that does not
+satisfy the dependency constrain will be execute)
 
 -----------------------
 
@@ -261,9 +261,8 @@ Solution
   * The standard "inputs" and "outputs" should be "immutable" objects within the
     scope of the code.
   * Special state objects to keep track the states. The state objects are used as
-    the input objects and/or output objects to control the task dependency
-
-   `Example <http://localhost:8888/1cc16008-e0a2-4f0a-87d2-23445e85012a>`_
+    the input objects and/or output objects to control the task dependency (see 
+    `Example <http://localhost:8888/1cc16008-e0a2-4f0a-87d2-23445e85012a>`_)
 
 -------------------------
 
@@ -276,6 +275,8 @@ independent tasks that can be run concurrently
 However, in the case that multiple tasks write to the same
 output file, we need to detect "output collision" and do not
 allow tasks that writes to the same to be run concurrently.
+
+Code snippet finding tasks that can be submitted
 
 .. code-block:: python
 
@@ -292,7 +293,7 @@ allow tasks that writes to the same to be run concurrently.
                     outputCollision = True
                     break
         
-        if outputCollision:
+        if outputCollision: #the task can not be executed
             continue
     ...
 
@@ -472,11 +473,15 @@ logging
 
 test coverage about 70%, 22 tests now
 
-::
-    0       0       0 src/pypeflow/__init__.py
+The whole thing is about 2000 LOC (without counting
+testing code.)::
+
+    $wc src/pypeflow/*.py
+
+      0       0       0 src/pypeflow/__init__.py
     148     539    4428 src/pypeflow/common.py
     744    2603   28166 src/pypeflow/controller.py
     313    1140   11096 src/pypeflow/data.py
     814    2645   28005 src/pypeflow/task.py
-    2019    6927   71695 total
+   2019    6927   71695 total
 
