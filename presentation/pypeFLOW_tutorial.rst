@@ -236,9 +236,9 @@ satisfy the dependency constrain will be execute)
 Put It All Together
 -------------------
 
-`Code Demo <http://localhost:8888/e6df660e-5dd7-4328-852b-2ae47f68719a#>`_.
+`Code Demo <http://localhost/place_holder>`_.
 
-`Embarrassing Parallelization Workflow <https://mp-f027:9876/7fc4fd65-2826-4f66-a8de-27bf3d5f74dc#>`_. 
+`Embarrassing Parallelization Workflow <https://localhost/plact_holder>`_. 
 
 ------------------------
 
@@ -262,7 +262,7 @@ Solution
     scope of the workflow.
   * Special state objects to keep track the states. The state objects are used as
     the input objects and/or output objects to control the task dependency (see 
-    `Example <http://localhost:8888/1cc16008-e0a2-4f0a-87d2-23445e85012a>`_)
+    `Example <http://localhost/place_holder>`_)
 
 -------------------------
 
@@ -372,7 +372,7 @@ Special decorator to generate a set of "scattered tasks":
 When a ``PypeTaskCollection`` object is added into a workflow, the real sub-tasks are 
 added automatically.
 
-`Example / Demo <http://localhost:8888/75ea4c43-ec5a-4287-8eca-51884fdd8a13>`_
+`Example / Demo <http://localhost/place_holder>`_
 
 -------------------------
 

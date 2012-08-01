@@ -1,0 +1,134 @@
+==================
+RDF representation
+==================
+
+We use a RDF framework to track the relationship between different PypeFLOW objects.
+The relationship between different object in a workflow is described by an RDF triple.
+
+Here are two properties are shared by all PypeFLOW object (defined in ``PypeObject``)::
+
+    @property 
+    def _RDFGraph(self):
+        graph = Graph()
+
+        for k, v in self.__dict__.iteritems():
+            if k == "URL": continue
+            if k[0] == "_": continue
+            if hasattr(v, "URL"):
+                graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
+        return graph
+
+
+    
+    @property
+    def RDFXML(self):
+
+        """ 
+        RDF XML representation of the everything related to the PypeObject 
+        """
+
+        return self._RDFGraph.serialize() 
+
+
+Most relatons used in a workflow are likely be constructed during declaration 
+In ``PypeTask``, the RDF graph is populated as::
+
+    @property
+    def _RDFGraph(self):
+        graph = Graph()
+        for k, v in self.__dict__.iteritems():
+            if k == "URL": continue
+            if k[0] == "_": continue
+            if k in ["inputDataObjs", "outputDataObjs", "mutableDataObjs", "parameters"]:
+                if k == "inputDataObjs":
+                    for ft, f in v.iteritems():
+                        graph.add( (URIRef(self.URL), pypeNS["prereq"], URIRef(f.URL) ) )
+                elif k == "outputDataObjs":
+                    for ft, f in v.iteritems():
+                        graph.add( (URIRef(f.URL), pypeNS["prereq"], URIRef(self.URL) ) )
+                elif k == "mutableDataObjs":
+                    for ft, f in v.iteritems():
+                        graph.add( (URIRef(self.URL), pypeNS["hasMutable"], URIRef(f.URL)   ) )
+                elif k == "parameters":
+                    graph.add( (URIRef(self.URL), pypeNS["hasParameters"], Literal(json.dumps(v)) ) )
+            
+                continue
+
+            if k in self.inputDataObjs:
+                graph.add( ( URIRef(self.URL), pypeNS["inputDataObject"], URIRef(v.URL) ) )
+                continue
+
+            if k in self.outputDataObjs:
+                graph.add( ( URIRef(self.URL), pypeNS["outputDataObject"], URIRef(v.URL) ) )
+                continue
+
+            if k in self.mutableDataObjs:
+                graph.add( ( URIRef(self.URL), pypeNS["mutableDataObject"], URIRef(v.URL) ) )
+                continue
+
+            if hasattr(v, "URL"):
+                graph.add( ( URIRef(self.URL), pypeNS[k], URIRef(v.URL) ) )
+
+            graph.add(  ( URIRef(self.URL), pypeNS["codeMD5digest"], Literal(self._codeMD5digest) ) )
+            graph.add(  ( URIRef(self.URL), pypeNS["parameterMD5digest"], Literal(self._paramMD5digest) ) )
+
+        return graph
+
+Here is the code that put the statement the input data objects are the
+"prerequisite" object of the task::
+
+       if k == "inputDataObjs":
+            for ft, f in v.iteritems():
+                graph.add( (URIRef(self.URL), pypeNS["prereq"], URIRef(f.URL) ) )
+
+Similarly a task is a "prerequisite" object of its output data objects::
+
+        elif k == "outputDataObjs":
+            for ft, f in v.iteritems():
+                graph.add( (URIRef(f.URL), pypeNS["prereq"], URIRef(self.URL) ) )
+
+Typically, an output data object should only has a single prerequisite object. In the case that
+a data object will be modified by multiple tasks or served as input and output at the same
+time, one should specify such data object as ``mutableDataObject``.
+
+When a workflow tracing the execution order, only the ``pre-req`` relation is used. However,
+one can use the RDF statement to store various attributes for an object. For example, in
+the above code, we explicitly specify the input data objects as an attributes::
+
+        if k in self.inputDataObjs:
+            graph.add( ( URIRef(self.URL), pypeNS["inputDataObject"], URIRef(v.URL) ) )
+
+Here is an example of the RDF triples serialized as XML-RDF::
+
+      <rdf:Description rdf:about="task://testTask">
+        <ns1:prereq rdf:resource="file://localhost/Sandbox/ref.fa"/>
+        <ns1:prereq rdf:resource="file://localhost/Sandbox/test.fa"/>
+        <ns1:outputDataObject rdf:resource="file://localhost/Users/Sandbox/aln.txt"/>
+        <ns1:codeMD5digest>122d234ed92c29b77c14a2c8b52c0e4c</ns1:codeMD5digest>
+        <ns1:parameterMD5digest>c1ce51016644b55e38bf089f47875062</ns1:parameterMD5digest>
+        <ns1:inputDataObject rdf:resource="file://localhost/Sandbox/ref.fa"/>
+        <ns1:inputDataObject rdf:resource="file://localhost/Sandbox/test.fa"/>
+      </rdf:Description>
+
+If we would like to group different tasks into a module, we can use such RDF statement::
+
+      <rdf:Description rdf:about="task://testTask">
+        <ns1:in_module rdf:resource="module://workflow/module1"/>
+      </rdf:Description>
+
+This can be generated by inserting the following statement in python code::
+
+    class MyTaskWithModule(PypeTask):
+
+        def assign_module(self, module):
+            self._in_modules.append(module)
+
+        @property
+        def _RDFGraph(self):
+            g = super(MyTaskWithModule, self)._RDFGraph 
+            for m in self._in_modules:
+                g.add( ( URIRef(self.URL), pypeNS["inModule"], URIRef(m.URL) ) )
+            return g
+
+
+

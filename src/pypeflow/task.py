@@ -218,6 +218,7 @@ class PypeTaskBase(PypeObject):
 
             graph.add(  ( URIRef(self.URL), pypeNS["codeMD5digest"], Literal(self._codeMD5digest) ) )
             graph.add(  ( URIRef(self.URL), pypeNS["parameterMD5digest"], Literal(self._paramMD5digest) ) )
+
         return graph
 
     def __call__(self, *argv, **kwargv):
