@@ -82,6 +82,7 @@ class PypeTaskBase(PypeObject):
         self._referenceMD5 = None
         self._status = TaskInitialized
         self._queue = None
+        self.shutdown_event = None
         
 
         for defaultAttr in ["inputDataObjs", "outputDataObjs", "parameters", "mutableDataObjs"]:
@@ -296,6 +297,9 @@ class PypeThreadTaskBase(PypeTaskBase):
 
     def setMessageQueue(self, q):
         self._queue = q
+
+    def setShutdownEvent(self, e):
+        self.shutdown_event = e
 
     def __call__(self, *argv, **kwargv):
 

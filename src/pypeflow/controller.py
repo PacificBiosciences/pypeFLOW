@@ -33,10 +33,11 @@ PypeController: This module provides the PypeWorkflow that controlls how a workf
 import threading 
 import time 
 import logging
-from threading import Thread 
+from threading import Thread
 from Queue import Queue
 from multiprocessing import Process 
 from multiprocessing import Queue as MPQueue
+from multiprocessing import Event as MPEvent
 from cStringIO import StringIO 
 from urlparse import urlparse
 
@@ -481,8 +482,10 @@ class PypeThreadWorkflow(PypeWorkflow):
         PypeWorkflow.__init__(self, URL, **attributes )
         if self.__class__ == PypeThreadWorkflow:
             self.messageQueue = Queue()
+            self.shutdown_event = threading.Event()
         if self.__class__ == PypeMPWorkflow:
             self.messageQueue = MPQueue()
+            self.shutdown_event = MPEvent()
         self.jobStatusMap = {}
 
     def addTasks(self, taskObjs):
@@ -499,18 +502,30 @@ class PypeThreadWorkflow(PypeWorkflow):
                     if not isinstance(subTaskObj, PypeThreadTaskBase):
                         raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object %s has type %s " % (subTaskObj.URL, repr(type(subTaskObj))))
                     subTaskObj.setMessageQueue(self.messageQueue)
+                    subTaskObj.setShutdownEvent(self.shutdown_event)
             else:
                 if not isinstance(taskObj, PypeThreadTaskBase):
                     raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(subTaskObj)))
                 taskObj.setMessageQueue(self.messageQueue)
+                taskObj.setShutdownEvent(self.shutdown_event)
 
         PypeWorkflow.addTasks(self, taskObjs)
 
+    def refreshTargets( self, objs = [], 
+                              callback = (None, None, None), 
+                              updateFreq = None, 
+                              exitOnFailure = True ):
+        try:
+            self._refreshTargets(objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
+        except (KeyboardInterrupt, SystemExit):
+            logger.debug( "SIGINT, trying to kill the working threads. Threaded task function should use 'self.shutdown_event' to catch the signal and stop properly.")
+            self.shutdown_event.set()
 
-    def refreshTargets(self, objs = [], 
-                             callback = (None, None, None), 
-                             updateFreq=None, 
-                             exitOnFailure=True ):
+
+    def _refreshTargets( self, objs = [], 
+                               callback = (None, None, None), 
+                               updateFreq = None, 
+                               exitOnFailure =True ):
 
         if self.__class__ == PypeThreadWorkflow:
             thread = Thread
@@ -584,9 +599,6 @@ class PypeThreadWorkflow(PypeWorkflow):
                         logger.debug( "add active data obj:"+str(dataObj))
                         activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
-
-
-
             logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
 
             numAliveThreads = len( [ t for t in task2thread.values() if t.is_alive() ] )
@@ -607,7 +619,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                 else:
                     break
 
-            time.sleep(0.25)
+            time.sleep(1)
             if updateFreq != None:
                 elapsedSeconds = updateFreq if lastUpdate==None else (datetime.datetime.now()-lastUpdate).seconds
                 if elapsedSeconds >= updateFreq:

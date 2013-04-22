@@ -2,7 +2,7 @@ from setuptools import setup, Extension, find_packages
 
 setup(
     name = 'pypeflow',
-    version='0.1.0',
+    version='0.1.1',
     author='J. Chin',
     author_email='cschin@infoecho.net',
     license='LICENSE.txt',
