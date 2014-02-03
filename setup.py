@@ -10,7 +10,7 @@ setup(
     package_dir = {'':'src'},
     zip_safe = False,
     install_requires=[
-        'rdflib >= 3.1.0',
+        'rdflib == 3.4.0',
         'rdfextras >= 0.1'
     ]
     )
