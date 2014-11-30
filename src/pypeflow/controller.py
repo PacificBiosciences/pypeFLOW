@@ -517,9 +517,16 @@ class PypeThreadWorkflow(PypeWorkflow):
                               exitOnFailure = True ):
         try:
             self._refreshTargets(objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
-        except (KeyboardInterrupt, SystemExit):
+        except (KeyboardInterrupt, SystemExit) as e:
             logger.debug( "SIGINT, trying to kill the working threads. Threaded task function should use 'self.shutdown_event' to catch the signal and stop properly.")
+            print
+            print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            print "! Please wait for all threads / processes to terminate !"
+            print "! Also, maybe use 'ps' or 'qstat' to check all threads,!"
+            print "! processesa and jobs are terminated cleanly.          !"
+            print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             self.shutdown_event.set()
+            raise e
 
 
     def _refreshTargets( self, objs = [], 
