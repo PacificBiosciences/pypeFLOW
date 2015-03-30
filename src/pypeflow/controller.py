@@ -516,7 +516,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                               updateFreq = None, 
                               exitOnFailure = True ):
         try:
-            self._refreshTargets(objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
+            rtn = self._refreshTargets(objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
         except (KeyboardInterrupt, SystemExit) as e:
             logger.debug( "SIGINT, trying to kill the working threads. Threaded task function should use 'self.shutdown_event' to catch the signal and stop properly.")
             print
@@ -527,6 +527,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             self.shutdown_event.set()
             raise e
+        return rtn
 
 
     def _refreshTargets( self, objs = [], 
@@ -609,7 +610,12 @@ class PypeThreadWorkflow(PypeWorkflow):
             logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
 
             numAliveThreads = len( [ t for t in task2thread.values() if t.is_alive() ] )
-            if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0: #better job status detection, using "running" status rather than checking the thread lib?
+            #better job status detection, messageQueue should be empty and all returen condition should be "done", "continue" or "fail"
+            if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0 and self.messageQueue.empty(): 
+                logger.info( "_referTarget finished with no thread running and no new job to submit" )
+                for URL in task2thread:
+                    assert self.jobStatusMap[str(URL)] in ("done", "continue", "fail") 
+
                 break
 
             for URL, taskObj in jobsReadyToBeSubmitted:
