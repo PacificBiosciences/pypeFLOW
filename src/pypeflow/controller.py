@@ -612,7 +612,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             numAliveThreads = len( [ t for t in task2thread.values() if t.is_alive() ] )
             #better job status detection, messageQueue should be empty and all returen condition should be "done", "continue" or "fail"
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0 and self.messageQueue.empty(): 
-                logger.info( "_referTarget finished with no thread running and no new job to submit" )
+                logger.info( "_refreshTargets() finished with no thread running and no new job to submit" )
                 for URL in task2thread:
                     assert self.jobStatusMap[str(URL)] in ("done", "continue", "fail") 
 
