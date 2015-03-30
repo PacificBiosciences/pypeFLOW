@@ -523,7 +523,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             print "! Please wait for all threads / processes to terminate !"
             print "! Also, maybe use 'ps' or 'qstat' to check all threads,!"
-            print "! processesa and jobs are terminated cleanly.          !"
+            print "! processes and/or jobs are terminated cleanly.        !"
             print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             self.shutdown_event.set()
             raise e
