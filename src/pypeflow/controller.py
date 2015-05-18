@@ -675,7 +675,8 @@ class PypeThreadWorkflow(PypeWorkflow):
                     if thread.isAlive( ):
                         thread.join( )
                         self._pypeObjects[str(url)].finalize()
-                return False
+                raise Exception("Counted %d failures." %failedJobCount)
+                # return False
 
 
         for u,s in sorted(self.jobStatusMap.items()):
