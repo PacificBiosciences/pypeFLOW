@@ -668,7 +668,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                         activeDataObjs.remove( (failedTask.URL, o.URL) )
 
             for u,s in sorted(self.jobStatusMap.items()):
-                logger.info( "task status: %s, %s, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
+                logger.info( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
 
             if failedJobCount != 0 and exitOnFailure:
                 for url, thread in task2thread.iteritems( ):
