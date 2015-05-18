@@ -237,13 +237,11 @@ class PypeWorkflow(PypeObject):
 
 
     def addTasks(self, taskObjs):
-
         """
         Add tasks into the workflow. The dependent input and output data objects are added automatically too. 
         It sets the message queue used for communicating between the task thread and the main thread. One has
         to use addTasks() or addTask() to add task objects to a threaded workflow.
         """
-
         for taskObj in taskObjs:
             if isinstance(taskObj, PypeTaskCollection):
                 for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
@@ -614,7 +612,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0 and self.messageQueue.empty(): 
                 logger.info( "_refreshTargets() finished with no thread running and no new job to submit" )
                 for URL in task2thread:
-                    assert self.jobStatusMap[str(URL)] in ("done", "continue", "fail") 
+                    assert self.jobStatusMap[str(URL)] in ("done", "continue", "fail"), "status=%r" %self.jobStatusMap[str(URL)]
 
                 break
 
