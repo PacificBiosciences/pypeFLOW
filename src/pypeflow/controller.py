@@ -526,7 +526,7 @@ class PypeThreadWorkflow(PypeWorkflow):
             print "! processes and/or jobs are terminated cleanly.        !"
             print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             self.shutdown_event.set()
-            raise e
+            raise
         return rtn
 
 
