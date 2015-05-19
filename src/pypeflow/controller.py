@@ -771,7 +771,8 @@ class _PypeThreadsHandler(object):
         for thread in threads:
             assert thread is not threading.current_thread()
             if thread.is_alive():
-                thread.join((datetime.datetime.now() - then).seconds)
+                to = max(0, timeout - (datetime.datetime.now() - then).seconds)
+                thread.join(to)
     def notifyTerminate(self, threads):
         """Assume these are daemon threads.
         We will attempt to join them all quickly, but non-daemon threads may
