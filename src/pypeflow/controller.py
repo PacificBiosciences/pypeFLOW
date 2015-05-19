@@ -525,6 +525,12 @@ class PypeThreadWorkflow(PypeWorkflow):
             print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             self.shutdown_event.set()
             raise
+        except Exception as e:
+            self.shutdown_event.set()
+            logger.exception("Any exception caught here indicates an unrecoverable error. Shutting down...")
+            logger.error("Propagating exception in 2 seconds...")
+            #time.sleep(2)
+            raise
         return rtn
 
 
