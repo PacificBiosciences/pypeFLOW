@@ -48,6 +48,9 @@ class TaskExecutionError(PypeError):
 class TaskTypeError(PypeError):
     pass
 
+class TaskFailureError(PypeError):
+    pass
+
 class PypeNode(object):
 
     """ 
@@ -689,7 +692,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 logger.info( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
 
             if failedJobCount != 0 and exitOnFailure:
-                raise Exception("Counted %d failures." %failedJobCount)
+                raise TaskFailureError("Counted %d failures." %failedJobCount)
 
 
         for u,s in sorted(self.jobStatusMap.items()):
