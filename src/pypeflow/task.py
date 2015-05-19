@@ -229,6 +229,7 @@ class PypeTaskBase(PypeObject):
             return self.run(*argv, **kwargv)
         except:
             logger.exception('PypeTaskBase failed:\n%r' %self)
+            self._status = TaskFail
             raise
 
     def run(self, *argv, **kwargv):
