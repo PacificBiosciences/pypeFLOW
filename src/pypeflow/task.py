@@ -152,7 +152,7 @@ class PypeTaskBase(PypeObject):
     def _runTask(self, *argv, **kwargv):
 
         """ 
-        The method to run the decorated function _taskFun(). It is called through __call__() of
+        The method to run the decorated function _taskFun(). It is called through run() of
         the PypeTask object and it should never be called directly
 
         TODO: the arg porcessing is still a mess, need to find a better way to do this 
@@ -223,8 +223,16 @@ class PypeTaskBase(PypeObject):
         return graph
 
     def __call__(self, *argv, **kwargv):
-        
+        """This method should not be over-ridden, since it does some exception-handling.
         """
+        try:
+            return self.run(*argv, **kwargv)
+        except:
+            logger.exception('PypeTaskBase failed:\n%r' %self)
+            raise
+
+    def run(self, *argv, **kwargv):
+        """Derived class can over-ride this method.
         Determine whether a task should be run when called. If the dependency is
         not satisified then the _taskFun() will be called to generate the output data objects.
         """
@@ -311,16 +319,15 @@ class PypeThreadTaskBase(PypeTaskBase):
     def setShutdownEvent(self, e):
         self.shutdown_event = e
 
-    def __call__(self, *argv, **kwargv):
-
+    def run(self, *argv, **kwargv):
         """
-        Similar to the PypeTaskBase.__call__(), but it provide some machinary to pass information
+        Similar to the PypeTaskBase.run(), but it provide some machinary to pass information
         back to the main thread that run this task in a sepearated thread through the standard python
         queue from the Queue module.
         """
 
         if self._queue == None:
-            super(PypeThreadTaskBase, self).__call__(*argv, **kwargv)
+            super(PypeThreadTaskBase, self).run(*argv, **kwargv) # TODO: This could be a repeat. Bug?
 
 
         try:
@@ -336,7 +343,7 @@ class PypeThreadTaskBase(PypeTaskBase):
 
         self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
 
-        PypeTaskBase.__call__(self, *argv, **kwargv)
+        PypeTaskBase.run(self, *argv, **kwargv)
 
         # need the following loop to force the stupid Islon to update the metadata in the directory
         # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
