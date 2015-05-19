@@ -1,5 +1,3 @@
-import datetime
-
 # @author Jason Chin
 #
 # Copyright (C) 2010 by Jason Chin 
@@ -29,15 +27,12 @@ PypeController: This module provides the PypeWorkflow that controlls how a workf
 
 """
 
-
+import datetime
+import multiprocessing
 import threading 
 import time 
 import logging
-from threading import Thread
-from Queue import Queue
-from multiprocessing import Process 
-from multiprocessing import Queue as MPQueue
-from multiprocessing import Event as MPEvent
+import Queue
 from cStringIO import StringIO 
 from urlparse import urlparse
 
@@ -457,7 +452,25 @@ class PypeWorkflow(PypeObject):
                 outputObjs.append(obj)
         return outputObjs
 
-class PypeThreadWorkflow(PypeWorkflow):
+def PypeMPWorkflow(URL = None, **attributes):
+    """Factory for the workflow using multiprocessing.
+    """
+    th = _PypeProcsHandler()
+    mq = multiprocessing.Queue()
+    se = multiprocessing.Event()
+    return _PypeConcurrentWorkflow(URL=URL, threadHandler=th, messageQueue=mq, shutdown_event=se,
+            attributes=attributes)
+
+def PypeThreadWorkflow(URL = None, **attributes):
+    """Factory for the workflow using threading.
+    """
+    th = _PypeThreadsHandler()
+    mq = Queue.Queue()
+    se = threading.Event()
+    return _PypeConcurrentWorkflow(URL=URL, thread_handler=th, messageQueue=mq, shutdown_event=se,
+            attributes=attributes)
+
+class _PypeConcurrentWorkflow(PypeWorkflow):
 
     """ 
     Representing a PypeWorkflow that can excute tasks concurrently using threads. It
@@ -471,19 +484,16 @@ class PypeThreadWorkflow(PypeWorkflow):
     @classmethod
     def setNumThreadAllowed(cls, nT, nS):
         """
-        Override the defualt number of threads used to run the tasks with this method.
+        Override the default number of threads used to run the tasks with this method.
         """
         cls.CONCURRENT_THREAD_ALLOWED = nT
         cls.MAX_NUMBER_TASK_SLOT = nS
 
-    def __init__(self, URL = None, **attributes ):
+    def __init__(self, URL, thread_handler, messageQueue, shutdown_event, attributes):
         PypeWorkflow.__init__(self, URL, **attributes )
-        if self.__class__ == PypeThreadWorkflow:
-            self.messageQueue = Queue()
-            self.shutdown_event = threading.Event()
-        if self.__class__ == PypeMPWorkflow:
-            self.messageQueue = MPQueue()
-            self.shutdown_event = MPEvent()
+        self.thread_handler = thread_handler
+        self.messageQueue = messageQueue
+        self.shutdown_event = shutdown_event
         self.jobStatusMap = {}
 
     def addTasks(self, taskObjs):
@@ -513,36 +523,37 @@ class PypeThreadWorkflow(PypeWorkflow):
                               callback = (None, None, None), 
                               updateFreq = None, 
                               exitOnFailure = True ):
+        task2thread = {}
         try:
-            rtn = self._refreshTargets(objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
-        except (KeyboardInterrupt, SystemExit) as e:
-            logger.debug( "SIGINT, trying to kill the working threads. Threaded task function should use 'self.shutdown_event' to catch the signal and stop properly.")
+            rtn = self._refreshTargets(task2thread, objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
+            return rtn
+        except:
+            self.shutdown_event.set()
+            logger.exception("Any exception caught in RefreshTargets() indicates an unrecoverable error. Shutting down...")
             print
             print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
             print "! Please wait for all threads / processes to terminate !"
             print "! Also, maybe use 'ps' or 'qstat' to check all threads,!"
             print "! processes and/or jobs are terminated cleanly.        !"
             print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-            self.shutdown_event.set()
+            sys.stdout.flush()
+            th = self.thread_handler
+            threads = list(task2thread.values())
+            try:
+                while th.alive(threads):
+                    th.join(threads, 1)
+            except (KeyboardInterrupt, SystemExit) as e:
+                logger.debug("SIGINT, trying to terminate any working processes.")
+                th.notifyTerminate(threads)
+                raise
             raise
-        except Exception as e:
-            self.shutdown_event.set()
-            logger.exception("Any exception caught here indicates an unrecoverable error. Shutting down...")
-            logger.error("Propagating exception in 2 seconds...")
-            #time.sleep(2)
-            raise
-        return rtn
 
 
-    def _refreshTargets( self, objs = [], 
+    def _refreshTargets( self, task2thread, objs = [],
                                callback = (None, None, None), 
                                updateFreq = None, 
                                exitOnFailure =True ):
-
-        if self.__class__ == PypeThreadWorkflow:
-            thread = Thread
-        if self.__class__ == PypeMPWorkflow:
-            thread = Process
+        thread = self.thread_handler.create
 
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
         if len(objs) != 0:
@@ -578,7 +589,6 @@ class PypeThreadWorkflow(PypeWorkflow):
         nSubmittedJob = 0
         usedTaskSlots = 0
         loopN = 0
-        task2thread = {}
         lastUpdate = None
         activeDataObjs = set() #keep a set of output and mutable data object. a task can not be submitted if a running task has the same output
 
@@ -611,9 +621,9 @@ class PypeThreadWorkflow(PypeWorkflow):
                         logger.debug( "add active data obj:"+str(dataObj))
                         activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
-            logger.info( "jobReadyToBeSubmitted: %s" % len(jobsReadyToBeSubmitted) )
+            logger.info( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
 
-            numAliveThreads = len( [ t for t in task2thread.values() if t.is_alive() ] )
+            numAliveThreads = self.thread_handler.alive(task2thread.values())
             #better job status detection, messageQueue should be empty and all returen condition should be "done", "continue" or "fail"
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0 and self.messageQueue.empty(): 
                 logger.info( "_refreshTargets() finished with no thread running and no new job to submit" )
@@ -656,7 +666,8 @@ class PypeThreadWorkflow(PypeWorkflow):
                     successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= successfullTask.nSlots
-                    task2thread[URL].join()
+                    logger.debug("Got message %r. Joining %r..." %(message, URL))
+                    task2thread[URL].join(timeout=10)
                     successfullTask.finalize()
 
                     for o in successfullTask.outputDataObjs.values() + successfullTask.mutableDataObjs.values():
@@ -666,7 +677,8 @@ class PypeThreadWorkflow(PypeWorkflow):
                     failedTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= failedTask.nSlots
-                    task2thread[URL].join()
+                    logger.debug("Got message %r. Joining %r..." %(message, URL))
+                    task2thread[URL].join(timeout=10)
                     failedJobCount += 1
                     failedTask.finalize()
 
@@ -677,12 +689,7 @@ class PypeThreadWorkflow(PypeWorkflow):
                 logger.info( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
 
             if failedJobCount != 0 and exitOnFailure:
-                for url, thread in task2thread.iteritems( ):
-                    if thread.isAlive( ):
-                        thread.join( )
-                        self._pypeObjects[str(url)].finalize()
                 raise Exception("Counted %d failures." %failedJobCount)
-                # return False
 
 
         for u,s in sorted(self.jobStatusMap.items()):
@@ -743,10 +750,50 @@ class PypeThreadWorkflow(PypeWorkflow):
         dotStr.write ("}")
         return dotStr.getvalue()
 
-class PypeMPWorkflow(PypeThreadWorkflow):
-    """ Just for a name space to indicate the workflow using multiprocessing.
+# For a class-method:
+PypeThreadWorkflow.setNumThreadAllowed = _PypeConcurrentWorkflow.setNumThreadAllowed
+
+class _PypeThreadsHandler(object):
+    """Stateless method delegator, for injection.
     """
-    pass
+    def create(self, target):
+        thread = threading.Thread(target=target)
+        thread.daemon = True  # so it will terminate on exit
+        return thread
+    def alive(self, threads):
+        return sum(thread.is_alive() for thread in threads)
+    def join(self, threads, timeout):
+        then = datetime.datetime.now()
+        for thread in threads:
+            assert thread is not threading.current_thread()
+            if thread.is_alive():
+                thread.join((datetime.datetime.now() - then).seconds)
+    def notifyTerminate(self, threads):
+        """Assume these are daemon threads.
+        We will attempt to join them all quickly, but non-daemon threads may
+        eventually block the program from quitting.
+        """
+        self.join(threads, 1)
+
+class _PypeProcsHandler(object):
+    """Stateless method delegator, for injection.
+    """
+    def create(self, target):
+        proc = multiprocessing.Process(target=target)
+        return proc
+    def alive(self, procs):
+        return sum(proc.is_alive() for proc in procs)
+    def join(self, procs, timeout):
+        then = datetime.datetime.now()
+        for proc in procs:
+            if proc.is_alive():
+                proc.join((datetime.datetime.now() - then).seconds)
+    def notifyTerminate(self, procs):
+        """This can orphan sub-processes.
+        """
+        for proc in procs:
+            if proc.is_alive():
+                proc.terminate()
 
 
 def defaultOutputTemplate(fn):
