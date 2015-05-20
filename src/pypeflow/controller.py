@@ -542,9 +542,11 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             sys.stdout.flush()
             th = self.thread_handler
             threads = list(task2thread.values())
+            logger.warning("#tasks=%d, #alive=%d" %(len(threads), th.alive(threads)))
             try:
                 while th.alive(threads):
-                    th.join(threads, 1)
+                    th.join(threads, 2)
+                    logger.warning("Now, #tasks=%d, #alive=%d" %(len(threads), th.alive(threads)))
             except (KeyboardInterrupt, SystemExit) as e:
                 logger.debug("SIGINT, trying to terminate any working processes.")
                 th.notifyTerminate(threads)
@@ -583,7 +585,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
             prereqJobURLMap[URL] = prereqJobURLs
 
-            logger.debug("Determined prereqs for %s to be %s" % (URL, ", ".join(prereqJobURLs)))
+            logger.info("Determined prereqs for %r to be %r" % (URL, ", ".join(prereqJobURLs)))
             
             if taskObj.nSlots > self.MAX_NUMBER_TASK_SLOT:
                 raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" %
@@ -637,7 +639,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
             for URL, taskObj in jobsReadyToBeSubmitted:
                 numberOfEmptySlot = self.MAX_NUMBER_TASK_SLOT - usedTaskSlots 
-                logger.info( "number of empty slot = %d/%d" % (numberOfEmptySlot, self.MAX_NUMBER_TASK_SLOT))
+                logger.debug( "number of empty slot = %d/%d" % (numberOfEmptySlot, self.MAX_NUMBER_TASK_SLOT))
                 if numberOfEmptySlot >= taskObj.nSlots and numAliveThreads < self.CONCURRENT_THREAD_ALLOWED:
                     t = thread(target = taskObj)
                     t.start()
@@ -646,9 +648,12 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     usedTaskSlots += taskObj.nSlots
                     numAliveThreads += 1
                     self.jobStatusMap[URL] = "submitted"
+                    logger.info("Submitted %r" %taskObj)
                 else:
                     break
 
+            logger.info( "Total # of running threads: %d; alive tasks: %d" % (
+                threading.activeCount(), self.thread_handler.alive(task2thread.values())) )
             time.sleep(1)
             if updateFreq != None:
                 elapsedSeconds = updateFreq if lastUpdate==None else (datetime.datetime.now()-lastUpdate).seconds
@@ -656,20 +661,19 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     self._update( elapsedSeconds )
                     lastUpdate = datetime.datetime.now( )
 
-            logger.info ( "number of running tasks: %d" % (threading.activeCount()-1) )
-
             failedJobCount = 0
 
             while not self.messageQueue.empty():
 
                 URL, message = self.messageQueue.get()
                 self.jobStatusMap[str(URL)] = message
+                logger.info("message for %s: %r" %(URL, message))
 
                 if message in ["done", "continue"]:
                     successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= successfullTask.nSlots
-                    logger.debug("Got message %r. Joining %r..." %(message, URL))
+                    logger.info("Success (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
                     successfullTask.finalize()
 
@@ -680,23 +684,25 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     failedTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= failedTask.nSlots
-                    logger.debug("Got message %r. Joining %r..." %(message, URL))
+                    logger.info("Failure (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
                     failedJobCount += 1
                     failedTask.finalize()
 
                     for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
                         activeDataObjs.remove( (failedTask.URL, o.URL) )
+                else:
+                    logger.warning("Got unexpected message %r from URL %r." %(URL, message))
 
             for u,s in sorted(self.jobStatusMap.items()):
-                logger.info( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
+                logger.debug( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
 
             if failedJobCount != 0 and exitOnFailure:
                 raise TaskFailureError("Counted %d failures." %failedJobCount)
 
 
         for u,s in sorted(self.jobStatusMap.items()):
-            logger.info( "task status: %s, %s" % (str(u),str(s)) )
+            logger.debug( "task status: %s, %s" % (str(u),str(s)) )
 
         self._runCallback(callback)
         return True
