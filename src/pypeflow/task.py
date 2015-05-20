@@ -29,7 +29,7 @@ a regular python funtion into a PypeTask instance.
 
 """
 
-
+import pprint
 import inspect
 import hashlib
 import logging
@@ -261,6 +261,16 @@ class PypeTaskBase(PypeObject):
             self._status = TaskDone
 
         return runFlag
+
+    def __repr__(self):
+        r = dict()
+        r['_status'] = self._status
+        r['inputDataObjs'] = self.inputDataObjs
+        r['outputDataObjs'] = self.outputDataObjs
+        r['mutableDataObjs'] = self.mutableDataObjs
+        r['parameters'] = self.parameters
+        r['__class__.__name__'] = self.__class__.__name__
+        return pprint.pformat(r)
 
     def finalize(self): 
         """ 
