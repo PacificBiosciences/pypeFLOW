@@ -1,3 +1,4 @@
 /build/
 /dist/
 /src/pypeflow.egg-info/
+/src/tests/__pycache__/
