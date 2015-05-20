@@ -461,7 +461,7 @@ def PypeMPWorkflow(URL = None, **attributes):
     th = _PypeProcsHandler()
     mq = multiprocessing.Queue()
     se = multiprocessing.Event()
-    return _PypeConcurrentWorkflow(URL=URL, threadHandler=th, messageQueue=mq, shutdown_event=se,
+    return _PypeConcurrentWorkflow(URL=URL, thread_handler=th, messageQueue=mq, shutdown_event=se,
             attributes=attributes)
 
 def PypeThreadWorkflow(URL = None, **attributes):
@@ -755,6 +755,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
 # For a class-method:
 PypeThreadWorkflow.setNumThreadAllowed = _PypeConcurrentWorkflow.setNumThreadAllowed
+PypeMPWorkflow.setNumThreadAllowed = _PypeConcurrentWorkflow.setNumThreadAllowed
 
 class _PypeThreadsHandler(object):
     """Stateless method delegator, for injection.
