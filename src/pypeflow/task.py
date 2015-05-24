@@ -328,18 +328,21 @@ class PypeThreadTaskBase(PypeTaskBase):
         """
 
         if self._queue == None:
+            logger.debug('Ask jchin what this is supposed to do. Seems redundant.')
             super(PypeThreadTaskBase, self).run(*argv, **kwargv) # TODO: This could be a repeat. Bug?
-
 
         try:
             runFlag = self._getRunFlag()
         except TaskFunctionError:
+            # TODO: Delete? This cannot be caught since it is thrown only in sub __call__().
             self._status = TaskFail
             self._queue.put( (self.URL, "fail") )
+            logger.exception("%r cannot be run because:" %self.URL)
             return
-        except FileNotExistError:
+        except FileNotExistError as e:
             self._status = TaskFail
             self._queue.put( (self.URL, "fail") )
+            logger.info("Cannot yet run %r\n\tbecause %r" %(self.URL, e))
             return
 
         self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
