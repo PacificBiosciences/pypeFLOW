@@ -648,7 +648,8 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     usedTaskSlots += taskObj.nSlots
                     numAliveThreads += 1
                     self.jobStatusMap[URL] = "submitted"
-                    logger.info("Submitted %r" %taskObj)
+                    logger.info("Submitted %r" %URL)
+                    logger.debug(" Details: %r" %taskObj)
                 else:
                     break
 
