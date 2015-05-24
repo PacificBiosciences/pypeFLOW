@@ -26,7 +26,7 @@
 PypeController: This module provides the PypeWorkflow that controlls how a workflow is excuted.
 
 """
-
+import sys
 import datetime
 import multiprocessing
 import threading 
@@ -36,9 +36,9 @@ import Queue
 from cStringIO import StringIO 
 from urlparse import urlparse
 
-from common import * 
+from common import PypeError, PypeObject, Graph, URIRef, pypeNS
 from data import PypeDataObjectBase, PypeSplittableLocalFile
-from task import *
+from task import PypeTaskBase, PypeTaskCollection, PypeThreadTaskBase, getFOFNMapTasks
 
 logger = logging.getLogger(__name__)
 

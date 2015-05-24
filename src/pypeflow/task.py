@@ -45,10 +45,8 @@ else:
 import os
 import shlex
 
-from common import * 
-from data import FileNotExistError
-from data import PypeSplittableLocalFile
-from data import makePypeLocalFile
+from common import PypeError, PypeObject, pypeNS, runShellCmd, Graph, URIRef, Literal
+from data import FileNotExistError, PypeSplittableLocalFile, makePypeLocalFile
 
 logger = logging.getLogger(__name__)
 
