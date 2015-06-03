@@ -29,7 +29,7 @@ a regular python funtion into a PypeTask instance.
 
 """
 
-
+import pprint
 import inspect
 import hashlib
 import logging
@@ -152,7 +152,7 @@ class PypeTaskBase(PypeObject):
     def _runTask(self, *argv, **kwargv):
 
         """ 
-        The method to run the decorated function _taskFun(). It is called through __call__() of
+        The method to run the decorated function _taskFun(). It is called through run() of
         the PypeTask object and it should never be called directly
 
         TODO: the arg porcessing is still a mess, need to find a better way to do this 
@@ -223,12 +223,24 @@ class PypeTaskBase(PypeObject):
         return graph
 
     def __call__(self, *argv, **kwargv):
-        
+        """Trap all exceptions, set fail flag, log, and re-raise.
+        If you need to do more, then over-ride this method.
         """
-        Determine whether a task should be run when called. If the dependency is
-        not satisified then the _taskFun() will be called to generate the output data objects.
+        try:
+            return self.run(*argv, **kwargv)
+        except:
+            logger.exception('PypeTaskBase failed unexpectedly:\n%r' %self)
+            self._status = TaskFail
+            raise
+
+    def run(self, *argv, **kwargv):
+        """Determine whether a task should be run when called.
+        If the dependency is not satisified,
+        then the _taskFun() will be called to generate the output data objects.
+
+        Derived class can over-ride this method, but if __call__ is over-ridden,
+        then derived must call this explicitly.
         """
-        
         argv = list(argv)
         argv.extend(self._argv)
         kwargv.update(self._kwargv)
@@ -261,6 +273,16 @@ class PypeTaskBase(PypeObject):
             self._status = TaskDone
 
         return runFlag
+
+    def __repr__(self):
+        r = dict()
+        r['_status'] = self._status
+        r['inputDataObjs'] = self.inputDataObjs
+        r['outputDataObjs'] = self.outputDataObjs
+        r['mutableDataObjs'] = self.mutableDataObjs
+        r['parameters'] = self.parameters
+        r['__class__.__name__'] = self.__class__.__name__
+        return pprint.pformat(r)
 
     def finalize(self): 
         """ 
@@ -302,34 +324,47 @@ class PypeThreadTaskBase(PypeTaskBase):
         self.shutdown_event = e
 
     def __call__(self, *argv, **kwargv):
-
+        """Trap all exceptions, set fail flag, SEND MESSAGE, log, and re-raise.
         """
-        Similar to the PypeTaskBase.__call__(), but it provide some machinary to pass information
+        try:
+            return self.runInThisThread(*argv, **kwargv)
+        except:
+            logger.exception('PypeTaskBase failed:\n%r' %self)
+            self._status = TaskFail  # TODO: Do not touch internals of base class.
+            self._queue.put( (self.URL, "fail") )
+            raise
+
+    def runInThisThread(self, *argv, **kwargv):
+        """
+        Similar to the PypeTaskBase.run(), but it provide some machinary to pass information
         back to the main thread that run this task in a sepearated thread through the standard python
         queue from the Queue module.
         """
-
         if self._queue == None:
-            super(PypeThreadTaskBase, self).__call__(*argv, **kwargv)
-
+            logger.debug('Ask jchin what this is supposed to do. Seems redundant.')
+            self.run(*argv, **kwargv) # TODO: This could be repeated below. Bug?
 
         try:
             runFlag = self._getRunFlag()
         except TaskFunctionError:
+            # TODO: Delete? This cannot be caught since it is thrown only in sub __call__().
             self._status = TaskFail
             self._queue.put( (self.URL, "fail") )
+            logger.exception("%r cannot be run because:" %self.URL)
             return
-        except FileNotExistError:
-            self._status = TaskFail
+        except FileNotExistError as e:
+            self._status = TaskFail  # TODO: Do not touch internals of base class.
             self._queue.put( (self.URL, "fail") )
+            logger.info("Cannot yet run %r\n\tbecause %r" %(self.URL, e))
             return
 
         self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
 
-        PypeTaskBase.__call__(self, *argv, **kwargv)
+        self.run(*argv, **kwargv)
 
         # need the following loop to force the stupid Islon to update the metadata in the directory
         # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
+        # TODO: Should this happen before *and* after run()? It does for now.
         for o in self.outputDataObjs.values():
             d = os.path.dirname(o.localFileName)
             try:
@@ -337,6 +372,7 @@ class PypeThreadTaskBase(PypeTaskBase):
             except OSError:
                 pass
 
+        # TODO: Make this less redundant with run().
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             logger.debug("%s fails to generate all outputs" % self.URL)
             self._status = TaskFail

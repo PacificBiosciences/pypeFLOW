@@ -52,6 +52,7 @@ pypeNS = Namespace("pype://v0.1/")
 
 class PypeError(Exception):
     def __init__(self, msg):
+        Exception.__init__(self, msg)  # to make __repr__() show class name
         self.msg = msg
     def __str__(self):
         return repr(self.msg)

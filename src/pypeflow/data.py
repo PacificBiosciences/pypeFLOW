@@ -99,7 +99,7 @@ class PypeLocalFile(PypeDataObjectBase):
     >>> f.isFasta == True
     True
     """
-
+    def __repr__(self): return "PypeLocalFile(%r, %r)" %(self.URL, self._path)
     supportedURLScheme = ["file", "state"]
     def __init__(self, URL, readOnly = False, **attributes):
         PypeDataObjectBase.__init__(self, URL, **attributes)
