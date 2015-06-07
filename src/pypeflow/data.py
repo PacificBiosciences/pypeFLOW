@@ -32,7 +32,7 @@ PypeData: This module defines the general interface and class for PypeData Objec
 from urlparse import urlparse, urljoin
 import platform
 import os, shutil
-from common import * 
+from common import pypeNS, PypeObject, PypeError, NotImplementedError
 import logging
     
 logger = logging.getLogger(__name__)
