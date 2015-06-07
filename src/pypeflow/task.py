@@ -831,19 +831,27 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 
     inputDataObjsTS = []
     for ft, f in inputDataObjs.iteritems():
-        inputDataObjsTS.append( f.timeStamp )
+        inputDataObjsTS.append((f.timeStamp, 'A', f))
 
     outputDataObjsTS = []
-
     for ft, f in outputDataObjs.iteritems():
         if not f.exists:
+            logger.debug('output does not exist yet: %r'%f)
             runFlag = True
             break
         else:
-            outputDataObjsTS.append( f.timeStamp )
+            # 'A' < 'B', so outputs are 'later' if timestamps match.
+            outputDataObjsTS.append((f.timeStamp, 'B', f))
 
-    if runFlag == False:                
-        if min(outputDataObjsTS) < max(inputDataObjsTS):
+    if not outputDataObjs:
+        # 0 outputs => always run
+        runFlag = True
+
+    if not runFlag and inputDataObjs: # 0 inputs would imply that existence of outputs is enough.
+        minOut = min(outputDataObjsTS)
+        maxIn = max(inputDataObjsTS)
+        if minOut < maxIn:
+            logger.debug('timestamp of output < input: %r < %r'%(minOut, maxIn))
             runFlag = True
 
     return runFlag
