@@ -591,6 +591,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" %
                                           (str(URL), taskObj.nSlots, self.MAX_NUMBER_TASK_SLOT) )  
 
+        sleep_time = 0
         nSubmittedJob = 0
         usedTaskSlots = 0
         loopN = 0
@@ -653,9 +654,9 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 else:
                     break
 
-            logger.info( "Total # of running threads: %d; alive tasks: %d" % (
-                threading.activeCount(), self.thread_handler.alive(task2thread.values())) )
-            time.sleep(1)
+            logger.info( "Total # of running threads: %d; alive tasks: %d; sleep=%f" % (
+                threading.activeCount(), self.thread_handler.alive(task2thread.values()), sleep_time) )
+            time.sleep(sleep_time)
             if updateFreq != None:
                 elapsedSeconds = updateFreq if lastUpdate==None else (datetime.datetime.now()-lastUpdate).seconds
                 if elapsedSeconds >= updateFreq:
@@ -664,8 +665,9 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
             failedJobCount = 0
 
+            sleep_time = sleep_time + 0.1 if (sleep_time < 1) else 1
             while not self.messageQueue.empty():
-
+                sleep_time = 0 # Wait very briefly while messages are coming in.
                 URL, message = self.messageQueue.get()
                 self.jobStatusMap[str(URL)] = message
                 logger.info("message for %s: %r" %(URL, message))
