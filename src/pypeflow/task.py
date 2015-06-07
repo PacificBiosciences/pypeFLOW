@@ -836,6 +836,7 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
     outputDataObjsTS = []
     for ft, f in outputDataObjs.iteritems():
         if not f.exists:
+            logger.debug('output does not exist yet: %r'%f)
             runFlag = True
             break
         else:
@@ -850,6 +851,7 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
         minOut = min(outputDataObjsTS)
         maxIn = max(inputDataObjsTS)
         if minOut < maxIn:
+            logger.debug('timestamp of output < input: %r < %r'%(minOut, maxIn))
             runFlag = True
 
     return runFlag
