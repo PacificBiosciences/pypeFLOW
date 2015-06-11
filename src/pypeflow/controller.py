@@ -169,7 +169,7 @@ class PypeWorkflow(PypeObject):
     >>> from pypeflow.task import *
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
-    ...     os.system("rm /tmp/pypetest/*")
+    ...     _ = os.system("rm -f /tmp/pypetest/*")
     ... except:
     ...     pass
     >>> time.sleep(1)
