@@ -419,20 +419,43 @@ class PypeTaskCollection(PypeObject):
     def __getitem__(self, k):
         return self._tasks[k]
 
+_auto_urls = set()
+def _auto_task_url(taskFun):
+    """
+    >>> def foo(): pass
+    >>> _auto_task_url(foo)
+    'task://<doctest __main__._auto_task_url[0]>/foo'
+    >>> _auto_task_url(foo)
+    'task://<doctest __main__._auto_task_url[0]>/foo.01'
+    >>> _auto_task_url(foo)
+    'task://<doctest __main__._auto_task_url[0]>/foo.02'
+    """
+    url = "task://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+    if url in _auto_urls:
+        n = 0
+        while True:
+            n += 1
+            try_url = '%s.%02d' %(url, n)
+            if try_url not in _auto_urls:
+                break
+        url = try_url
+    _auto_urls.add(url)
+    return url
+
 def PypeTask(*argv, **kwargv):
 
     """
     A decorator that converts a function into a PypeTaskBase object.
 
-    >>> import os,time 
+    >>> import os, time 
     >>> from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
     >>> from pypeflow.task import *
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
-    ...     os.system("rm /tmp/pypetest/*")   
+    ...     _ = os.system("rm -f /tmp/pypetest/*")   
     ... except:
     ...     pass
-    >>> time.sleep(1)
+    >>> time.sleep(.1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
     >>> @PypeTask(outputs={"test_out":fout},
@@ -518,7 +541,7 @@ def PypeTask(*argv, **kwargv):
         kwargv["_taskFun"] = taskFun
 
         if kwargv.get("URL",None) == None:
-            kwargv["URL"] = "task://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
+            kwargv["URL"] = _auto_task_url(taskFun)
         try:
             kwargv["_codeMD5digest"] = hashlib.md5(inspect.getsource(taskFun)).hexdigest()
         except IOError: #python2.7 seems having problem to get source code from docstring, this is a work around to make docstring test working
@@ -562,14 +585,14 @@ def PypeShellTask(*argv, **kwargv):
     >>> from pypeflow.task import *
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
-    ...     os.system("rm /tmp/pypetest/*")   
+    ...     _ = os.system("rm -f /tmp/pypetest/*")
     ... except:
     ...     pass
-    >>> time.sleep(1)
+    >>> time.sleep(.1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
     >>> fout = makePypeLocalFile("/tmp/pypetest/testfile_out", readOnly=False)
     >>> f = open("/tmp/pypetest/shellTask.sh","w")
-    >>> f.write( "echo touch %s; touch %s" % (fn(fout), fn(fout)) )
+    >>> f.write( "touch %s" % (fn(fout)))
     >>> f.close()
     >>> shellTask = PypeShellTask(outputDataObjs={"test_out":fout},
     ...                           inputDataObjs={"test_in":fin},
@@ -585,7 +608,7 @@ def PypeShellTask(*argv, **kwargv):
     True
     >>> print shellTask._getRunFlag()
     True
-    >>> shellTask()
+    >>> shellTask() # run task
     True
     >>> timeStampCompare(shellTask.inputDataObjs, shellTask.outputDataObjs, shellTask.parameters)
     False
