@@ -419,28 +419,30 @@ class PypeTaskCollection(PypeObject):
     def __getitem__(self, k):
         return self._tasks[k]
 
-_auto_urls = set()
-def _auto_task_url(taskFun):
+_auto_names = set()
+def _unique_name(name):
     """
     >>> def foo(): pass
-    >>> _auto_task_url(foo)
-    'task://<doctest __main__._auto_task_url[0]>/foo'
-    >>> _auto_task_url(foo)
-    'task://<doctest __main__._auto_task_url[0]>/foo.01'
-    >>> _auto_task_url(foo)
-    'task://<doctest __main__._auto_task_url[0]>/foo.02'
+    >>> _unique_name('foo')
+    'foo'
+    >>> _unique_name('foo')
+    'foo.01'
+    >>> _unique_name('foo')
+    'foo.02'
     """
-    url = "task://" + inspect.getfile(taskFun) + "/"+ taskFun.func_name
-    if url in _auto_urls:
+    if name in _auto_names:
         n = 0
         while True:
             n += 1
-            try_url = '%s.%02d' %(url, n)
-            if try_url not in _auto_urls:
+            try_name = '%s.%02d' %(name, n)
+            if try_name not in _auto_names:
                 break
-        url = try_url
-    _auto_urls.add(url)
-    return url
+        name = try_name
+    _auto_names.add(name)
+    return name
+def _auto_task_url(taskFun):
+    # Note: in doctest, the filename would be weird.
+    return "task://" + inspect.getfile(taskFun) + "/"+ _unique_name(taskFun.func_name)
 
 def PypeTask(*argv, **kwargv):
 
