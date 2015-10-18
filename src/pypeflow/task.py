@@ -258,12 +258,13 @@ class PypeTaskBase(PypeObject):
 
         runFlag = self._getRunFlag()
             
-        if runFlag == True:
-
+        if runFlag:
             rtn = self._runTask(self, *argv, **kwargv)
 
             if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
                 raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
+        else:
+            logger.debug('Task %s does not need to be run.' %repr(self))
 
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             self._status = TaskFail

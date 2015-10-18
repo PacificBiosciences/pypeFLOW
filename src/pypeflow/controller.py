@@ -629,7 +629,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                         logger.debug( "add active data obj:"+str(dataObj))
                         activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
-            logger.info( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
+            logger.debug( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
 
             numAliveThreads = self.thread_handler.alive(task2thread.values())
             #better job status detection, messageQueue should be empty and all returen condition should be "done", "continue" or "fail"
@@ -656,7 +656,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 else:
                     break
 
-            logger.info( "Total # of running threads: %d; alive tasks: %d; sleep=%f" % (
+            logger.debug( "Total # of running threads: %d; alive tasks: %d; sleep=%f" % (
                 threading.activeCount(), self.thread_handler.alive(task2thread.values()), sleep_time) )
             time.sleep(sleep_time)
             if updateFreq != None:
@@ -672,7 +672,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 sleep_time = 0 # Wait very briefly while messages are coming in.
                 URL, message = self.messageQueue.get()
                 self.jobStatusMap[str(URL)] = message
-                logger.info("message for %s: %r" %(URL, message))
+                logger.debug("message for %s: %r" %(URL, message))
 
                 if message in ["done", "continue"]:
                     successfullTask = self._pypeObjects[str(URL)]
@@ -696,8 +696,13 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
                     for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
                         activeDataObjs.remove( (failedTask.URL, o.URL) )
+                elif message in ["started, runflag: 1"]:
+                    logger.info("Queued %s ..." %repr(URL))
+                elif message in ["started, runflag: 0"]:
+                    logger.info("Queued %s (already completed) ..." %repr(URL))
+
                 else:
-                    logger.warning("Got unexpected message %r from URL %r." %(URL, message))
+                    logger.warning("Got unexpected message %r from URL %r." %(message, URL))
 
             for u,s in sorted(self.jobStatusMap.items()):
                 logger.debug( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
