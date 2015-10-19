@@ -226,7 +226,7 @@ class PypeTaskBase(PypeObject):
         """
         try:
             return self.run(*argv, **kwargv)
-        except:
+        except: # and re-raise
             logger.exception('PypeTaskBase failed unexpectedly:\n%r' %self)
             self._status = TaskFail
             raise
@@ -258,12 +258,14 @@ class PypeTaskBase(PypeObject):
 
         runFlag = self._getRunFlag()
             
-        if runFlag == True:
-
+        if runFlag:
+            logger.info('Running task from function %s()' %(self._taskFun.__name__))
             rtn = self._runTask(self, *argv, **kwargv)
 
             if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
                 raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
+        else:
+            logger.debug('Task %s does not need to be run.' %repr(self))
 
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             self._status = TaskFail
@@ -326,7 +328,7 @@ class PypeThreadTaskBase(PypeTaskBase):
         """
         try:
             return self.runInThisThread(*argv, **kwargv)
-        except:
+        except: # and re-raise
             logger.exception('PypeTaskBase failed:\n%r' %self)
             self._status = TaskFail  # TODO: Do not touch internals of base class.
             self._queue.put( (self.URL, "fail") )
@@ -455,7 +457,7 @@ def PypeTask(*argv, **kwargv):
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
     ...     _ = os.system("rm -f /tmp/pypetest/*")   
-    ... except:
+    ... except Exception:
     ...     pass
     >>> time.sleep(.1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
@@ -588,7 +590,7 @@ def PypeShellTask(*argv, **kwargv):
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
     ...     _ = os.system("rm -f /tmp/pypetest/*")
-    ... except:
+    ... except Exception:
     ...     pass
     >>> time.sleep(.1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)

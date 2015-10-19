@@ -170,7 +170,7 @@ class PypeWorkflow(PypeObject):
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
     ...     _ = os.system("rm -f /tmp/pypetest/*")
-    ... except:
+    ... except Exception:
     ...     pass
     >>> time.sleep(1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
@@ -585,7 +585,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
             prereqJobURLMap[URL] = prereqJobURLs
 
-            logger.info("Determined prereqs for %r to be %r" % (URL, ", ".join(prereqJobURLs)))
+            logger.debug("Determined prereqs for %r to be %r" % (URL, ", ".join(prereqJobURLs)))
             
             if taskObj.nSlots > self.MAX_NUMBER_TASK_SLOT:
                 raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" %
@@ -629,7 +629,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                         logger.debug( "add active data obj:"+str(dataObj))
                         activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
-            logger.info( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
+            logger.debug( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
 
             numAliveThreads = self.thread_handler.alive(task2thread.values())
             #better job status detection, messageQueue should be empty and all returen condition should be "done", "continue" or "fail"
@@ -651,12 +651,13 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     usedTaskSlots += taskObj.nSlots
                     numAliveThreads += 1
                     self.jobStatusMap[URL] = "submitted"
-                    logger.info("Submitted %r" %URL)
+                    # Note that we re-submit completed tasks whenever refreshTargets() is called.
+                    logger.debug("Submitted %r" %URL)
                     logger.debug(" Details: %r" %taskObj)
                 else:
                     break
 
-            logger.info( "Total # of running threads: %d; alive tasks: %d; sleep=%f" % (
+            logger.debug( "Total # of running threads: %d; alive tasks: %d; sleep=%f" % (
                 threading.activeCount(), self.thread_handler.alive(task2thread.values()), sleep_time) )
             time.sleep(sleep_time)
             if updateFreq != None:
@@ -672,13 +673,13 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 sleep_time = 0 # Wait very briefly while messages are coming in.
                 URL, message = self.messageQueue.get()
                 self.jobStatusMap[str(URL)] = message
-                logger.info("message for %s: %r" %(URL, message))
+                logger.debug("message for %s: %r" %(URL, message))
 
                 if message in ["done", "continue"]:
                     successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= successfullTask.nSlots
-                    logger.info("Success (%r). Joining %r..." %(message, URL))
+                    logger.debug("Success (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
                     successfullTask.finalize()
 
@@ -696,8 +697,13 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
                     for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
                         activeDataObjs.remove( (failedTask.URL, o.URL) )
+                elif message in ["started, runflag: 1"]:
+                    logger.info("Queued %s ..." %repr(URL))
+                elif message in ["started, runflag: 0"]:
+                    logger.debug("Queued %s (already completed) ..." %repr(URL))
+
                 else:
-                    logger.warning("Got unexpected message %r from URL %r." %(URL, message))
+                    logger.warning("Got unexpected message %r from URL %r." %(message, URL))
 
             for u,s in sorted(self.jobStatusMap.items()):
                 logger.debug( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
