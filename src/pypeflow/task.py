@@ -259,6 +259,7 @@ class PypeTaskBase(PypeObject):
         runFlag = self._getRunFlag()
             
         if runFlag:
+            logger.info('Running task from function %s()' %(self._taskFun.__name__))
             rtn = self._runTask(self, *argv, **kwargv)
 
             if self.inputDataObjs != inputDataObjs or self.parameters != parameters:

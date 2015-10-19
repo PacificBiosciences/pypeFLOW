@@ -585,7 +585,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
             prereqJobURLMap[URL] = prereqJobURLs
 
-            logger.info("Determined prereqs for %r to be %r" % (URL, ", ".join(prereqJobURLs)))
+            logger.debug("Determined prereqs for %r to be %r" % (URL, ", ".join(prereqJobURLs)))
             
             if taskObj.nSlots > self.MAX_NUMBER_TASK_SLOT:
                 raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" %
@@ -651,7 +651,8 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     usedTaskSlots += taskObj.nSlots
                     numAliveThreads += 1
                     self.jobStatusMap[URL] = "submitted"
-                    logger.info("Submitted %r" %URL)
+                    # Note that we re-submit completed tasks whenever refreshTargets() is called.
+                    logger.debug("Submitted %r" %URL)
                     logger.debug(" Details: %r" %taskObj)
                 else:
                     break
@@ -678,7 +679,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= successfullTask.nSlots
-                    logger.info("Success (%r). Joining %r..." %(message, URL))
+                    logger.debug("Success (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
                     successfullTask.finalize()
 
@@ -699,7 +700,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 elif message in ["started, runflag: 1"]:
                     logger.info("Queued %s ..." %repr(URL))
                 elif message in ["started, runflag: 0"]:
-                    logger.info("Queued %s (already completed) ..." %repr(URL))
+                    logger.debug("Queued %s (already completed) ..." %repr(URL))
 
                 else:
                     logger.warning("Got unexpected message %r from URL %r." %(message, URL))
