@@ -226,7 +226,7 @@ class PypeTaskBase(PypeObject):
         """
         try:
             return self.run(*argv, **kwargv)
-        except:
+        except: # and re-raise
             logger.exception('PypeTaskBase failed unexpectedly:\n%r' %self)
             self._status = TaskFail
             raise
@@ -328,7 +328,7 @@ class PypeThreadTaskBase(PypeTaskBase):
         """
         try:
             return self.runInThisThread(*argv, **kwargv)
-        except:
+        except: # and re-raise
             logger.exception('PypeTaskBase failed:\n%r' %self)
             self._status = TaskFail  # TODO: Do not touch internals of base class.
             self._queue.put( (self.URL, "fail") )
@@ -457,7 +457,7 @@ def PypeTask(*argv, **kwargv):
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
     ...     _ = os.system("rm -f /tmp/pypetest/*")   
-    ... except:
+    ... except Exception:
     ...     pass
     >>> time.sleep(.1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
@@ -590,7 +590,7 @@ def PypeShellTask(*argv, **kwargv):
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
     ...     _ = os.system("rm -f /tmp/pypetest/*")
-    ... except:
+    ... except Exception:
     ...     pass
     >>> time.sleep(.1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)

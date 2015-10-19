@@ -39,7 +39,7 @@ try:
                            'rdfextras.sparql.processor', 'Processor')
     rdflib.plugin.register('sparql', rdflib.query.Result,
                            'rdfextras.sparql.query', 'SPARQLQueryResult')
-except:
+except Exception:
     from rdflib.Graph import ConjunctiveGraph as Graph #work for rdflib-2.4.2
 from rdflib import Namespace
 from rdflib import Literal

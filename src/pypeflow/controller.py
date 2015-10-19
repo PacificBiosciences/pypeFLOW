@@ -170,7 +170,7 @@ class PypeWorkflow(PypeObject):
     >>> try:
     ...     os.makedirs("/tmp/pypetest")
     ...     _ = os.system("rm -f /tmp/pypetest/*")
-    ... except:
+    ... except Exception:
     ...     pass
     >>> time.sleep(1)
     >>> fin = makePypeLocalFile("/tmp/pypetest/testfile_in", readOnly=False)
