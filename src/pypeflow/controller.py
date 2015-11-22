@@ -590,7 +590,12 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             loopN += 1
             if not ((loopN - 1) & loopN):
                 # exponential back-off for logging
-                logger.info( "tick: %d" % loopN )
+                logger.info("tick: %d; #tasks: %d; #outputDataObjs: %d; #mutableDataObjs: %d" %(
+                    loopN,
+                    len(sortedTaskList),
+                    len(taskObj.outputDataObjs.values()),
+                    len(taskObj.mutableDataObjs.values()),
+                    ))
             jobsReadyToBeSubmitted = []
 
             for URL, taskObj, tStatus in sortedTaskList:
