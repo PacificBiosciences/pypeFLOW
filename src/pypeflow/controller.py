@@ -288,6 +288,7 @@ class PypeWorkflow(PypeObject):
             
     @property
     def _RDFGraph(self):
+        # expensive to recompute
         graph = Graph()
         for URL, obj in self._pypeObjects.iteritems():
             for s,p,o in obj._RDFGraph:
@@ -346,20 +347,17 @@ class PypeWorkflow(PypeObject):
 
     @property
     def makeFileStr(self):
-        
         """
         generate a string that has the information of the execution dependency in
         a "Makefile" like format. It can be written into a "Makefile" and
         executed by "make".
         """
-
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
             if URLParseResult.scheme != "task": continue
             taskObj = self._pypeObjects[URL]
             if not hasattr(taskObj, "script"):
                 raise TaskTypeError("can not convert non shell script based workflow to a makefile") 
-
         makeStr = StringIO()
         for URL in self._pypeObjects.keys():
             URLParseResult = urlparse(URL)
@@ -377,24 +375,25 @@ class PypeWorkflow(PypeObject):
         makeStr.write("all: %s" %  " ".join([o.localFileName for o in outputFiles.values()]) )
         return makeStr.getvalue()
 
-
-    def refreshTargets(self, objs = [], callback = (None, None, None) ):
-
-        """
-        Execute the DAG to reach all objects in the "objs" argument.
-        """
-
+    @staticmethod
+    def getSortedURLs(rdfGraph, objs):
         if len(objs) != 0:
             connectedPypeNodes = set()
             for obj in objs:
                 if isinstance(obj, PypeSplittableLocalFile):
                     obj = obj._completeFile
-                for x in self._RDFGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
+                for x in rdfGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
                     connectedPypeNodes.add(x)
-            tSortedURLs = PypeGraph(self._RDFGraph, connectedPypeNodes).tSort()
+            tSortedURLs = PypeGraph(rdfGraph, connectedPypeNodes).tSort( )
         else:
-            tSortedURLs = PypeGraph(self._RDFGraph).tSort( )
+            tSortedURLs = PypeGraph(rdfGraph).tSort( )
+        return tSortedURLs
 
+    def refreshTargets(self, objs = [], callback = (None, None, None) ):
+        """
+        Execute the DAG to reach all objects in the "objs" argument.
+        """
+        tSortedURLs = self.getSortedURLs(self._RDFGraph, objs)
         for URL in tSortedURLs:
             obj = self._pypeObjects[URL]
             if not isinstance(obj, PypeTaskBase):
@@ -402,13 +401,10 @@ class PypeWorkflow(PypeObject):
             else:
                 obj()
                 obj.finalize()
-
         self._runCallback(callback)
-
         return True
 
     def _runCallback(self, callback = (None, None, None ) ):
-
         if callback[0] != None and callable(callback[0]):
             argv = []
             kwargv = {}
@@ -561,16 +557,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         thread = self.thread_handler.create
 
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
-        if len(objs) != 0:
-            connectedPypeNodes = set()
-            for obj in objs:
-                if isinstance(obj, PypeSplittableLocalFile):
-                    obj = obj._completeFile
-                for x in rdfGraph.transitive_objects(URIRef(obj.URL), pypeNS["prereq"]):
-                    connectedPypeNodes.add(x)
-            tSortedURLs = PypeGraph(rdfGraph, connectedPypeNodes).tSort( )
-        else:
-            tSortedURLs = PypeGraph(rdfGraph).tSort( )
+        tSortedURLs = self.getSortedURLs(rdfGraph, objs)
 
         sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs 
                             if isinstance(self._pypeObjects[u], PypeTaskBase) ]
