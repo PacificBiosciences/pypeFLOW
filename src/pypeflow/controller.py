@@ -577,7 +577,8 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         usedTaskSlots = 0
         loopN = 0
         lastUpdate = None
-        activeDataObjs = set() #keep a set of output and mutable data object. a task can not be submitted if a running task has the same output
+        activeDataObjs = set() #keep a set of output data object. repeats are illegal.
+        mutableDataObjs = set() #keep a set of mutable data object. a task will be delayed if a running task has the same output.
         updatedTaskURLs = set() #to avoid extra stat-calls
 
         while 1:
@@ -604,27 +605,25 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     # Note: If jobStatusMap[u] raises, then the sorting was wrong.
                     #logger.debug('Prereqs not done! %s' %URL)
                     continue
-                # Check for collisions.
+                # Check for mutable collisions; delay task if any.
+                outputCollision = False
+                for dataObj in taskObj.mutableDataObjs.values():
+                    for fromTaskObjURL, mutableDataObjURL in mutableDataObjs:
+                        if dataObj.URL == mutableDataObjURL and taskObj.URL != fromTaskObjURL:
+                            logger.debug("mutable output collision detected for data object %r betw %r and %r" %(
+                                dataObj, dataObj.URL, mutableDataObjURL))
+                            outputCollision = True
+                            break
+                if outputCollision:
+                    continue
+                # Check for illegal collisions.
                 if len(activeDataObjs) < 100:
                     # O(n^2) on active tasks, but pretty fast.
                     for dataObj in taskObj.outputDataObjs.values():
                         for fromTaskObjURL, activeDataObjURL in activeDataObjs:
-                            if dataObj.URL == activeDataObjURL:
-                                assert taskObj.URL != fromTaskObjURL # TODO(CD): Delete this line someday.
+                            if dataObj.URL == activeDataObjURL and taskObj.URL != fromTaskObjURL:
                                 raise Exception("output collision detected for data object %r betw %r and %r" %(
                                     dataObj, dataObj.URL, activeDataObjURL))
-                    outputCollision = False
-                    for dataObj in taskObj.mutableDataObjs.values():
-                        for fromTaskObjURL, activeDataObjURL in activeDataObjs:
-                            if dataObj.URL == activeDataObjURL:
-                                assert taskObj.URL != fromTaskObjURL # TODO(CD): Delete this line someday.
-                                logger.debug("mutable output collision detected for data object %r betw %r and %r" %(
-                                    dataObj, dataObj.URL, activeDataObjURL))
-                                outputCollision = True
-                                break
-                    if outputCollision:
-                        continue
-
                 # We use 'updatedTaskURLs' to short-circuit 'isSatisfied()', to avoid many stat-calls.
                 # Note: Sorting should prevent FileNotExistError in isSatisfied().
                 if not (set(prereqJobURLs) & updatedTaskURLs) and taskObj.isSatisfied():
@@ -638,9 +637,12 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     continue
                 jobStatusMap[str(URL)] = "ready" # in case not all ready jobs are given threads immediately, to avoid re-stat
                 jobsReadyToBeSubmitted.append( (URL, taskObj) )
-                for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
+                for dataObj in taskObj.outputDataObjs.values():
                     logger.debug( "add active data obj: %s" %(dataObj,))
                     activeDataObjs.add( (taskObj.URL, dataObj.URL) )
+                for dataObj in taskObj.mutableDataObjs.values():
+                    logger.debug( "add mutable data obj: %s" %(dataObj,))
+                    mutableDataObjs.add( (taskObj.URL, dataObj.URL) )
 
             logger.debug( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
 
@@ -697,8 +699,10 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     task2thread[URL].join(timeout=10)
                     #del task2thread[URL]
                     successfullTask.finalize()
-                    for o in successfullTask.outputDataObjs.values() + successfullTask.mutableDataObjs.values():
+                    for o in successfullTask.outputDataObjs.values():
                         activeDataObjs.remove( (successfullTask.URL, o.URL) )
+                    for o in successfullTask.mutableDataObjs.values():
+                        mutableDataObjs.remove( (successfullTask.URL, o.URL) )
                 elif message in ["fail"]:
                     failedTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
@@ -708,8 +712,10 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     #del task2thread[URL]
                     failedJobCount += 1
                     failedTask.finalize()
-                    for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
+                    for o in failedTask.outputDataObjs.values():
                         activeDataObjs.remove( (failedTask.URL, o.URL) )
+                    for o in failedTask.mutableDataObjs.values():
+                        mutableDataObjs.remove( (failedTask.URL, o.URL) )
                 elif message in ["started, runflag: 1"]:
                     logger.info("Queued %s ..." %repr(URL))
                 elif message in ["started, runflag: 0"]:
