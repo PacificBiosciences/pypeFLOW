@@ -192,7 +192,7 @@ class PypeWorkflow(PypeObject):
     >>> wf.refreshTargets( objs = [fout] )
     /tmp/pypetest/testfile_in
     /tmp/pypetest/testfile_out
-    in finalize: TaskDone
+    in finalize: done
     True
     """
 

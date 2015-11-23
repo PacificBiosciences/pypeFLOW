@@ -478,8 +478,6 @@ def PypeTask(*argv, **kwargv):
     False
     >>> print test._getRunFlag()
     False
-    >>> test() #return False, the task is no run 
-    False
     >>> print test.a
     I am "a"
     >>> print test.b
@@ -603,7 +601,7 @@ def PypeShellTask(*argv, **kwargv):
     >>> print shellTask._getRunFlag()
     False
     >>> shellTask()
-    False
+    True
     """
 
     def f(scriptToRun):
