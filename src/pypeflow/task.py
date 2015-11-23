@@ -53,10 +53,11 @@ logger = logging.getLogger(__name__)
 class TaskFunctionError(PypeError):
     pass
 
+# These must be strings.
 TaskInitialized = "TaskInitialized"
-TaskDone = "TaskDone"
-TaskContinue = "TaskContinue"
-TaskFail = "TaskFail"
+TaskDone = "done"
+TaskFail = "fail"
+# TODO(CD): Make user-code compare by variable name.
 
 class PypeTaskBase(PypeObject):
     """
@@ -131,35 +132,43 @@ class PypeTaskBase(PypeObject):
         self._referenceMD5 = md5Str
 
     def _getRunFlag(self):
-
-        """
-        Determine whether the PypeTask should be run. It can be overridden in
+        """Determine whether the PypeTask should be run. It can be overridden in
         subclass to allow more flexible rules.
         """
-
         runFlag = False
-        if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
+        if self._referenceMD5 is not None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
-            runFlag = True
-        if runFlag == False:
-            runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFunctions] )
+            # Code has changed.
+            return True
+        return any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFunctions] )
 
+    def isSatisfied(self):
+        """Compare dependencies. (Kinda expensive.)
+        Note: Do not call this while the task is actually running!
+        """
+        return not self._getRunFlag()
 
-        return runFlag
+    def getStatus(self):
+        """
+        Note: Do not call this while the task is actually running!
+        """
+        return self._status
 
-    def isSatisfied(self, *argv, **kwargv):
-        return not self._getRunFlag(*argv, **kwargv)
+    def setStatus(self, status):
+        """
+        Note: Do not call this while the task is actually running!
+        """
+        assert status in (TaskInitialized, TaskDone, TaskFail)
+        self._status = status
 
     def _runTask(self, *argv, **kwargv):
-
         """ 
         The method to run the decorated function _taskFun(). It is called through run() of
         the PypeTask object and it should never be called directly
 
         TODO: the arg porcessing is still a mess, need to find a better way to do this 
         """
-        
-        if PYTHONVERSION == (2,5):
+        if PYTHONVERSION == (2,5): #TODO(CD): Does this even work anymore?
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
             #print  (args, varargs, varkw, defaults)
         else:
@@ -334,7 +343,7 @@ class PypeThreadTaskBase(PypeTaskBase):
         except: # and re-raise
             logger.exception('PypeTaskBase failed:\n%r' %self)
             self._status = TaskFail  # TODO: Do not touch internals of base class.
-            self._queue.put( (self.URL, "fail") )
+            self._queue.put( (self.URL, TaskFail) )
             raise
 
     def runInThisThread(self, *argv, **kwargv):
@@ -344,8 +353,8 @@ class PypeThreadTaskBase(PypeTaskBase):
         queue from the Queue module.
         """
         if self._queue == None:
-            logger.debug('Ask jchin what this is supposed to do. Seems redundant.')
-            self.run(*argv, **kwargv) # TODO: This could be repeated below. Bug?
+            logger.debug('Testing threads w/out queue?')
+            self.run(*argv, **kwargv)
             # return
             # raise until we know what this should do.
             raise Exception('There seems to be a case when self.queue==None, so we need to let this block simply return.')
@@ -355,12 +364,12 @@ class PypeThreadTaskBase(PypeTaskBase):
         except TaskFunctionError:
             # TODO: Delete? This cannot be caught since it is thrown only in sub __call__().
             self._status = TaskFail
-            self._queue.put( (self.URL, "fail") )
+            self._queue.put( (self.URL, TaskFail) )
             logger.exception("%r cannot be run because:" %self.URL)
             return
         except FileNotExistError as e:
             self._status = TaskFail  # TODO: Do not touch internals of base class.
-            self._queue.put( (self.URL, "fail") )
+            self._queue.put( (self.URL, TaskFail) ) # TODO(CD): Should this be "continue"?
             logger.info("Cannot yet run %r\n\tbecause %r" %(self.URL, e))
             return
 
@@ -382,10 +391,10 @@ class PypeThreadTaskBase(PypeTaskBase):
         if any([o.exists == False for o in self.outputDataObjs.values()]):
             logger.debug("%s fails to generate all outputs" % self.URL)
             self._status = TaskFail
-            self._queue.put( (self.URL, "fail") )
+            self._queue.put( (self.URL, TaskFail) )
         else:
             self._status = TaskDone
-            self._queue.put( (self.URL, "done") )
+            self._queue.put( (self.URL, TaskDone) )
 
 class PypeDistributiableTaskBase(PypeThreadTaskBase):
 

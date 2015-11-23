@@ -36,9 +36,11 @@ import Queue
 from cStringIO import StringIO 
 from urlparse import urlparse
 
+# TODO(CD): When we stop using Python 2.5, use relative-imports and remove this dir from PYTHONPATH.
 from common import PypeError, PypeObject, Graph, URIRef, pypeNS
 from data import PypeDataObjectBase, PypeSplittableLocalFile
 from task import PypeTaskBase, PypeTaskCollection, PypeThreadTaskBase, getFOFNMapTasks
+from task import TaskInitialized, TaskDone, TaskFail
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +54,6 @@ class TaskFailureError(PypeError):
     pass
 
 class PypeNode(object):
-
     """ 
     Representing a node in the dependence DAG. 
     """
@@ -89,13 +90,11 @@ class PypeNode(object):
         return 1 + max([ node.depth for node in self._inNodes ])
 
 class PypeGraph(object):
-
     """ 
     Representing a dependence DAG with PypeObjects. 
     """
 
     def __init__(self, RDFGraph, subGraphNodes=None):
-        
         """
         Construct an internal DAG with PypeObject given an RDF graph.
         A sub-graph can be constructed if subGraphNodes is not "None"
@@ -132,12 +131,10 @@ class PypeGraph(object):
         return self.url2Node[url]
 
     def tSort(self): #return a topoloical sort node list
-        
         """
         Output topological sorted list of the graph element. 
         It raises a TeskExecutionError if a circle is detected.
         """
-
         edges = self._allEdges.copy()
         
         S = [x for x in self._allNodes if x.inDegree == 0]
@@ -159,7 +156,6 @@ class PypeGraph(object):
             return [x.obj for x in L]
                     
 class PypeWorkflow(PypeObject):
-
     """ 
     Representing a PypeWorkflow. PypeTask and PypeDataObjects can be added
     into the workflow and executed through the instanct methods.
@@ -470,7 +466,6 @@ def PypeThreadWorkflow(URL = None, **attributes):
             attributes=attributes)
 
 class _PypeConcurrentWorkflow(PypeWorkflow):
-
     """ 
     Representing a PypeWorkflow that can excute tasks concurrently using threads. It
     assume all tasks block until they finish. PypeTask and PypeDataObjects can be added
@@ -496,13 +491,11 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         self.jobStatusMap = {}
 
     def addTasks(self, taskObjs):
-
         """
         Add tasks into the workflow. The dependent input and output data objects are added automatically too. 
         It sets the message queue used for communicating between the task thread and the main thread. One has
         to use addTasks() or addTask() to add task objects to a threaded workflow.
         """
-
         for taskObj in taskObjs:
             if isinstance(taskObj, PypeTaskCollection):
                 for subTaskObj in taskObj.getTasks() + taskObj.getScatterGatherTasks():
@@ -674,7 +667,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 self.jobStatusMap[str(URL)] = message
                 logger.debug("message for %s: %r" %(URL, message))
 
-                if message in ["done", "continue"]:
+                if message in ["done"]:
                     successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= successfullTask.nSlots
@@ -699,19 +692,20 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     logger.info("Queued %s ..." %repr(URL))
                 elif message in ["started, runflag: 0"]:
                     logger.debug("Queued %s (already completed) ..." %repr(URL))
+                    raise Exception('It should not be possible to start an already completed task.')
 
                 else:
                     logger.warning("Got unexpected message %r from URL %r." %(message, URL))
 
             for u,s in sorted(self.jobStatusMap.items()):
-                logger.debug( "task status: %s, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots) )
+                logger.debug("task status: %r, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots))
 
             if failedJobCount != 0 and exitOnFailure:
                 raise TaskFailureError("Counted %d failures." %failedJobCount)
 
 
         for u,s in sorted(self.jobStatusMap.items()):
-            logger.debug( "task status: %s, %s" % (str(u),str(s)) )
+            logger.debug("task status: %s, %r" % (u, s))
 
         self._runCallback(callback)
         return True
