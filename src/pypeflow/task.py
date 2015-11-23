@@ -147,6 +147,9 @@ class PypeTaskBase(PypeObject):
 
         return runFlag
 
+    def isSatisfied(self, *argv, **kwargv):
+        return not self._getRunFlag(*argv, **kwargv)
+
     def _runTask(self, *argv, **kwargv):
 
         """ 

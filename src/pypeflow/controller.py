@@ -615,11 +615,18 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 if (len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None) or\
                    (all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and self.jobStatusMap[URL] == None):
 
-                    jobsReadyToBeSubmitted.append( (URL, taskObj) )
+                    #logger.info("%s: isSatisfied? %r" %(URL, taskObj.isSatisfied()))
+                    if taskObj.isSatisfied():
+                        self.jobStatusMap[str(URL)] = "done"
+                        successfullTask = self._pypeObjects[str(URL)]
+                        successfullTask.finalize()
+                        logger.debug(' Skipping already done task: %s' %URL)
+                    else:
+                        jobsReadyToBeSubmitted.append( (URL, taskObj) )
 
-                    for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
-                        logger.debug( "add active data obj:"+str(dataObj))
-                        activeDataObjs.add( (taskObj.URL, dataObj.URL) )
+                        for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
+                            logger.debug( "add active data obj:"+str(dataObj))
+                            activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
             logger.debug( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
 
@@ -673,20 +680,19 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     usedTaskSlots -= successfullTask.nSlots
                     logger.debug("Success (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
+                    #del task2thread[URL]
                     successfullTask.finalize()
-
                     for o in successfullTask.outputDataObjs.values() + successfullTask.mutableDataObjs.values():
                         activeDataObjs.remove( (successfullTask.URL, o.URL) )
-
                 elif message in ["fail"]:
                     failedTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= failedTask.nSlots
                     logger.info("Failure (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
+                    #del task2thread[URL]
                     failedJobCount += 1
                     failedTask.finalize()
-
                     for o in failedTask.outputDataObjs.values() + failedTask.mutableDataObjs.values():
                         activeDataObjs.remove( (failedTask.URL, o.URL) )
                 elif message in ["started, runflag: 1"]:
