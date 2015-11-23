@@ -552,9 +552,8 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
         tSortedURLs = self.getSortedURLs(rdfGraph, objs)
 
-        sortedTaskList = [ (str(u), self._pypeObjects[u], None) for u in tSortedURLs 
+        sortedTaskList = [ (str(u), self._pypeObjects[u], self._pypeObjects[u].getStatus()) for u in tSortedURLs
                             if isinstance(self._pypeObjects[u], PypeTaskBase) ]
-
         self.jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
 
         prereqJobURLMap = {}
@@ -566,10 +565,10 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             prereqJobURLMap[URL] = prereqJobURLs
 
             logger.debug("Determined prereqs for %r to be %r" % (URL, ", ".join(prereqJobURLs)))
-            
+
             if taskObj.nSlots > self.MAX_NUMBER_TASK_SLOT:
                 raise TaskExecutionError("%s requests more %s task slots which is more than %d task slots allowed" %
-                                          (str(URL), taskObj.nSlots, self.MAX_NUMBER_TASK_SLOT) )  
+                                          (str(URL), taskObj.nSlots, self.MAX_NUMBER_TASK_SLOT) )
 
         sleep_time = 0
         nSubmittedJob = 0
@@ -583,54 +582,72 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             loopN += 1
             if not ((loopN - 1) & loopN):
                 # exponential back-off for logging
-                logger.info("tick: %d; #tasks: %d; #outputDataObjs: %d; #mutableDataObjs: %d" %(
+                logger.info("tick: %d; #tasks: %d" %(
                     loopN,
                     len(sortedTaskList),
-                    len(taskObj.outputDataObjs.values()),
-                    len(taskObj.mutableDataObjs.values()),
                     ))
             jobsReadyToBeSubmitted = []
 
             for URL, taskObj, tStatus in sortedTaskList:
-                prereqJobURLs = prereqJobURLMap[URL]
-                outputCollision = False
-
-                for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
-                    for fromTaskObjURL, activeDataObjURL in activeDataObjs:
-                        if dataObj.URL == activeDataObjURL and taskObj.URL != fromTaskObjURL:
-                            logger.debug( "output collision detected for data object:"+str(dataObj))
-                            outputCollision = True
-                            break
-                
-                if outputCollision:
+                if self.jobStatusMap[URL] != TaskInitialized:
+                    # TODO(CD): Can mutableDataObjs.values() change between iterations?
+                    #logger.debug('Found %s updated in jsmap' %URL)
                     continue
+                prereqJobURLs = prereqJobURLMap[URL]
 
-                if (len(prereqJobURLs) == 0 and self.jobStatusMap[URL] == None) or\
-                   (all( ( self.jobStatusMap[u] in ["done", "continue"] for u in prereqJobURLs ) ) and self.jobStatusMap[URL] == None):
+                logger.debug(' preqs of %s:' %URL)
+                for u in prereqJobURLs:
+                    logger.debug('  %s: %s' %(self.jobStatusMap[u], u))
+                if any(self.jobStatusMap[u] != "done" for u in prereqJobURLs):
+                    # Note: If jobStatusMap[u] raises, then the sorting was wrong.
+                    #logger.debug('Prereqs not done! %s' %URL)
+                    continue
+                # Check for collisions.
+                if len(activeDataObjs) < 100:
+                    # O(n^2) on active tasks, but pretty fast.
+                    for dataObj in taskObj.outputDataObjs.values():
+                        for fromTaskObjURL, activeDataObjURL in activeDataObjs:
+                            if dataObj.URL == activeDataObjURL:
+                                assert taskObj.URL != fromTaskObjURL # TODO(CD): Delete this line someday.
+                                raise Exception("output collision detected for data object %r betw %r and %r" %(
+                                    dataObj, dataObj.URL, activeDataObjURL))
+                    outputCollision = False
+                    for dataObj in taskObj.mutableDataObjs.values():
+                        for fromTaskObjURL, activeDataObjURL in activeDataObjs:
+                            if dataObj.URL == activeDataObjURL:
+                                assert taskObj.URL != fromTaskObjURL # TODO(CD): Delete this line someday.
+                                logger.debug("mutable output collision detected for data object %r betw %r and %r" %(
+                                    dataObj, dataObj.URL, activeDataObjURL))
+                                outputCollision = True
+                                break
+                    if outputCollision:
+                        continue
 
-                    #logger.info("%s: isSatisfied? %r" %(URL, taskObj.isSatisfied()))
-                    if taskObj.isSatisfied():
-                        self.jobStatusMap[str(URL)] = "done"
-                        successfullTask = self._pypeObjects[str(URL)]
-                        successfullTask.finalize()
-                        logger.debug(' Skipping already done task: %s' %URL)
-                    else:
-                        jobsReadyToBeSubmitted.append( (URL, taskObj) )
-
-                        for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
-                            logger.debug( "add active data obj:"+str(dataObj))
-                            activeDataObjs.add( (taskObj.URL, dataObj.URL) )
+                # Note: Sorting should prevent FileNotExistError in isSatisfied().
+                if taskObj.isSatisfied():
+                    #taskObj.setStatus(pypeflow.task.TaskDone) # Safe b/c thread is not running yet, and all prereqs are done.
+                    logger.debug(' Skipping already done task: %s (Status was %s)' %(URL, self.jobStatusMap[str(URL)]))
+                    taskObj.setStatus(TaskDone) # to avoid re-stat on subsequent call to refreshTargets()
+                    self.jobStatusMap[str(URL)] = TaskDone # to avoid re-stat on *this* call
+                    successfullTask = self._pypeObjects[str(URL)]
+                    successfullTask.finalize()
+                    continue
+                self.jobStatusMap[str(URL)] = "ready" # in case not all ready jobs are given threads immediately, to avoid re-stat
+                jobsReadyToBeSubmitted.append( (URL, taskObj) )
+                for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
+                    logger.debug( "add active data obj:"+str(dataObj))
+                    activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
             logger.debug( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
 
             numAliveThreads = self.thread_handler.alive(task2thread.values())
-            #better job status detection, messageQueue should be empty and all returen condition should be "done", "continue" or "fail"
+            #better job status detection, messageQueue should be empty and all return condition should be "done", or "fail"
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0 and self.messageQueue.empty(): 
                 logger.info( "_refreshTargets() finished with no thread running and no new job to submit" )
                 for URL in task2thread:
-                    assert self.jobStatusMap[str(URL)] in ("done", "continue", "fail"), "status=%r" %self.jobStatusMap[str(URL)]
-
-                break
+                    assert self.jobStatusMap[str(URL)] in ("done", "fail"), "status(%s)==%r" %(
+                            URL, self.jobStatusMap[str(URL)])
+                break # End of loop!
 
             for URL, taskObj in jobsReadyToBeSubmitted:
                 numberOfEmptySlot = self.MAX_NUMBER_TASK_SLOT - usedTaskSlots 

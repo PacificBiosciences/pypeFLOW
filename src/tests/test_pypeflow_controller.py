@@ -330,7 +330,7 @@ class TestPypeThreadWorkflow:
                 l = l.strip()
                 assert l in outputSet
                 i += 1
-            assert i == 3
+            assert_equal(i, 3)
 
     def test_stateDataObjects(self):
 
