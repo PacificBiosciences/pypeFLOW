@@ -268,23 +268,18 @@ class PypeTaskBase(PypeObject):
         outputDataObjs = self.outputDataObjs
         parameters = self.parameters
 
-        runFlag = self._getRunFlag()
-            
-        if runFlag:
-            logger.info('Running task from function %s()' %(self._taskFun.__name__))
-            rtn = self._runTask(self, *argv, **kwargv)
+        logger.info('Running task from function %s()' %(self._taskFun.__name__))
+        rtn = self._runTask(self, *argv, **kwargv)
 
-            if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
-                raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
-        else:
-            logger.debug('Task %s does not need to be run.' %repr(self))
-
+        if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
+            raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
         if any([o.exists == False for o in self.outputDataObjs.values()]):
+            logger.debug("%s fails to generate all outputs" % self.URL)
             self._status = TaskFail
         else:
             self._status = TaskDone
 
-        return runFlag
+        return True # to indicate that it run, since we no longer rely on runFlag
 
     def __repr__(self):
         r = dict()
@@ -359,22 +354,7 @@ class PypeThreadTaskBase(PypeTaskBase):
             # raise until we know what this should do.
             raise Exception('There seems to be a case when self.queue==None, so we need to let this block simply return.')
 
-        try:
-            runFlag = self._getRunFlag()
-        except TaskFunctionError:
-            # TODO: Delete? This cannot be caught since it is thrown only in sub __call__().
-            self._status = TaskFail
-            self._queue.put( (self.URL, TaskFail) )
-            logger.exception("%r cannot be run because:" %self.URL)
-            return
-        except FileNotExistError as e:
-            self._status = TaskFail  # TODO: Do not touch internals of base class.
-            self._queue.put( (self.URL, TaskFail) ) # TODO(CD): Should this be "continue"?
-            logger.info("Cannot yet run %r\n\tbecause %r" %(self.URL, e))
-            return
-
-        self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
-
+        self._queue.put( (self.URL, "started, runflag: %d" % True) )
         self.run(*argv, **kwargv)
 
         # need the following loop to force the stupid Islon to update the metadata in the directory
@@ -387,14 +367,7 @@ class PypeThreadTaskBase(PypeTaskBase):
             except OSError:
                 pass
 
-        # TODO: Make this less redundant with run().
-        if any([o.exists == False for o in self.outputDataObjs.values()]):
-            logger.debug("%s fails to generate all outputs" % self.URL)
-            self._status = TaskFail
-            self._queue.put( (self.URL, TaskFail) )
-        else:
-            self._status = TaskDone
-            self._queue.put( (self.URL, TaskDone) )
+        self._queue.put( (self.URL, self._status) )
 
 class PypeDistributiableTaskBase(PypeThreadTaskBase):
 
