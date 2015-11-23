@@ -343,6 +343,9 @@ class PypeThreadTaskBase(PypeTaskBase):
         if self._queue == None:
             logger.debug('Ask jchin what this is supposed to do. Seems redundant.')
             self.run(*argv, **kwargv) # TODO: This could be repeated below. Bug?
+            # return
+            # raise until we know what this should do.
+            raise Exception('There seems to be a case when self.queue==None, so we need to let this block simply return.')
 
         try:
             runFlag = self._getRunFlag()
