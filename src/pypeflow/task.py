@@ -243,6 +243,17 @@ class PypeTaskBase(PypeObject):
             self._status = TaskFail
             raise
 
+    @staticmethod
+    def syncDirectories(fns):
+        # need the following loop to force the stupid Islon to update the metadata in the directory
+        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
+        # Yes, a friend at AMD had this problem too. Painful. ~cd
+        for d in set(os.path.dirname(fn) for fn in fns):
+            try:
+                os.listdir(d)
+            except OSError:
+                pass
+
     def run(self, *argv, **kwargv):
         """Determine whether a task should be run when called.
         If the dependency is not satisified,
@@ -256,14 +267,7 @@ class PypeTaskBase(PypeObject):
         kwargv.update(self._kwargv)
 
         inputDataObjs = self.inputDataObjs
-        # need the following loop to force the stupid Islon to update the metadata in the directory
-        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
-        for o in inputDataObjs.values():
-            d = os.path.dirname(o.localFileName)
-            try:
-                os.listdir(d) 
-            except OSError:
-                pass
+        self.syncDirectories([o.localFileName for o in inputDataObjs.values()])
 
         outputDataObjs = self.outputDataObjs
         parameters = self.parameters
@@ -357,15 +361,7 @@ class PypeThreadTaskBase(PypeTaskBase):
         self._queue.put( (self.URL, "started, runflag: %d" % True) )
         self.run(*argv, **kwargv)
 
-        # need the following loop to force the stupid Islon to update the metadata in the directory
-        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
-        # TODO: Should this happen before *and* after run()? It does for now.
-        for o in self.outputDataObjs.values():
-            d = os.path.dirname(o.localFileName)
-            try:
-                os.listdir(d) 
-            except OSError:
-                pass
+        self.syncDirectories([o.localFileName for o in self.outputDataObjs.values()])
 
         self._queue.put( (self.URL, self._status) )
 
