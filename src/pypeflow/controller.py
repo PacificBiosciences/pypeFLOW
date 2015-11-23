@@ -554,6 +554,9 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         sortedTaskList = [ (str(u), self._pypeObjects[u], self._pypeObjects[u].getStatus()) for u in tSortedURLs
                             if isinstance(self._pypeObjects[u], PypeTaskBase) ]
         jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
+        logger.info("# of tasks in complete graph: %d" %(
+            len(sortedTaskList),
+            ))
 
         prereqJobURLMap = {}
 
@@ -582,17 +585,16 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             loopN += 1
             if not ((loopN - 1) & loopN):
                 # exponential back-off for logging
-                logger.info("tick: %d; #tasks: %d" %(
-                    loopN,
-                    len(sortedTaskList),
-                    ))
+                logger.info("tick: %d, #updatedTasks: %d" %(loopN, len(updatedTaskURLs)))
             jobsReadyToBeSubmitted = []
 
             for URL, taskObj, tStatus in sortedTaskList:
                 if jobStatusMap[URL] != TaskInitialized:
-                    # TODO(CD): Can mutableDataObjs.values() change between iterations?
-                    #logger.debug('Found %s updated in jsmap' %URL)
                     continue
+                logger.debug(" #outputDataObjs: %d; #mutableDataObjs: %d" %(
+                    len(taskObj.outputDataObjs.values()),
+                    len(taskObj.mutableDataObjs.values()),
+                    ))
                 prereqJobURLs = prereqJobURLMap[URL]
 
                 logger.debug(' preqs of %s:' %URL)
@@ -627,16 +629,17 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 # Note: Sorting should prevent FileNotExistError in isSatisfied().
                 if not (set(prereqJobURLs) & updatedTaskURLs) and taskObj.isSatisfied():
                     #taskObj.setStatus(pypeflow.task.TaskDone) # Safe b/c thread is not running yet, and all prereqs are done.
-                    logger.debug(' Skipping already done task: %s (Status was %s)' %(URL, jobStatusMap[str(URL)]))
+                    logger.info(' Skipping already done task: %s' %(URL,))
+                    logger.debug(' (Status was %s)' %(jobStatusMap[URL],))
                     taskObj.setStatus(TaskDone) # to avoid re-stat on subsequent call to refreshTargets()
                     jobStatusMap[str(URL)] = TaskDone # to avoid re-stat on *this* call
-                    successfullTask = self._pypeObjects[str(URL)]
+                    successfullTask = self._pypeObjects[URL]
                     successfullTask.finalize()
                     continue
                 jobStatusMap[str(URL)] = "ready" # in case not all ready jobs are given threads immediately, to avoid re-stat
                 jobsReadyToBeSubmitted.append( (URL, taskObj) )
                 for dataObj in taskObj.outputDataObjs.values() + taskObj.mutableDataObjs.values():
-                    logger.debug( "add active data obj:"+str(dataObj))
+                    logger.debug( "add active data obj: %s" %(dataObj,))
                     activeDataObjs.add( (taskObj.URL, dataObj.URL) )
 
             logger.debug( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
