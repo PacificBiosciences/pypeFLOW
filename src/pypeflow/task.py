@@ -53,10 +53,11 @@ logger = logging.getLogger(__name__)
 class TaskFunctionError(PypeError):
     pass
 
+# These must be strings.
 TaskInitialized = "TaskInitialized"
-TaskDone = "TaskDone"
-TaskContinue = "TaskContinue"
-TaskFail = "TaskFail"
+TaskDone = "done"
+TaskFail = "fail"
+# TODO(CD): Make user-code compare by variable name.
 
 class PypeTaskBase(PypeObject):
     """
@@ -131,32 +132,43 @@ class PypeTaskBase(PypeObject):
         self._referenceMD5 = md5Str
 
     def _getRunFlag(self):
-
-        """
-        Determine whether the PypeTask should be run. It can be overridden in
+        """Determine whether the PypeTask should be run. It can be overridden in
         subclass to allow more flexible rules.
         """
-
         runFlag = False
-        if self._referenceMD5 != None and self._referenceMD5 != self._codeMD5digest:
+        if self._referenceMD5 is not None and self._referenceMD5 != self._codeMD5digest:
             self._referenceMD5 = self._codeMD5digest
-            runFlag = True
-        if runFlag == False:
-            runFlag = any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFunctions] )
+            # Code has changed.
+            return True
+        return any( [ f(self.inputDataObjs, self.outputDataObjs, self.parameters) for f in self._compareFunctions] )
 
+    def isSatisfied(self):
+        """Compare dependencies. (Kinda expensive.)
+        Note: Do not call this while the task is actually running!
+        """
+        return not self._getRunFlag()
 
-        return runFlag
+    def getStatus(self):
+        """
+        Note: Do not call this while the task is actually running!
+        """
+        return self._status
+
+    def setStatus(self, status):
+        """
+        Note: Do not call this while the task is actually running!
+        """
+        assert status in (TaskInitialized, TaskDone, TaskFail)
+        self._status = status
 
     def _runTask(self, *argv, **kwargv):
-
         """ 
         The method to run the decorated function _taskFun(). It is called through run() of
         the PypeTask object and it should never be called directly
 
         TODO: the arg porcessing is still a mess, need to find a better way to do this 
         """
-        
-        if PYTHONVERSION == (2,5):
+        if PYTHONVERSION == (2,5): #TODO(CD): Does this even work anymore?
             (args, varargs, varkw, defaults)  = inspect.getargspec(self._taskFun)
             #print  (args, varargs, varkw, defaults)
         else:
@@ -231,6 +243,17 @@ class PypeTaskBase(PypeObject):
             self._status = TaskFail
             raise
 
+    @staticmethod
+    def syncDirectories(fns):
+        # need the following loop to force the stupid Islon to update the metadata in the directory
+        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
+        # Yes, a friend at AMD had this problem too. Painful. ~cd
+        for d in set(os.path.dirname(fn) for fn in fns):
+            try:
+                os.listdir(d)
+            except OSError:
+                pass
+
     def run(self, *argv, **kwargv):
         """Determine whether a task should be run when called.
         If the dependency is not satisified,
@@ -244,35 +267,23 @@ class PypeTaskBase(PypeObject):
         kwargv.update(self._kwargv)
 
         inputDataObjs = self.inputDataObjs
-        # need the following loop to force the stupid Islon to update the metadata in the directory
-        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
-        for o in inputDataObjs.values():
-            d = os.path.dirname(o.localFileName)
-            try:
-                os.listdir(d) 
-            except OSError:
-                pass
+        self.syncDirectories([o.localFileName for o in inputDataObjs.values()])
 
         outputDataObjs = self.outputDataObjs
         parameters = self.parameters
 
-        runFlag = self._getRunFlag()
-            
-        if runFlag:
-            logger.info('Running task from function %s()' %(self._taskFun.__name__))
-            rtn = self._runTask(self, *argv, **kwargv)
+        logger.info('Running task from function %s()' %(self._taskFun.__name__))
+        rtn = self._runTask(self, *argv, **kwargv)
 
-            if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
-                raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
-        else:
-            logger.debug('Task %s does not need to be run.' %repr(self))
-
+        if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
+            raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
         if any([o.exists == False for o in self.outputDataObjs.values()]):
+            logger.debug("%s fails to generate all outputs" % self.URL)
             self._status = TaskFail
         else:
             self._status = TaskDone
 
-        return runFlag
+        return True # to indicate that it run, since we no longer rely on runFlag
 
     def __repr__(self):
         r = dict()
@@ -331,7 +342,7 @@ class PypeThreadTaskBase(PypeTaskBase):
         except: # and re-raise
             logger.exception('PypeTaskBase failed:\n%r' %self)
             self._status = TaskFail  # TODO: Do not touch internals of base class.
-            self._queue.put( (self.URL, "fail") )
+            self._queue.put( (self.URL, TaskFail) )
             raise
 
     def runInThisThread(self, *argv, **kwargv):
@@ -341,48 +352,18 @@ class PypeThreadTaskBase(PypeTaskBase):
         queue from the Queue module.
         """
         if self._queue == None:
-            logger.debug('Ask jchin what this is supposed to do. Seems redundant.')
-            self.run(*argv, **kwargv) # TODO: This could be repeated below. Bug?
+            logger.debug('Testing threads w/out queue?')
+            self.run(*argv, **kwargv)
             # return
             # raise until we know what this should do.
             raise Exception('There seems to be a case when self.queue==None, so we need to let this block simply return.')
 
-        try:
-            runFlag = self._getRunFlag()
-        except TaskFunctionError:
-            # TODO: Delete? This cannot be caught since it is thrown only in sub __call__().
-            self._status = TaskFail
-            self._queue.put( (self.URL, "fail") )
-            logger.exception("%r cannot be run because:" %self.URL)
-            return
-        except FileNotExistError as e:
-            self._status = TaskFail  # TODO: Do not touch internals of base class.
-            self._queue.put( (self.URL, "fail") )
-            logger.info("Cannot yet run %r\n\tbecause %r" %(self.URL, e))
-            return
-
-        self._queue.put( (self.URL, "started, runflag: %d" % runFlag) )
-
+        self._queue.put( (self.URL, "started, runflag: %d" % True) )
         self.run(*argv, **kwargv)
 
-        # need the following loop to force the stupid Islon to update the metadata in the directory
-        # otherwise, the file would be appearing as non-existence... sigh, this is a >5 hours hard earned hacks
-        # TODO: Should this happen before *and* after run()? It does for now.
-        for o in self.outputDataObjs.values():
-            d = os.path.dirname(o.localFileName)
-            try:
-                os.listdir(d) 
-            except OSError:
-                pass
+        self.syncDirectories([o.localFileName for o in self.outputDataObjs.values()])
 
-        # TODO: Make this less redundant with run().
-        if any([o.exists == False for o in self.outputDataObjs.values()]):
-            logger.debug("%s fails to generate all outputs" % self.URL)
-            self._status = TaskFail
-            self._queue.put( (self.URL, "fail") )
-        else:
-            self._status = TaskDone
-            self._queue.put( (self.URL, "done") )
+        self._queue.put( (self.URL, self._status) )
 
 class PypeDistributiableTaskBase(PypeThreadTaskBase):
 
@@ -496,8 +477,6 @@ def PypeTask(*argv, **kwargv):
     >>> timeStampCompare(test.inputDataObjs, test.outputDataObjs, test.parameters)
     False
     >>> print test._getRunFlag()
-    False
-    >>> test() #return False, the task is no run 
     False
     >>> print test.a
     I am "a"
@@ -622,7 +601,7 @@ def PypeShellTask(*argv, **kwargv):
     >>> print shellTask._getRunFlag()
     False
     >>> shellTask()
-    False
+    True
     """
 
     def f(scriptToRun):
