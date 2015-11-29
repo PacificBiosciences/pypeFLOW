@@ -580,6 +580,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         activeDataObjs = set() #keep a set of output data object. repeats are illegal.
         mutableDataObjs = set() #keep a set of mutable data object. a task will be delayed if a running task has the same output.
         updatedTaskURLs = set() #to avoid extra stat-calls
+        jobsReadyToBeSubmitted = []
 
         while 1:
 
@@ -587,7 +588,6 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             if not ((loopN - 1) & loopN):
                 # exponential back-off for logging
                 logger.info("tick: %d, #updatedTasks: %d" %(loopN, len(updatedTaskURLs)))
-            jobsReadyToBeSubmitted = []
 
             for URL, taskObj, tStatus in sortedTaskList:
                 if jobStatusMap[URL] != TaskInitialized:
@@ -655,9 +655,10 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                             URL, jobStatusMap[str(URL)])
                 break # End of loop!
 
-            for URL, taskObj in jobsReadyToBeSubmitted:
+            while jobsReadyToBeSubmitted:
+                URL, taskObj  = jobsReadyToBeSubmitted[0]
                 numberOfEmptySlot = self.MAX_NUMBER_TASK_SLOT - usedTaskSlots 
-                logger.debug( "number of empty slot = %d/%d" % (numberOfEmptySlot, self.MAX_NUMBER_TASK_SLOT))
+                logger.debug( "#empty_slots = %d/%d; #jobs_ready=%d" % (numberOfEmptySlot, self.MAX_NUMBER_TASK_SLOT, len(jobsReadyToBeSubmitted)))
                 if numberOfEmptySlot >= taskObj.nSlots and numAliveThreads < self.CONCURRENT_THREAD_ALLOWED:
                     t = thread(target = taskObj)
                     t.start()
@@ -669,6 +670,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     # Note that we re-submit completed tasks whenever refreshTargets() is called.
                     logger.debug("Submitted %r" %URL)
                     logger.debug(" Details: %r" %taskObj)
+                    jobsReadyToBeSubmitted.pop(0)
                 else:
                     break
 
