@@ -737,7 +737,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             logger.debug("task status: %s, %r" % (u, s))
 
         self._runCallback(callback)
-        return True
+        return failedJobCount == 0
     
     def _update(self, elapsed):
         """Can be overridden to provide timed updates during execution"""
