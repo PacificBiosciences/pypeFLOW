@@ -580,6 +580,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         activeDataObjs = set() #keep a set of output data object. repeats are illegal.
         mutableDataObjs = set() #keep a set of mutable data object. a task will be delayed if a running task has the same output.
         updatedTaskURLs = set() #to avoid extra stat-calls
+        failedJobCount = 0
         jobsReadyToBeSubmitted = []
 
         while 1:
@@ -682,8 +683,6 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 if elapsedSeconds >= updateFreq:
                     self._update( elapsedSeconds )
                     lastUpdate = datetime.datetime.now( )
-
-            failedJobCount = 0
 
             sleep_time = sleep_time + 0.1 if (sleep_time < 1) else 1
             while not self.messageQueue.empty():
