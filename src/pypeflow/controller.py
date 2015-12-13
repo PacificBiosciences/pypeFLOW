@@ -488,6 +488,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         self.thread_handler = thread_handler
         self.messageQueue = messageQueue
         self.shutdown_event = shutdown_event
+        self.jobStatusMap = dict()
 
     def addTasks(self, taskObjs):
         """
@@ -553,7 +554,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
         sortedTaskList = [ (str(u), self._pypeObjects[u], self._pypeObjects[u].getStatus()) for u in tSortedURLs
                             if isinstance(self._pypeObjects[u], PypeTaskBase) ]
-        jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
+        self.jobStatusMap = dict( ( (t[0], t[2]) for t in sortedTaskList ) )
         logger.info("# of tasks in complete graph: %d" %(
             len(sortedTaskList),
             ))
@@ -591,7 +592,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 logger.info("tick: %d, #updatedTasks: %d" %(loopN, len(updatedTaskURLs)))
 
             for URL, taskObj, tStatus in sortedTaskList:
-                if jobStatusMap[URL] != TaskInitialized:
+                if self.jobStatusMap[URL] != TaskInitialized:
                     continue
                 logger.debug(" #outputDataObjs: %d; #mutableDataObjs: %d" %(
                     len(taskObj.outputDataObjs.values()),
@@ -601,9 +602,9 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
                 logger.debug(' preqs of %s:' %URL)
                 for u in prereqJobURLs:
-                    logger.debug('  %s: %s' %(jobStatusMap[u], u))
-                if any(jobStatusMap[u] != "done" for u in prereqJobURLs):
-                    # Note: If jobStatusMap[u] raises, then the sorting was wrong.
+                    logger.debug('  %s: %s' %(self.jobStatusMap[u], u))
+                if any(self.jobStatusMap[u] != "done" for u in prereqJobURLs):
+                    # Note: If self.jobStatusMap[u] raises, then the sorting was wrong.
                     #logger.debug('Prereqs not done! %s' %URL)
                     continue
                 # Check for mutable collisions; delay task if any.
@@ -630,13 +631,13 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 if not (set(prereqJobURLs) & updatedTaskURLs) and taskObj.isSatisfied():
                     #taskObj.setStatus(pypeflow.task.TaskDone) # Safe b/c thread is not running yet, and all prereqs are done.
                     logger.info(' Skipping already done task: %s' %(URL,))
-                    logger.debug(' (Status was %s)' %(jobStatusMap[URL],))
+                    logger.debug(' (Status was %s)' %(self.jobStatusMap[URL],))
                     taskObj.setStatus(TaskDone) # to avoid re-stat on subsequent call to refreshTargets()
-                    jobStatusMap[str(URL)] = TaskDone # to avoid re-stat on *this* call
+                    self.jobStatusMap[str(URL)] = TaskDone # to avoid re-stat on *this* call
                     successfullTask = self._pypeObjects[URL]
                     successfullTask.finalize()
                     continue
-                jobStatusMap[str(URL)] = "ready" # in case not all ready jobs are given threads immediately, to avoid re-stat
+                self.jobStatusMap[str(URL)] = "ready" # in case not all ready jobs are given threads immediately, to avoid re-stat
                 jobsReadyToBeSubmitted.append( (URL, taskObj) )
                 for dataObj in taskObj.outputDataObjs.values():
                     logger.debug( "add active data obj: %s" %(dataObj,))
@@ -652,8 +653,8 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0 and self.messageQueue.empty(): 
                 logger.info( "_refreshTargets() finished with no thread running and no new job to submit" )
                 for URL in task2thread:
-                    assert jobStatusMap[str(URL)] in ("done", "fail"), "status(%s)==%r" %(
-                            URL, jobStatusMap[str(URL)])
+                    assert self.jobStatusMap[str(URL)] in ("done", "fail"), "status(%s)==%r" %(
+                            URL, self.jobStatusMap[str(URL)])
                 break # End of loop!
 
             while jobsReadyToBeSubmitted:
@@ -667,7 +668,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     nSubmittedJob += 1
                     usedTaskSlots += taskObj.nSlots
                     numAliveThreads += 1
-                    jobStatusMap[URL] = "submitted"
+                    self.jobStatusMap[URL] = "submitted"
                     # Note that we re-submit completed tasks whenever refreshTargets() is called.
                     logger.debug("Submitted %r" %URL)
                     logger.debug(" Details: %r" %taskObj)
@@ -689,7 +690,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 sleep_time = 0 # Wait very briefly while messages are coming in.
                 URL, message = self.messageQueue.get()
                 updatedTaskURLs.add(URL)
-                jobStatusMap[str(URL)] = message
+                self.jobStatusMap[str(URL)] = message
                 logger.debug("message for %s: %r" %(URL, message))
 
                 if message in ["done"]:
@@ -725,14 +726,14 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 else:
                     logger.warning("Got unexpected message %r from URL %r." %(message, URL))
 
-            for u,s in sorted(jobStatusMap.items()):
+            for u,s in sorted(self.jobStatusMap.items()):
                 logger.debug("task status: %r, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots))
 
             if failedJobCount != 0 and exitOnFailure:
                 raise TaskFailureError("Counted %d failures." %failedJobCount)
 
 
-        for u,s in sorted(jobStatusMap.items()):
+        for u,s in sorted(self.jobStatusMap.items()):
             logger.debug("task status: %s, %r" % (u, s))
 
         self._runCallback(callback)
@@ -764,7 +765,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     s = URLParseResult.scheme + "://..." + URLParseResult.path.split("/")[-1] 
 
                 if URLParseResult.scheme == "task":
-                    jobStatus = jobStatusMap.get(URL, None)
+                    jobStatus = self.jobStatusMap.get(URL, None)
                     if jobStatus != None:
                         if jobStatus == "fail":
                             color = 'red'
