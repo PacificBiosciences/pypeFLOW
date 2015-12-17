@@ -584,6 +584,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         mutableDataObjs = set() #keep a set of mutable data object. a task will be delayed if a running task has the same output.
         updatedTaskURLs = set() #to avoid extra stat-calls
         failedJobCount = 0
+        succeededJobCount = 0
         jobsReadyToBeSubmitted = []
 
         while 1:
@@ -702,6 +703,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     logger.debug("Success (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
                     #del task2thread[URL]
+                    succeededJobCount += 1
                     successfullTask.finalize()
                     for o in successfullTask.outputDataObjs.values():
                         activeDataObjs.remove( (successfullTask.URL, o.URL) )
@@ -731,7 +733,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             for u,s in sorted(self.jobStatusMap.items()):
                 logger.debug("task status: %r, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots))
 
-            if failedJobCount != 0 and exitOnFailure:
+            if failedJobCount != 0 and (exitOnFailure or succeededJobCount == 0):
                 raise TaskFailureError("Counted %d failure(s)." %failedJobCount)
 
 
