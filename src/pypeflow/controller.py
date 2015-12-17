@@ -511,10 +511,12 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
         PypeWorkflow.addTasks(self, taskObjs)
 
-    def refreshTargets( self, objs = [], 
-                              callback = (None, None, None), 
-                              updateFreq = None, 
-                              exitOnFailure = True ):
+    def refreshTargets(self, objs=None,
+                       callback=(None, None, None),
+                       updateFreq=None,
+                       exitOnFailure=True):
+        if objs is None:
+            objs = []
         task2thread = {}
         try:
             rtn = self._refreshTargets(task2thread, objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
@@ -543,10 +545,10 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             raise
 
 
-    def _refreshTargets( self, task2thread, objs = [],
-                               callback = (None, None, None), 
-                               updateFreq = None, 
-                               exitOnFailure =True ):
+    def _refreshTargets(self, task2thread, objs,
+                        callback,
+                        updateFreq,
+                        exitOnFailure):
         thread = self.thread_handler.create
 
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
@@ -740,6 +742,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         if failedJobCount != 0:
             # Slightly different exception when !exitOnFailure.
             raise LateTaskFailureError("Counted a total of %d failure(s)." %failedJobCount)
+        return True #TODO: There is no reason to return anything anymore.
     
     def _update(self, elapsed):
         """Can be overridden to provide timed updates during execution"""
