@@ -46,11 +46,11 @@ logger = logging.getLogger(__name__)
 
 class TaskExecutionError(PypeError):
     pass
-
 class TaskTypeError(PypeError):
     pass
-
 class TaskFailureError(PypeError):
+    pass
+class LateTaskFailureError(PypeError):
     pass
 
 class PypeNode(object):
@@ -511,10 +511,12 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
 
         PypeWorkflow.addTasks(self, taskObjs)
 
-    def refreshTargets( self, objs = [], 
-                              callback = (None, None, None), 
-                              updateFreq = None, 
-                              exitOnFailure = True ):
+    def refreshTargets(self, objs=None,
+                       callback=(None, None, None),
+                       updateFreq=None,
+                       exitOnFailure=True):
+        if objs is None:
+            objs = []
         task2thread = {}
         try:
             rtn = self._refreshTargets(task2thread, objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
@@ -543,10 +545,10 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             raise
 
 
-    def _refreshTargets( self, task2thread, objs = [],
-                               callback = (None, None, None), 
-                               updateFreq = None, 
-                               exitOnFailure =True ):
+    def _refreshTargets(self, task2thread, objs,
+                        callback,
+                        updateFreq,
+                        exitOnFailure):
         thread = self.thread_handler.create
 
         rdfGraph = self._RDFGraph # expensive to recompute, should not change during execution
@@ -582,6 +584,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         mutableDataObjs = set() #keep a set of mutable data object. a task will be delayed if a running task has the same output.
         updatedTaskURLs = set() #to avoid extra stat-calls
         failedJobCount = 0
+        succeededJobCount = 0
         jobsReadyToBeSubmitted = []
 
         while 1:
@@ -700,6 +703,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     logger.debug("Success (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
                     #del task2thread[URL]
+                    succeededJobCount += 1
                     successfullTask.finalize()
                     for o in successfullTask.outputDataObjs.values():
                         activeDataObjs.remove( (successfullTask.URL, o.URL) )
@@ -729,15 +733,19 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             for u,s in sorted(self.jobStatusMap.items()):
                 logger.debug("task status: %r, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots))
 
-            if failedJobCount != 0 and exitOnFailure:
-                raise TaskFailureError("Counted %d failures." %failedJobCount)
+            if failedJobCount != 0 and (exitOnFailure or succeededJobCount == 0):
+                raise TaskFailureError("Counted %d failure(s) with 0 successes so far." %failedJobCount)
 
 
         for u,s in sorted(self.jobStatusMap.items()):
             logger.debug("task status: %s, %r" % (u, s))
 
         self._runCallback(callback)
-        return failedJobCount == 0
+        if failedJobCount != 0:
+            # Slightly different exception when !exitOnFailure.
+            raise LateTaskFailureError("Counted a total of %d failure(s) and %d success(es)." %(
+                failedJobCount, succeededJobCount))
+        return True #TODO: There is no reason to return anything anymore.
     
     def _update(self, elapsed):
         """Can be overridden to provide timed updates during execution"""
