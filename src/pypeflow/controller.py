@@ -734,7 +734,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 logger.debug("task status: %r, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots))
 
             if failedJobCount != 0 and (exitOnFailure or succeededJobCount == 0):
-                raise TaskFailureError("Counted %d failure(s)." %failedJobCount)
+                raise TaskFailureError("Counted %d failure(s) with 0 successes so far." %failedJobCount)
 
 
         for u,s in sorted(self.jobStatusMap.items()):
@@ -743,7 +743,8 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
         self._runCallback(callback)
         if failedJobCount != 0:
             # Slightly different exception when !exitOnFailure.
-            raise LateTaskFailureError("Counted a total of %d failure(s)." %failedJobCount)
+            raise LateTaskFailureError("Counted a total of %d failure(s) and %d success(es)." %(
+                failedJobCount, succeededJobCount))
         return True #TODO: There is no reason to return anything anymore.
     
     def _update(self, elapsed):
