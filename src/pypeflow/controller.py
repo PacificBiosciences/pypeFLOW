@@ -46,11 +46,11 @@ logger = logging.getLogger(__name__)
 
 class TaskExecutionError(PypeError):
     pass
-
 class TaskTypeError(PypeError):
     pass
-
 class TaskFailureError(PypeError):
+    pass
+class LateTaskFailureError(PypeError):
     pass
 
 class PypeNode(object):
@@ -730,14 +730,16 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 logger.debug("task status: %r, %r, used slots: %d" % (str(u),str(s), self._pypeObjects[str(u)].nSlots))
 
             if failedJobCount != 0 and exitOnFailure:
-                raise TaskFailureError("Counted %d failures." %failedJobCount)
+                raise TaskFailureError("Counted %d failure(s)." %failedJobCount)
 
 
         for u,s in sorted(self.jobStatusMap.items()):
             logger.debug("task status: %s, %r" % (u, s))
 
         self._runCallback(callback)
-        return failedJobCount == 0
+        if failedJobCount != 0:
+            # Slightly different exception when !exitOnFailure.
+            raise LateTaskFailureError("Counted a total of %d failure(s)." %failedJobCount)
     
     def _update(self, elapsed):
         """Can be overridden to provide timed updates during execution"""
