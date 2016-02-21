@@ -469,7 +469,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
     """ 
     Representing a PypeWorkflow that can excute tasks concurrently using threads. It
     assume all tasks block until they finish. PypeTask and PypeDataObjects can be added
-    into the workflow and executed through the instanct methods.
+    into the workflow and executed through the instance methods.
     """
 
     CONCURRENT_THREAD_ALLOWED = 16
@@ -505,7 +505,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     subTaskObj.setShutdownEvent(self.shutdown_event)
             else:
                 if not isinstance(taskObj, PypeThreadTaskBase):
-                    raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(subTaskObj)))
+                    raise TaskTypeError("Only PypeThreadTask can be added into a PypeThreadWorkflow. The task object has type %s " % repr(type(taskObj)))
                 taskObj.setMessageQueue(self.messageQueue)
                 taskObj.setShutdownEvent(self.shutdown_event)
 

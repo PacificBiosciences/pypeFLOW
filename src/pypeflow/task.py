@@ -277,8 +277,9 @@ class PypeTaskBase(PypeObject):
 
         if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
             raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
-        if any([o.exists == False for o in self.outputDataObjs.values()]):
-            logger.debug("%s fails to generate all outputs" % self.URL)
+        missing = [(k,o) for (k,o) in self.outputDataObjs.iteritems() if not o.exists]
+        if missing:
+            logger.debug("%s fails to generate all outputs; missing:\n%s" %(self.URL, pprint.pformat(missing)))
             self._status = TaskFail
         else:
             self._status = TaskDone
