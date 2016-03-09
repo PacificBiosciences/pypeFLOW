@@ -6,11 +6,11 @@ setup(
     author='J. Chin',
     author_email='cschin@infoecho.net',
     license='LICENSE.txt',
-    packages = find_packages('src'), 
-    package_dir = {'':'src'},
+    packages = ['pypeflow'],
+    package_dir = {'':'.'},
     zip_safe = False,
     install_requires=[
         'rdflib == 3.4.0',
-        'rdfextras >= 0.1'
-    ]
-    )
+        'rdfextras >= 0.1',
+    ],
+)
