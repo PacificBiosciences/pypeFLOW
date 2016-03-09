@@ -1,0 +1,12 @@
+{
+    "jobids": {
+        "c": {
+            "cmd": "/bin/bash jobs/c",
+            "rundir": "./jobs"
+        },
+        "b": {
+            "cmd": "/bin/bash jobs/b",
+            "rundir": "./jobs"
+        }
+    }
+}

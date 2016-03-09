@@ -1,0 +1,5 @@
+{
+    "which": "list",
+    "jobids": ["b", "c"],
+    "~end": {}
+}

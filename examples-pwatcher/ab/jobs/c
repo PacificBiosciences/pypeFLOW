@@ -1,0 +1,3 @@
+echo 'hi c'
+sleep 100
+echo 'bye c'

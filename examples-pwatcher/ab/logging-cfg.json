@@ -1,0 +1,39 @@
+{
+    "disable_existing_loggers": false,
+    "filters": {},
+    "formatters": {
+        "format_brief": {
+            "format": "%(levelname)s: %(message)s"
+        },
+        "format_full": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        }
+    },
+    "handlers": {
+        "handler_file_all": {
+            "class": "logging.FileHandler",
+            "filename": "workflow.log",
+            "formatter": "format_full",
+            "level": "DEBUG",
+            "mode": "w"
+        },
+        "handler_stream": {
+            "class": "logging.StreamHandler",
+            "formatter": "format_brief",
+            "level": "INFO",
+            "stream": "ext://sys.stderr"
+        }
+    },
+    "loggers": {
+        "": {
+            "handlers": [
+                "handler_file_all",
+                "handler_stream"
+            ],
+            "level": "NOTSET"
+        }
+    },
+    "root": {
+    },
+    "version": 1
+}
