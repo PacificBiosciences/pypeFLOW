@@ -8,4 +8,4 @@ set -vex
 sudo mkdir -p /tmp
 sudo chmod a+wrx /tmp
 python setup.py install
-nosetests --with-doctest -v src
+nosetests --with-doctest -v pypeflow/
