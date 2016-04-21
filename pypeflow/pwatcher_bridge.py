@@ -59,7 +59,7 @@ class Fred(object):
     def task(self):
         return self.__target
     def generate(self):
-        success = self.__target()
+        self.__target()
     def setTargetStatus(self, status):
         self.__target.setStatus(status)
     def endrun(self, status):
@@ -70,6 +70,8 @@ class Fred(object):
         """
         name = status.split()[0]
         if name == 'DEAD':
+            log.warning(''.join(traceback.format_stack()))
+            log.error('Task {!r} is DEAD, meaning no HEARTBEAT, but this can be a race-condition. If it was not killed, then restarting might suffice. Otherwise, you might have excessive clock-skew.'.format(self))
             self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
         elif name != 'EXIT':
             raise Exception('Unexpected status {!r}'.format(name))
@@ -79,8 +81,11 @@ class Fred(object):
                 self.__target.check_missing()
                 # TODO: If missing, just leave the status as TaskInitialized?
             else:
+                log.error('Task {!r} failed with exit-code={}'.format(code))
                 self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
         self.__target.finish()
+    def __repr__(self):
+        return 'FRED with taskObj={!r}'.format(self.__target)
     def __init__(self, target, th):
         assert isinstance(target, MyFakePypeThreadTaskBase)
         self.__target = target # taskObj?
@@ -104,6 +109,8 @@ class MyFakeShutdownEvent(object):
     def set(self):
         pass
 
+_prev_q = {} # To avoid excessive log output.
+
 class MyPypeFakeThreadsHandler(object):
     """Stateless method delegator, for injection.
     """
@@ -114,10 +121,9 @@ class MyPypeFakeThreadsHandler(object):
         ready = dict()
         while self.__jobq:
             fred = self.__jobq.popleft()
-            log.info("FRED:%s"%repr(fred))
             taskObj = fred.task()
             fred.generate() # -> taskObj->generated_script_fn by convention
-            log.info('param:\n%s' %pprint.pformat(taskObj.parameters))
+            #log.info('param:\n%s' %pprint.pformat(taskObj.parameters)) # I do not think these change.
             try:
                 script_fn = taskObj.generated_script_fn # BY CONVENTION
             except AttributeError:
@@ -127,27 +133,30 @@ class MyPypeFakeThreadsHandler(object):
             log.info('script_fn:%s' %repr(script_fn))
             content = open(script_fn).read()
             digest = hashlib.sha256(content).hexdigest()
-            jobid = '{}'.format(digest)
+            jobid = 'J{}'.format(digest)
             log.info('jobid=%s' %jobid)
             taskObj.jobid = jobid
             ready[jobid] = fred
             self.__known[jobid] = fred
         if ready:
-            log.info('ready:\n%s' %pprint.pformat(ready))
-        jobids = dict()
-        for jobid, fred in ready.iteritems():
-            cmd = '/bin/bash {}'.format(fred.task().generated_script_fn)
-            jobids[jobid] = {
-                'cmd': cmd,
-                'rundir': '.',
+            # Start anything in the 'ready' queue.
+            # Note: It is safe to run this block always, but we save a
+            # call to pwatcher with 'if ready'.
+            log.info('ready dict:\n%s' %pprint.pformat(ready))
+            jobids = dict()
+            for jobid, fred in ready.iteritems():
+                cmd = '/bin/bash {}'.format(fred.task().generated_script_fn)
+                jobids[jobid] = {
+                    'cmd': cmd,
+                    'rundir': '.',
+                }
+            watcher_args = {
+                    'jobids': jobids,
+                    'job_type': self.__job_type,
             }
-        watcher_args = {
-                'jobids': jobids,
-                'job_type': self.__job_type,
-        }
-        with fs_based.process_watcher(self.__state_directory) as watcher:
-            watcher.run(**watcher_args)
-        self.__running.update(set(jobids.keys()))
+            with fs_based.process_watcher(self.__state_directory) as watcher:
+                watcher.run(**watcher_args)
+            self.__running.update(set(jobids.keys()))
 
         watcher_args = {
             'jobids': list(self.__running),
@@ -155,7 +164,12 @@ class MyPypeFakeThreadsHandler(object):
         }
         with fs_based.process_watcher(self.__state_directory) as watcher:
             q = watcher.query(**watcher_args)
-        log.debug('In alive(), result of query:%s' %repr(q))
+        #log.debug('In alive(), result of query:%s' %repr(q))
+        global _prev_q
+        if q != _prev_q:
+            log.debug('In alive(), updated result of query:%s' %repr(q))
+            _prev_q = q
+            _prev_q = None
         for jobid, status in q['jobids'].iteritems():
             #log.debug('j={}, s={}'.format(jobid, status))
             if status.startswith('EXIT') or status.startswith('DEAD'):
@@ -237,7 +251,7 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
         try:
             return self.runInThisThread(*argv, **kwargv)
         except: # and re-raise
-            log.exception('%s failed:\n%r' %(type(self).__name__, self))
+            log.exception('%s __call__ failed:\n%r' %(type(self).__name__, self))
             self._status = pypeflow.task.TaskFail  # TODO: Do not touch internals of base class.
             self._queue.put( (self.URL, pypeflow.task.TaskFail) )
             raise
@@ -304,7 +318,7 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
                 self._status = pypeflow.task.TaskDone
                 break
         else:
-            log.debug('timeout(%ss) in check_missing()' %timeout_s)
+            log.info('timeout(%ss) in check_missing()' %timeout_s)
             self._status = pypeflow.task.TaskFail
 
     # And our own special methods.

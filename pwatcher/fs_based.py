@@ -44,6 +44,7 @@ import traceback
 log = logging.getLogger(__name__)
 
 HEARTBEAT_RATE_S = 1 # seconds
+ALLOWED_SKEW_S = 30.0 # including the 20s lustre delay
 STATE_FN = 'state.py'
 Job = collections.namedtuple('Job', ['jobid', 'rundir', 'cmd'])
 MetaJob = collections.namedtuple('MetaJob', ['job', 'lang_exe'])
@@ -344,7 +345,13 @@ def get_status(state, elistdir, reference_s, sentinel, heartbeat):
     try:
         mtime_s = os.path.getmtime(heartbeat_path)
         if (mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
-            return 'DEAD'
+            if (ALLOWED_SKEW_S + mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
+                log.debug('DEAD job? {} + 3*{} + {} < {} for {!r}'.format(
+                    mtime_s, HEARTBEAT_RATE_S, ALLOWED_SKEW_S, reference_s, heartbeat_path))
+                return 'DEAD'
+            else:
+                log.debug('{} + 3*{} < {} for {!r}. You might have a large clock-skew, or filesystem delays, or just filesystem time-rounding.'.format(
+                    mtime_s, HEARTBEAT_RATE_S, reference_s, heartbeat_path))
     except Exception as exc:
         # Probably, somebody deleted it after our call to os.listdir().
         # TODO: Decide what this really means.
@@ -476,6 +483,7 @@ def readjson(ifs):
 
 class ProcessWatcher(object):
     def run(self, jobids, job_type):
+        #import traceback; log.debug(''.join(traceback.format_stack()))
         log.debug('run(jobids={}, job_type={})'.format(
             '<%s>'%len(jobids), job_type))
         return cmd_run(self.state, jobids, job_type)

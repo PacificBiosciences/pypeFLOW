@@ -7,6 +7,7 @@ Non-zero status means *this* failed, not the wrapped command.
 """
 import argparse
 import os
+import socket
 import sys
 import threading
 import time
@@ -69,8 +70,10 @@ def thread_heartbeat(heartbeat_fn, sleep_s):
         ofs.write(HEARTBEAT_TEMPLATE.format(
             **locals()))
         elapsed = 0
+        ctime = 0
         while True:
-            ofs.write('{elapsed}\n'.format(
+            #ctime = time.time()
+            ofs.write('{elapsed} {ctime}\n'.format(
                 **locals()))
             ofs.flush()
             time.sleep(sleep_s)
@@ -89,9 +92,11 @@ def run(args):
     heartbeat_fn = os.path.abspath(args.heartbeat_file)
     exit_fn = os.path.abspath(args.exit_file)
     cwd = os.getcwd()
+    hostname = socket.getfqdn()
     sleep_s = args.rate
     log("""
 cwd:{cwd!r}
+hostname={hostname}
 heartbeat_fn={heartbeat_fn!r}
 exit_fn={exit_fn!r}
 sleep_s={sleep_s!r}""".format(
