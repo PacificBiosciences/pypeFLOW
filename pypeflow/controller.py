@@ -523,14 +523,16 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             return rtn
         except:
             self.shutdown_event.set()
-            logger.exception("Any exception caught in RefreshTargets() indicates an unrecoverable error. Shutting down...")
-            print
-            print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-            print "! Please wait for all threads / processes to terminate !"
-            print "! Also, maybe use 'ps' or 'qstat' to check all threads,!"
-            print "! processes and/or jobs are terminated cleanly.        !"
-            print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-            sys.stdout.flush()
+            logger.critical("Any exception caught in RefreshTargets() indicates an unrecoverable error. Shutting down...")
+            shutdown_msg = """
+            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            "! Please wait for all threads / processes to terminate !"
+            "! Also, maybe use 'ps' or 'qstat' to check all threads,!"
+            "! processes and/or jobs are terminated cleanly.        !"
+            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+            """
+            import warnings
+            warnings.warn(shutdown_msg)
             th = self.thread_handler
             threads = list(task2thread.values())
             logger.warning("#tasks=%d, #alive=%d" %(len(threads), th.alive(threads)))
@@ -592,7 +594,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             loopN += 1
             if not ((loopN - 1) & loopN):
                 # exponential back-off for logging
-                logger.info("tick: %d, #updatedTasks: %d" %(loopN, len(updatedTaskURLs)))
+                logger.info("tick: %d, #updatedTasks: %d, sleep_time=%f" %(loopN, len(updatedTaskURLs), sleep_time))
 
             for URL, taskObj, tStatus in sortedTaskList:
                 if self.jobStatusMap[URL] != TaskInitialized:
@@ -652,8 +654,10 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             logger.debug( "#jobsReadyToBeSubmitted: %d" % len(jobsReadyToBeSubmitted) )
 
             numAliveThreads = self.thread_handler.alive(task2thread.values())
-            #better job status detection, messageQueue should be empty and all return condition should be "done", or "fail"
+            logger.debug( "Total # of running threads: %d; alive tasks: %d; sleep=%f, loopN=%d" % (
+                threading.activeCount(), numAliveThreads, sleep_time, loopN) )
             if numAliveThreads == 0 and len(jobsReadyToBeSubmitted) == 0 and self.messageQueue.empty(): 
+                #TODO: better job status detection. messageQueue should be empty and all return condition should be "done", or "fail"
                 logger.info( "_refreshTargets() finished with no thread running and no new job to submit" )
                 for URL in task2thread:
                     assert self.jobStatusMap[str(URL)] in ("done", "fail"), "status(%s)==%r" %(
@@ -679,8 +683,6 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                 else:
                     break
 
-            logger.debug( "Total # of running threads: %d; alive tasks: %d; sleep=%f" % (
-                threading.activeCount(), self.thread_handler.alive(task2thread.values()), sleep_time) )
             time.sleep(sleep_time)
             if updateFreq != None:
                 elapsedSeconds = updateFreq if lastUpdate==None else (datetime.datetime.now()-lastUpdate).seconds
