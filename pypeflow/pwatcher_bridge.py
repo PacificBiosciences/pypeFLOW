@@ -81,7 +81,7 @@ class Fred(object):
                 self.__target.check_missing()
                 # TODO: If missing, just leave the status as TaskInitialized?
             else:
-                log.error('Task {!r} failed with exit-code={}'.format(code))
+                log.error('Task {!r} failed with exit-code={}'.format(self, code))
                 self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
         self.__target.finish()
     def __repr__(self):
