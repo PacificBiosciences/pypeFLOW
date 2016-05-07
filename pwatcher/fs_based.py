@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 HEARTBEAT_RATE_S = 1 # seconds
 ALLOWED_SKEW_S = 30.0 # including the 20s lustre delay
 STATE_FN = 'state.py'
-Job = collections.namedtuple('Job', ['jobid', 'rundir', 'cmd'])
+Job = collections.namedtuple('Job', ['jobid', 'rundir', 'cmd', 'options'])
 MetaJob = collections.namedtuple('MetaJob', ['job', 'lang_exe'])
 lang_python_exe = sys.executable
 lang_bash_exe = '/bin/bash'
@@ -232,6 +232,8 @@ class MetaJobLocal(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
+        sge_option = self.mjob.job.options['sge_option']
+        assert sge_option is None, sge_option
         pid = background(script_fn, exe=self.mjob.lang_exe)
     def kill(self, state, heartbeat):
         """Can raise.
@@ -260,9 +262,10 @@ class MetaJobSge(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
-        sge_option = '-pe smp 8 -q default'
-        specific = '-V -j y' # pass enV; combine out/err
+        specific = self.specific
+        #cwd = os.getcwd()
         job_name = self.get_jobname()
+        sge_option = self.mjob.job.options['sge_option']
         sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
@@ -275,7 +278,7 @@ class MetaJobSge(object):
         job_name = self.get_jobname()
         sge_cmd = 'qdel {}'.format(
                 job_name)
-        system(sge_cmd, checked=True)
+        system(sge_cmd, checked=False)
     def get_jobname(self):
         """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
         TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
@@ -284,38 +287,116 @@ class MetaJobSge(object):
     def __repr__(self):
         return 'MetaJobSge(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        self.mjob = mjob # PUBLIC
+        self.mjob = mjob
+        self.specific = '-V' # pass enV; '-j y' => combine out/err
+class MetaJobTorque(MetaJobSge):
+    def __repr__(self):
+        return 'MetaJobTorque(%s)' %repr(self.mjob)
+    def __init__(self, mjob):
+        super(MetaJobTorque, self).__init__(mjob)
+        self.specific = '-V' # pass enV; '-j oe' => combine out/err
+class MetaJobSlurm(object):
+    def submit(self, state, exe, script_fn):
+        """Can raise.
+        """
+        specific = self.specific
+        job_name = self.get_jobname()
+        sge_option = self.mjob.job.options['sge_option']
+        cwd = os.getcwd()
+        sge_cmd = 'sbatch -J {job_name} {sge_option} {specific} -D {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
+                **locals())
+        system(sge_cmd, checked=True) # TODO: Capture q-jobid
+    def kill(self, state, heartbeat):
+        """Can raise.
+        """
+        hdir = state.get_directory_heartbeats()
+        heartbeat_fn = os.path.join(hdir, heartbeat)
+        jobid = self.mjob.job.jobid
+        job_name = self.get_jobname()
+        sge_cmd = 'scancel -n {}'.format(
+                job_name)
+        system(sge_cmd, checked=False)
+    def get_jobname(self):
+        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
+        """
+        return self.mjob.job.jobid[:15]
+    def __repr__(self):
+        return 'MetaJobSlurm(%s)' %repr(self.mjob)
+    def __init__(self, mjob, sge_option):
+        self.mjob = mjob
+        self.specific = '-V' # pass enV; '-j y' => combine out/err
+class MetaJobLsf(object):
+    def submit(self, state, exe, script_fn):
+        """Can raise.
+        """
+        specific = self.specific
+        job_name = self.get_jobname()
+        sge_option = self.mjob.job.options['sge_option']
+        #cwd = os.getcwd() # Always uses CWD.
+        sge_cmd = 'bsub -J {job_name} {sge_option} {specific} -o stdout -e stderr "{exe} {script_fn}"'.format(
+                **locals())
+        system(sge_cmd, checked=True) # TODO: Capture q-jobid
+    def kill(self, state, heartbeat):
+        """Can raise.
+        """
+        hdir = state.get_directory_heartbeats()
+        heartbeat_fn = os.path.join(hdir, heartbeat)
+        jobid = self.mjob.job.jobid
+        job_name = self.get_jobname()
+        sge_cmd = 'bkill -J {}'.format(
+                job_name)
+        system(sge_cmd, checked=False)
+    def get_jobname(self):
+        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
+        """
+        return self.mjob.job.jobid[:15]
+    def __repr__(self):
+        return 'MetaJobLsf(%s)' %repr(self.mjob)
+    def __init__(self, mjob):
+        self.mjob = mjob
+        self.specific = '-V' # pass enV; '-j y' => combine out/err
 
 def cmd_run(state, jobids, job_type):
     """On stdin, each line is a unique job-id, followed by run-dir, followed by command+args.
     Wrap them and run them locally, in the background.
     """
+    job_type = job_type.upper()
     jobs = dict()
     submitted = list()
     result = {'submitted': submitted}
-    for jobid,desc in jobids.iteritems():
+    for jobid, desc in jobids.iteritems():
         rundir = desc['rundir']
         cmd = desc['cmd']
-        jobs[jobid] = Job(jobid, rundir, cmd)
+        sge_option = desc.get('sge_option', None) if job_type != 'LOCAL' else None
+        options = {'sge_option': sge_option}
+        jobs[jobid] = Job(jobid, rundir, cmd, options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     for jobid, job in jobs.iteritems():
         log.info('starting job %s' %pprint.pformat(job))
         mjob = Job_get_MetaJob(job)
         MetaJob_wrap(mjob, state)
-        job_type = job_type.upper()
         if job_type == 'LOCAL':
             bjob = MetaJobLocal(mjob)
         elif job_type == 'SGE':
             bjob = MetaJobSge(mjob)
+        elif job_type == 'TORQUE':
+            bjob = MetaJobTorque(mjob)
+        elif job_type == 'SLURM':
+            bjob = MetaJobSlurm(mjob)
+        elif job_type == 'LSF':
+            bjob = MetaJobLsf(mjob)
         else:
             raise Exception('Unknown job_type=%s' %repr(job_type))
         try:
             state.submit_background(bjob)
             submitted.append(jobid)
         except Exception:
-            log.exception('In submit_background(), failed to submit background-job:\n{!r}'.format(
+            log.exception('In pwatcher.fs_based.cmd_run(), failed to submit background-job:\n{!r}'.format(
                 bjob))
     return result
+    # The caller is responsible for deciding what to do about job-submission failures. Re-try, maybe?
 
 re_heartbeat = re.compile(r'heartbeat-(.+)')
 def get_jobid_for_heartbeat(heartbeat):

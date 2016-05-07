@@ -63,15 +63,19 @@ class Fred(object):
     def setTargetStatus(self, status):
         self.__target.setStatus(status)
     def endrun(self, status):
-        """By convention for now, status is either
+        """By convention for now, status is one of:
             'DEAD'
-        or
+            'UNSUBMITTED' (a pseudo-status defined in the ready-loop of alive())
             'EXIT rc'
         """
         name = status.split()[0]
         if name == 'DEAD':
             log.warning(''.join(traceback.format_stack()))
-            log.error('Task {!r} is DEAD, meaning no HEARTBEAT, but this can be a race-condition. If it was not killed, then restarting might suffice. Otherwise, you might have excessive clock-skew.'.format(self))
+            log.error('Task {!r}\n is DEAD, meaning no HEARTBEAT, but this can be a race-condition. If it was not killed, then restarting might suffice. Otherwise, you might have excessive clock-skew.'.format(self))
+            self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
+        elif name == 'UNSUBMITTED':
+            log.warning(''.join(traceback.format_stack()))
+            log.error('Task {!r}\n is UNSUBMITTED, meaning job-submission somehow failed. Possibly a re-start would work. Otherwise, you need to investigate.'.format(self))
             self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
         elif name != 'EXIT':
             raise Exception('Unexpected status {!r}'.format(name))
@@ -144,19 +148,26 @@ class MyPypeFakeThreadsHandler(object):
             # call to pwatcher with 'if ready'.
             log.info('ready dict:\n%s' %pprint.pformat(ready))
             jobids = dict()
+            #sge_option='-pe smp 8 -q default'
             for jobid, fred in ready.iteritems():
                 cmd = '/bin/bash {}'.format(fred.task().generated_script_fn)
                 jobids[jobid] = {
                     'cmd': cmd,
                     'rundir': '.',
+                    'sge_option': fred.task().parameters.get('sge_option', None),
                 }
             watcher_args = {
                     'jobids': jobids,
                     'job_type': self.__job_type,
             }
             with fs_based.process_watcher(self.__state_directory) as watcher:
-                watcher.run(**watcher_args)
-            self.__running.update(set(jobids.keys()))
+                result = watcher.run(**watcher_args)
+                #log.debug('Result of watcher.run()={}'.format(repr(result)))
+                submitted = result['submitted']
+                self.__running.update(submitted)
+                for jobid in set(jobids.keys()) - set(submitted):
+                    fred = ready[jobid]
+                    fred.endrun('UNSUBMITTED')
 
         watcher_args = {
             'jobids': list(self.__running),
@@ -304,10 +315,10 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
                     self.URL, repr(self._status),
                     pprint.pformat(missing),
                 ))
-                import commands
-                cmd = 'pstree -pg -u cdunn'
-                output = commands.getoutput(cmd)
-                log.debug('`%s`:\n%s' %(cmd, output))
+                #import commands
+                #cmd = 'pstree -pg -u cdunn'
+                #output = commands.getoutput(cmd)
+                #log.debug('`%s`:\n%s' %(cmd, output))
                 dirs = set(os.path.dirname(o.localFileName) for o in self.outputDataObjs.itervalues())
                 for d in dirs:
                     log.debug('listdir(%s): %s' %(d, repr(os.listdir(d))))
