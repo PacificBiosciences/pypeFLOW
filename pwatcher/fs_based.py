@@ -266,6 +266,10 @@ class MetaJobSge(object):
         #cwd = os.getcwd()
         job_name = self.get_jobname()
         sge_option = self.mjob.job.options['sge_option']
+        # Add shebang, in case shell_start_mode=unix_behavior.
+        #   https://github.com/PacificBiosciences/FALCON/pull/348
+        with open(script_fn, 'r') as original: data = original.read()
+        with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
         sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
