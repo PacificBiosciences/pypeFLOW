@@ -150,11 +150,17 @@ class MyPypeFakeThreadsHandler(object):
             jobids = dict()
             #sge_option='-pe smp 8 -q default'
             for jobid, fred in ready.iteritems():
-                cmd = '/bin/bash {}'.format(fred.task().generated_script_fn)
+                generated_script_fn = fred.task().generated_script_fn
+                cmd = '/bin/bash {}'.format(generated_script_fn)
+                rundir = os.path.abspath(os.path.dirname(generated_script_fn))
+                sge_option = fred.task().parameters.get('sge_option', None)
+                job_type = fred.task().parameters.get('job_type', None)
                 jobids[jobid] = {
                     'cmd': cmd,
-                    'rundir': '.',
-                    'sge_option': fred.task().parameters.get('sge_option', None),
+                    # These are optional:
+                    'rundir': rundir,
+                    'job_type': job_type,
+                    'sge_option': sge_option,
                 }
             watcher_args = {
                     'jobids': jobids,

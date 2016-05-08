@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 HEARTBEAT_RATE_S = 1 # seconds
 ALLOWED_SKEW_S = 30.0 # including the 20s lustre delay
 STATE_FN = 'state.py'
-Job = collections.namedtuple('Job', ['jobid', 'rundir', 'cmd', 'options'])
+Job = collections.namedtuple('Job', ['jobid', 'cmd', 'options'])
 MetaJob = collections.namedtuple('MetaJob', ['job', 'lang_exe'])
 lang_python_exe = sys.executable
 lang_bash_exe = '/bin/bash'
@@ -233,7 +233,7 @@ class MetaJobLocal(object):
         """Can raise.
         """
         sge_option = self.mjob.job.options['sge_option']
-        assert sge_option is None, sge_option
+        #assert sge_option is None, sge_option # might be set anyway
         pid = background(script_fn, exe=self.mjob.lang_exe)
     def kill(self, state, heartbeat):
         """Can raise.
@@ -358,38 +358,52 @@ class MetaJobLsf(object):
         self.mjob = mjob
         self.specific = '-V' # pass enV; '-j y' => combine out/err
 
+def link_rundir(state_rundir, user_rundir):
+    if user_rundir:
+        link_fn = os.path.join(user_rundir, 'pwatcher.dir')
+        if os.path.lexists(link_fn):
+            os.unlink(link_fn)
+        os.symlink(os.path.abspath(state_rundir), link_fn)
+
 def cmd_run(state, jobids, job_type):
     """On stdin, each line is a unique job-id, followed by run-dir, followed by command+args.
     Wrap them and run them locally, in the background.
     """
-    job_type = job_type.upper()
     jobs = dict()
     submitted = list()
     result = {'submitted': submitted}
     for jobid, desc in jobids.iteritems():
-        rundir = desc['rundir']
-        cmd = desc['cmd']
-        sge_option = desc.get('sge_option', None) if job_type != 'LOCAL' else None
-        options = {'sge_option': sge_option}
-        jobs[jobid] = Job(jobid, rundir, cmd, options)
+        assert 'cmd' in desc
+        options = {}
+        for k in ('sge_option', 'job_type'): # extras to be stored
+            if k in desc:
+                options[k] = desc[k]
+        jobs[jobid] = Job(jobid, desc['cmd'], options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     for jobid, job in jobs.iteritems():
+        desc = jobids[jobid]
         log.info('starting job %s' %pprint.pformat(job))
         mjob = Job_get_MetaJob(job)
         MetaJob_wrap(mjob, state)
-        if job_type == 'LOCAL':
+        options = job.options
+        my_job_type = desc.get('job_type')
+        if my_job_type is None:
+            my_job_type = job_type
+        my_job_type = my_job_type.upper()
+        if my_job_type == 'LOCAL':
             bjob = MetaJobLocal(mjob)
-        elif job_type == 'SGE':
+        elif my_job_type == 'SGE':
             bjob = MetaJobSge(mjob)
-        elif job_type == 'TORQUE':
+        elif my_job_type == 'TORQUE':
             bjob = MetaJobTorque(mjob)
-        elif job_type == 'SLURM':
+        elif my_job_type == 'SLURM':
             bjob = MetaJobSlurm(mjob)
-        elif job_type == 'LSF':
+        elif my_job_type == 'LSF':
             bjob = MetaJobLsf(mjob)
         else:
-            raise Exception('Unknown job_type=%s' %repr(job_type))
+            raise Exception('Unknown my_job_type=%s' %repr(my_job_type))
         try:
+            link_rundir(state.get_directory_job(jobid), desc.get('rundir'))
             state.submit_background(bjob)
             submitted.append(jobid)
         except Exception:
