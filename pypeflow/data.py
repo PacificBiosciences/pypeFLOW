@@ -110,7 +110,9 @@ class PypeLocalFile(PypeDataObjectBase):
     @property
     def timeStamp(self):
         if not os.path.exists(self.localFileName):
-            raise FileNotExistError("No such file:%s on %s" % (self.localFileName, platform.node()) )
+            logger.warning('failed: os.path.exists("%s")\n%s'%(
+                self.localFileName,repr(os.listdir(os.path.dirname(self.localFileName)))))
+            raise FileNotExistError("No such file:%r on %r" % (self.localFileName, platform.node()) )
         return os.stat(self.localFileName).st_mtime 
 
     @property

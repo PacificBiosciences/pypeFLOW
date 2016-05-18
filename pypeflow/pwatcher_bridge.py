@@ -146,7 +146,7 @@ class MyPypeFakeThreadsHandler(object):
             # Start anything in the 'ready' queue.
             # Note: It is safe to run this block always, but we save a
             # call to pwatcher with 'if ready'.
-            log.info('ready dict:\n%s' %pprint.pformat(ready))
+            log.debug('ready dict keys:\n%s' %pprint.pformat(ready.keys()))
             jobids = dict()
             #sge_option='-pe smp 8 -q default'
             for jobid, fred in ready.iteritems():
