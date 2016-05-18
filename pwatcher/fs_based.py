@@ -46,7 +46,7 @@ log = logging.getLogger(__name__)
 HEARTBEAT_RATE_S = 1 # seconds
 ALLOWED_SKEW_S = 30.0 # including the 20s lustre delay
 STATE_FN = 'state.py'
-Job = collections.namedtuple('Job', ['jobid', 'cmd', 'options'])
+Job = collections.namedtuple('Job', ['jobid', 'cmd', 'rundir', 'options'])
 MetaJob = collections.namedtuple('MetaJob', ['job', 'lang_exe'])
 lang_python_exe = sys.executable
 lang_bash_exe = '/bin/bash'
@@ -180,7 +180,7 @@ def MetaJob_wrap(mjob, state):
     wdir = state.get_directory_wrappers()
     hdir = state.get_directory_heartbeats()
     edir = state.get_directory_exits()
-    metajob_rundir = os.getcwd()
+    metajob_rundir = mjob.job.rundir
 
     bash_template = """#!%(lang_exe)s
 cmd="%(cmd)s"
@@ -382,7 +382,7 @@ def cmd_run(state, jobids, job_type):
         for k in ('sge_option', 'job_type'): # extras to be stored
             if k in desc:
                 options[k] = desc[k]
-        jobs[jobid] = Job(jobid, desc['cmd'], options)
+        jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     for jobid, job in jobs.iteritems():
         desc = jobids[jobid]
