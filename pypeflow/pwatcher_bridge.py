@@ -7,7 +7,7 @@ With PypeProcWatcherWorkflow, the refreshTargets() loop will
 be single-threaded!
 """
 from pwatcher import fs_based
-from pypeflow.task import PypeTask, PypeThreadTaskBase, PypeTaskBase
+from pypeflow.task import PypeTask, PypeThreadTaskBase, PypeTaskBase, TaskFunctionError
 import pypeflow.controller
 import pypeflow.task
 import collections
@@ -131,7 +131,7 @@ class MyPypeFakeThreadsHandler(object):
             try:
                 script_fn = taskObj.generated_script_fn # BY CONVENTION
             except AttributeError:
-                log.warning('Missing taskObj.generated_script_fn for task %s. Maybe we did not need it? Skipping and continuing.' %repr(taskObj))
+                log.warning('Missing taskObj.generated_script_fn for task. Maybe we did not need it? Skipping and continuing.')
                 fred.endrun('EXIT 0')
                 continue
             log.info('script_fn:%s' %repr(script_fn))
@@ -268,7 +268,7 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
         try:
             return self.runInThisThread(*argv, **kwargv)
         except: # and re-raise
-            log.exception('%s __call__ failed:\n%r' %(type(self).__name__, self))
+            #log.exception('%s __call__ failed:\n%r' %(type(self).__name__, self))
             self._status = pypeflow.task.TaskFail  # TODO: Do not touch internals of base class.
             self._queue.put( (self.URL, pypeflow.task.TaskFail) )
             raise
@@ -306,6 +306,9 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
 
         if self.inputDataObjs != inputDataObjs or self.parameters != parameters:
             raise TaskFunctionError("The 'inputDataObjs' and 'parameters' should not be modified in %s" % self.URL)
+            # Jason, note that this only tests whether self.parameters was rebound.
+            # If it is altered, then so is parameters, so the check would pass.
+            # TODO(CD): What is the importance of this test? Should it be fixed or deleted?
 
         return True # to indicate that it run, since we no longer rely on runFlag
 

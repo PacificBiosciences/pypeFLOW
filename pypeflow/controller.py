@@ -31,6 +31,7 @@ import datetime
 import multiprocessing
 import threading 
 import time 
+import traceback
 import logging
 import Queue
 from cStringIO import StringIO 
@@ -522,6 +523,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
             rtn = self._refreshTargets(task2thread, objs = objs, callback = callback, updateFreq = updateFreq, exitOnFailure = exitOnFailure)
             return rtn
         except:
+            tb = traceback.format_exc()
             self.shutdown_event.set()
             logger.critical("Any exception caught in RefreshTargets() indicates an unrecoverable error. Shutting down...")
             shutdown_msg = """
@@ -541,10 +543,9 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     th.join(threads, 2)
                     logger.warning("Now, #tasks=%d, #alive=%d" %(len(threads), th.alive(threads)))
             except (KeyboardInterrupt, SystemExit) as e:
-                logger.debug("SIGINT, trying to terminate any working processes.")
+                logger.debug("Interrupted while joining threads (while handling exception from RefreshTargets()). Trying to terminate any working processes before final exit.")
                 th.notifyTerminate(threads)
-                raise
-            raise
+            raise Exception('Caused by:\n' + tb)
 
 
     def _refreshTargets(self, task2thread, objs,
