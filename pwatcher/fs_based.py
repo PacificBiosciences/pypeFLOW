@@ -301,6 +301,7 @@ class MetaJobSge(object):
         self.mjob = mjob
         self.specific = '-V' # pass enV; '-j y' => combine out/err
 class MetaJobTorque(MetaJobSge):
+    # http://docs.adaptivecomputing.com/torque/4-0-2/help.htm#topics/commands/qsub.htm
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
@@ -308,11 +309,12 @@ class MetaJobTorque(MetaJobSge):
         #cwd = os.getcwd()
         job_name = self.get_jobname()
         sge_option = self.mjob.job.options['sge_option']
+        cwd = os.getcwd()
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -d {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
