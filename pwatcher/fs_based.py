@@ -270,7 +270,7 @@ class MetaJobSge(object):
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -292,7 +292,7 @@ class MetaJobSge(object):
         return 'MetaJobSge(%s)' %repr(self.mjob)
     def __init__(self, mjob):
         self.mjob = mjob
-        self.specific = '-V' # pass enV; '-j y' => combine out/err
+        self.specific = '-V -cwd -o stdout -e stderr' # pass enV; '-j y' => combine out/err
 class MetaJobTorque(MetaJobSge):
     def __repr__(self):
         return 'MetaJobTorque(%s)' %repr(self.mjob)
