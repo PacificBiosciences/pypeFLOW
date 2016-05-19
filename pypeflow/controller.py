@@ -703,7 +703,7 @@ class _PypeConcurrentWorkflow(PypeWorkflow):
                     successfullTask = self._pypeObjects[str(URL)]
                     nSubmittedJob -= 1
                     usedTaskSlots -= successfullTask.nSlots
-                    logger.debug("Success (%r). Joining %r..." %(message, URL))
+                    logger.info("Success (%r). Joining %r..." %(message, URL))
                     task2thread[URL].join(timeout=10)
                     #del task2thread[URL]
                     succeededJobCount += 1
