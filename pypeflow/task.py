@@ -495,6 +495,11 @@ def PypeTask(*argv, **kwargv):
     ...     return f
     >>> test.finalize = finalize(test)  # For testing only. Please don't do this in your code. The PypeTask.finalized() is intended to be overriden by subclasses. 
     >>> wf.refreshTargets( objs = [fout] )
+    /tmp/pypetest/testfile_in
+    /tmp/pypetest/testfile_out
+    /tmp/pypetest/testfile_in
+    /tmp/pypetest/testfile_out
+    in finalize: done
     True
     >>> #The following code show how to set up a task with a PypeThreadWorkflow that allows running multitple tasks in parallel. 
     >>> from pypeflow.controller import PypeThreadWorkflow
