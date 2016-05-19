@@ -436,7 +436,7 @@ def _auto_task_url(taskFun):
     # Note: in doctest, the filename would be weird.
     return "task://" + inspect.getfile(taskFun) + "/"+ _unique_name(taskFun.func_name)
 
-def PypeTask(*argv, **kwargv):
+def PypeTask(**kwargv):
 
     """
     A decorator that converts a function into a PypeTaskBase object.
@@ -566,13 +566,13 @@ def PypeTask(*argv, **kwargv):
 
         newKwargv["inputDataObjs"] = newInputs
         newKwargv["outputDataObjs"] = newOutputs
-        task = TaskType(*argv, **newKwargv)
+        task = TaskType(**newKwargv)
         task.__doc__ = taskFun.__doc__
         return task
 
     return f
 
-def PypeShellTask(*argv, **kwargv):
+def PypeShellTask(**kwargv):
 
     """
     A function that converts a shell script into a PypeTaskBase object.
@@ -623,12 +623,12 @@ def PypeShellTask(*argv, **kwargv):
             runShellCmd(shlex.split(shellCmd))
 
         kwargv["script"] = scriptToRun
-        return PypeTask(*argv, **kwargv)(taskFun)
+        return PypeTask(**kwargv)(taskFun)
 
     return f
 
 
-def PypeSGETask(*argv, **kwargv):
+def PypeSGETask(**kwargv):
 
     """
     Similar to PypeShellTask, but the shell script job will be executed through SGE.
@@ -644,11 +644,11 @@ def PypeSGETask(*argv, **kwargv):
 
         kwargv["script"] = scriptToRun
 
-        return PypeTask(*argv, **kwargv)(taskFun)
+        return PypeTask(**kwargv)(taskFun)
 
     return f
 
-def PypeDistributibleTask(*argv, **kwargv):
+def PypeDistributibleTask(**kwargv):
 
     """
     Similar to PypeShellTask and PypeSGETask, with an additional argument "distributed" to decide
@@ -668,12 +668,12 @@ def PypeDistributibleTask(*argv, **kwargv):
             runShellCmd(shlex.split(shellCmd))
 
         kwargv["script"] = scriptToRun
-        return PypeTask(*argv, **kwargv)(taskFun) 
+        return PypeTask(**kwargv)(taskFun)
 
     return f
 
 
-def PypeScatteredTasks(*argv, **kwargv):
+def PypeScatteredTasks(**kwargv):
 
     def f(taskFun):
 
@@ -747,13 +747,13 @@ def PypeScatteredTasks(*argv, **kwargv):
             newKwargv["chunk_id"] = i
 
             
-            tasks.addTask( TaskType(*argv, **newKwargv) )
+            tasks.addTask( TaskType(**newKwargv) )
         return tasks
     return f
 
 getPypeScatteredTasks = PypeScatteredTasks
 
-def PypeFOFNMapTasks(*argv, **kwargv):
+def PypeFOFNMapTasks(**kwargv):
     """
     A special decorator that takes a FOFN (file of file names) as the main
     input and generate the tasks with the inputs are the files specified in
@@ -764,7 +764,7 @@ def PypeFOFNMapTasks(*argv, **kwargv):
         def outTemplate(fn):
             return fn + ".out"
 
-        def task(self, *argv, **kwargv):
+        def task(self, **kwargv):
             in_f = self.in_f
             out_f = self.out_f
             #do something with in_f, and write something to out_f
@@ -818,11 +818,11 @@ def PypeFOFNMapTasks(*argv, **kwargv):
 
                 newKwargv["_paramMD5digest"] = hashlib.md5(repr(kwargv)).hexdigest()
 
-                tasks.addTask( TaskType(*argv, **newKwargv) )
+                tasks.addTask( TaskType(**newKwargv) )
 
             allFOFNOutDataObjs = dict( [ ("FOFNout%03d" % t[0], t[1].in_f) for t in enumerate(tasks) ] )
 
-            def pseudoScatterTask(*argv, **kwargv):
+            def pseudoScatterTask(**kwargv):
                 pass
 
             newKwargv = dict( inputDataObjs = {"FOFNin": makePypeLocalFile(FOFNFileName)}, 
