@@ -293,7 +293,12 @@ class PypeTaskBase(PypeObject):
         r['outputDataObjs'] = self.outputDataObjs
         r['mutableDataObjs'] = self.mutableDataObjs
         r['parameters'] = self.parameters
+        r['URL'] = getattr(self, 'URL', 'No URL?')
         r['__class__.__name__'] = self.__class__.__name__
+        return pprint.pformat(r)
+    def brief(self):
+        r = dict()
+        r['URL'] = self.URL
         return pprint.pformat(r)
 
     def finalize(self): 

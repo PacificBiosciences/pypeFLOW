@@ -71,11 +71,11 @@ class Fred(object):
         name = status.split()[0]
         if name == 'DEAD':
             log.warning(''.join(traceback.format_stack()))
-            log.error('Task {!r}\n is DEAD, meaning no HEARTBEAT, but this can be a race-condition. If it was not killed, then restarting might suffice. Otherwise, you might have excessive clock-skew.'.format(self))
+            log.error('Task {}\n is DEAD, meaning no HEARTBEAT, but this can be a race-condition. If it was not killed, then restarting might suffice. Otherwise, you might have excessive clock-skew.'.format(self.brief()))
             self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
         elif name == 'UNSUBMITTED':
             log.warning(''.join(traceback.format_stack()))
-            log.error('Task {!r}\n is UNSUBMITTED, meaning job-submission somehow failed. Possibly a re-start would work. Otherwise, you need to investigate.'.format(self))
+            log.error('Task {}\n is UNSUBMITTED, meaning job-submission somehow failed. Possibly a re-start would work. Otherwise, you need to investigate.'.format(self.brief()))
             self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
         elif name != 'EXIT':
             raise Exception('Unexpected status {!r}'.format(name))
@@ -85,9 +85,11 @@ class Fred(object):
                 self.__target.check_missing()
                 # TODO: If missing, just leave the status as TaskInitialized?
             else:
-                log.error('Task {!r} failed with exit-code={}'.format(self, code))
+                log.error('Task {} failed with exit-code={}'.format(self.brief(), code))
                 self.setTargetStatus(pypeflow.task.TaskFail) # for lack of anything better
         self.__target.finish()
+    def brief(self):
+        return 'Fred{}'.format(self.__target.brief())
     def __repr__(self):
         return 'FRED with taskObj={!r}'.format(self.__target)
     def __init__(self, target, th):
