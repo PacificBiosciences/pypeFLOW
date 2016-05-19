@@ -197,7 +197,9 @@ $cmd
     rate = HEARTBEAT_RATE_S
     command = mjob.job.cmd
 
-    heartbeat_wrapper_template = "heartbeat-wrapper --directory={metajob_rundir} --heartbeat-file={heartbeat_fn} --exit-file={exit_sentinel_fn} --rate={rate} {command}"
+    prog = 'heartbeat-wrapper' # missing in mobs
+    prog = 'python -m pwatcher.mains.fs_heartbeat'
+    heartbeat_wrapper_template = "{prog} --directory={metajob_rundir} --heartbeat-file={heartbeat_fn} --exit-file={exit_sentinel_fn} --rate={rate} {command}"
     wrapped = heartbeat_wrapper_template.format(**locals())
     log.debug('Wrapped "%s"' %wrapped)
 
