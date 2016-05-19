@@ -183,9 +183,10 @@ def MetaJob_wrap(mjob, state):
     metajob_rundir = mjob.job.rundir
 
     bash_template = """#!%(lang_exe)s
-cmd="%(cmd)s"
-$cmd
+%(cmd)s
     """
+    # We do not bother with 'set -e' here because this script is run either
+    # in the background or via qsub.
     templates = {
         lang_python_exe: python_template,
         lang_bash_exe: bash_template,
@@ -199,7 +200,8 @@ $cmd
 
     prog = 'heartbeat-wrapper' # missing in mobs
     prog = 'python -m pwatcher.mains.fs_heartbeat'
-    heartbeat_wrapper_template = "{prog} --directory={metajob_rundir} --heartbeat-file={heartbeat_fn} --exit-file={exit_sentinel_fn} --rate={rate} {command}"
+    heartbeat_wrapper_template = "{prog} --directory={metajob_rundir} --heartbeat-file={heartbeat_fn} --exit-file={exit_sentinel_fn} --rate={rate} {command} || echo 99 >| {exit_sentinel_fn}"
+    # We write 99 into exit-sentinel if the wrapper fails.
     wrapped = heartbeat_wrapper_template.format(**locals())
     log.debug('Wrapped "%s"' %wrapped)
 
