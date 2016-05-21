@@ -183,6 +183,9 @@ def MetaJob_wrap(mjob, state):
     metajob_rundir = mjob.job.rundir
 
     bash_template = """#!%(lang_exe)s
+printenv
+echo
+set -x
 %(cmd)s
     """
     # We do not bother with 'set -e' here because this script is run either
