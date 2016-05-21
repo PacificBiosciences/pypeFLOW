@@ -9,6 +9,7 @@ setup(
     packages = [
         'pypeflow',
         'pwatcher', # a separate package for here for convenience, for now
+        'pwatcher.mains',
     ],
     package_dir = {'':'.'},
     zip_safe = False,
