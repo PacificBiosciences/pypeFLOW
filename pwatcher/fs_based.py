@@ -230,9 +230,9 @@ def background(script, exe='/bin/bash'):
     proc = subprocess.Popen([exe, script], stdin=sin, stdout=sout, stderr=serr)
     pid = proc.pid
     log.debug('pid=%s pgid=%s sub-pid=%s' %(os.getpid(), os.getpgid(0), proc.pid))
-    checkcall = 'ls -l /proc/{}/cwd'.format(
-            proc.pid)
-    system(checkcall, checked=True)
+    #checkcall = 'ls -l /proc/{}/cwd'.format(
+    #        proc.pid)
+    #system(checkcall, checked=True)
     return pid
 
 class MetaJobLocal(object):
