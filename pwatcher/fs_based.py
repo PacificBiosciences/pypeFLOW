@@ -365,7 +365,7 @@ class MetaJobSlurm(object):
         return self.mjob.job.jobid[:15]
     def __repr__(self):
         return 'MetaJobSlurm(%s)' %repr(self.mjob)
-    def __init__(self, mjob, sge_option):
+    def __init__(self, mjob):
         self.mjob = mjob
         self.specific = '-V' # pass enV; '-j y' => combine out/err
 class MetaJobLsf(object):
