@@ -341,13 +341,14 @@ class MetaJobSlurm(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
-        specific = self.specific
         job_name = self.get_jobname()
         sge_option = self.mjob.job.options['sge_option']
         cwd = os.getcwd()
-        sge_cmd = 'sbatch -J {job_name} {sge_option} {specific} -D {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'sbatch -J {job_name} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
                 **locals())
-        system(sge_cmd, checked=True) # TODO: Capture q-jobid
+        # "By default all environment variables are propagated."
+        #  http://slurm.schedmd.com/sbatch.html
+        system(sge_cmd, checked=True) # TODO: Capture sbatch-jobid
     def kill(self, state, heartbeat):
         """Can raise.
         """
@@ -367,7 +368,6 @@ class MetaJobSlurm(object):
         return 'MetaJobSlurm(%s)' %repr(self.mjob)
     def __init__(self, mjob):
         self.mjob = mjob
-        self.specific = '-V' # pass enV; '-j y' => combine out/err
 class MetaJobLsf(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
