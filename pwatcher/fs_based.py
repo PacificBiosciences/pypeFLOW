@@ -398,7 +398,7 @@ class MetaJobLsf(object):
         return 'MetaJobLsf(%s)' %repr(self.mjob)
     def __init__(self, mjob):
         self.mjob = mjob
-        self.specific = '-V' # pass enV; '-j y' => combine out/err
+        self.specific = '' # pass enV; '-j y' => combine out/err
 
 def link_rundir(state_rundir, user_rundir):
     if user_rundir:
