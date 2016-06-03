@@ -372,12 +372,11 @@ class MetaJobLsf(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
-        specific = self.specific
         job_name = self.get_jobname()
         sge_option = self.mjob.job.options['sge_option']
-        #cwd = os.getcwd() # Always uses CWD.
-        sge_cmd = 'bsub -J {job_name} {sge_option} {specific} -o stdout -e stderr "{exe} {script_fn}"'.format(
+        sge_cmd = 'bsub -J {job_name} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
                 **locals())
+        # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
         """Can raise.
@@ -398,7 +397,6 @@ class MetaJobLsf(object):
         return 'MetaJobLsf(%s)' %repr(self.mjob)
     def __init__(self, mjob):
         self.mjob = mjob
-        self.specific = '-V' # pass enV; '-j y' => combine out/err
 
 def link_rundir(state_rundir, user_rundir):
     if user_rundir:
