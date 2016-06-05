@@ -43,8 +43,8 @@ import traceback
 
 log = logging.getLogger(__name__)
 
-HEARTBEAT_RATE_S = 1 # seconds
-ALLOWED_SKEW_S = 30.0 # including the 20s lustre delay
+HEARTBEAT_RATE_S = 10.0
+ALLOWED_SKEW_S = 120.0
 STATE_FN = 'state.py'
 Job = collections.namedtuple('Job', ['jobid', 'cmd', 'rundir', 'options'])
 MetaJob = collections.namedtuple('MetaJob', ['job', 'lang_exe'])
