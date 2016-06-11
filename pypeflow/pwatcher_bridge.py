@@ -194,7 +194,12 @@ class MyPypeFakeThreadsHandler(object):
             if status.startswith('EXIT') or status.startswith('DEAD'):
                 self.__running.remove(jobid)
                 fred = self.__known[jobid]
-                fred.endrun(status)
+                try:
+                    fred.endrun(status)
+                except Exception as e:
+                    msg = 'Failed to clean-up FakeThread: jobid={} status={}'.format(jobid, repr(status))
+                    log.exception(msg)
+                    raise
         #log.info('len(jobq)==%d' %len(self.__jobq))
         #log.info(''.join(traceback.format_stack()))
         return sum(thread.is_alive() for thread in threads)
