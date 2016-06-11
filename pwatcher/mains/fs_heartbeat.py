@@ -133,9 +133,11 @@ sleep_s={sleep_s!r}""".format(
     #if os.path.exists(heartbeat_fn):
     #    os.remove(heartbeat_fn)
 
-    with open(exit_fn, 'w') as ofs:
+    exit_tmp_fn = exit_fn + '.tmp'
+    with open(exit_tmp_fn, 'w') as ofs:
         ofs.write(EXIT_TEMPLATE.format(
             exit_code=rc))
+    os.rename(exit_tmp_fn, exit_fn) # atomic
     # sys.exit(rc) # No-one would see this anyway.
 
 def main():
