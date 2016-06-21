@@ -200,7 +200,6 @@ class MyPypeFakeThreadsHandler(object):
             _prev_q = q
             _prev_q = None
         for jobid, status in q['jobids'].iteritems():
-            #log.debug('j={}, s={}'.format(jobid, status))
             if status.startswith('EXIT') or status.startswith('DEAD'):
                 self.__running.remove(jobid)
                 fred = self.__known[jobid]
