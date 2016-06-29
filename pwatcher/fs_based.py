@@ -202,7 +202,7 @@ set -x
     command = mjob.job.cmd
 
     prog = 'heartbeat-wrapper' # missing in mobs
-    prog = 'python -m pwatcher.mains.fs_heartbeat'
+    prog = 'python2.7 -m pwatcher.mains.fs_heartbeat'
     heartbeat_wrapper_template = "{prog} --directory={metajob_rundir} --heartbeat-file={heartbeat_fn} --exit-file={exit_sentinel_fn} --rate={rate} {command} || echo 99 >| {exit_sentinel_fn}"
     # We write 99 into exit-sentinel if the wrapper fails.
     wrapped = heartbeat_wrapper_template.format(**locals())
