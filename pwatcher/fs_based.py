@@ -467,6 +467,14 @@ def system(call, checked=False):
     rc = os.system(call)
     if checked and rc:
         raise Exception('{} <- {!r}'.format(rc, call))
+
+_warned = dict()
+def warnonce(hashkey, msg):
+    if hashkey in _warned:
+        return
+    log.warning(msg)
+    _warned[hashkey] = True
+
 def get_status(state, elistdir, reference_s, sentinel, heartbeat):
     heartbeat_path = os.path.join(state.get_directory_heartbeats(), heartbeat)
     # We take listdir so we can avoid extra system calls.
@@ -485,8 +493,10 @@ def get_status(state, elistdir, reference_s, sentinel, heartbeat):
         mtime_s = os.path.getmtime(heartbeat_path)
         if (mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
             if (ALLOWED_SKEW_S + mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
-                log.debug('DEAD job? {} + 3*{} + {} < {} for {!r}'.format(
-                    mtime_s, HEARTBEAT_RATE_S, ALLOWED_SKEW_S, reference_s, heartbeat_path))
+                msg = 'DEAD job? {} + 3*{} + {} < {} for {!r}'.format(
+                    mtime_s, HEARTBEAT_RATE_S, ALLOWED_SKEW_S, reference_s, heartbeat_path)
+                log.debug(msg)
+                warnonce(heartbeat_path, msg)
                 return 'DEAD'
             else:
                 log.debug('{} + 3*{} < {} for {!r}. You might have a large clock-skew, or filesystem delays, or just filesystem time-rounding.'.format(
