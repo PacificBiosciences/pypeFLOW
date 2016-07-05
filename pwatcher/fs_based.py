@@ -300,7 +300,50 @@ class MetaJobSge(object):
     def __init__(self, mjob):
         self.mjob = mjob
         self.specific = '-V' # pass enV; '-j y' => combine out/err
-class MetaJobTorque(MetaJobSge):
+class MetaJobPbs(object):
+    """
+usage: qsub [-a date_time] [-A account_string] [-c interval]
+        [-C directive_prefix] [-e path] [-h ] [-I [-X]] [-j oe|eo] [-J X-Y[:Z]]
+        [-k o|e|oe] [-l resource_list] [-m mail_options] [-M user_list]
+        [-N jobname] [-o path] [-p priority] [-q queue] [-r y|n]
+        [-S path] [-u user_list] [-W otherattributes=value...]
+        [-v variable_list] [-V ] [-z] [script | -- command [arg1 ...]]
+    """
+    def submit(self, state, exe, script_fn):
+        """Can raise.
+        """
+        specific = self.specific
+        #cwd = os.getcwd()
+        job_name = self.get_jobname()
+        sge_option = self.mjob.job.options['sge_option']
+        # Add shebang, in case shell_start_mode=unix_behavior.
+        #   https://github.com/PacificBiosciences/FALCON/pull/348
+        with open(script_fn, 'r') as original: data = original.read()
+        with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -o stdout -e stderr -S {exe} {script_fn}'.format(
+                **locals())
+        system(sge_cmd, checked=True) # TODO: Capture q-jobid
+    def kill(self, state, heartbeat):
+        """Can raise.
+        """
+        hdir = state.get_directory_heartbeats()
+        heartbeat_fn = os.path.join(hdir, heartbeat)
+        jobid = self.mjob.job.jobid
+        job_name = self.get_jobname()
+        sge_cmd = 'qdel {}'.format(
+                job_name)
+        system(sge_cmd, checked=False)
+    def get_jobname(self):
+        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
+        """
+        return self.mjob.job.jobid[:15]
+    def __repr__(self):
+        return 'MetaJobPbs(%s)' %repr(self.mjob)
+    def __init__(self, mjob):
+        self.mjob = mjob
+        self.specific = '-V' # pass enV; '-j y' => combine out/err
+class MetaJobTorque(object):
     # http://docs.adaptivecomputing.com/torque/4-0-2/help.htm#topics/commands/qsub.htm
     def submit(self, state, exe, script_fn):
         """Can raise.
@@ -437,6 +480,8 @@ def cmd_run(state, jobids, job_type):
             bjob = MetaJobLocal(mjob)
         elif my_job_type == 'SGE':
             bjob = MetaJobSge(mjob)
+        elif my_job_type == 'PBS':
+            bjob = MetaJobPbs(mjob)
         elif my_job_type == 'TORQUE':
             bjob = MetaJobTorque(mjob)
         elif my_job_type == 'SLURM':
