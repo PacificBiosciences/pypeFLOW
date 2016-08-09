@@ -448,7 +448,7 @@ def link_rundir(state_rundir, user_rundir):
             os.unlink(link_fn)
         os.symlink(os.path.abspath(state_rundir), link_fn)
 
-def cmd_run(state, jobids, job_type):
+def cmd_run(state, jobids, job_type, job_queue):
     """On stdin, each line is a unique job-id, followed by run-dir, followed by command+args.
     Wrap them and run them locally, in the background.
     """
@@ -458,7 +458,7 @@ def cmd_run(state, jobids, job_type):
     for jobid, desc in jobids.iteritems():
         assert 'cmd' in desc
         options = {}
-        for k in ('sge_option', 'job_type'): # extras to be stored
+        for k in ('sge_option', 'job_type', 'job_queue'): # extras to be stored
             if k in desc:
                 options[k] = desc[k]
         if options.get('sge_option', None) is None:
@@ -676,11 +676,11 @@ def readjson(ifs):
     return jsonval
 
 class ProcessWatcher(object):
-    def run(self, jobids, job_type):
+    def run(self, jobids, job_type, job_queue):
         #import traceback; log.debug(''.join(traceback.format_stack()))
-        log.debug('run(jobids={}, job_type={})'.format(
-            '<%s>'%len(jobids), job_type))
-        return cmd_run(self.state, jobids, job_type)
+        log.debug('run(jobids={}, job_type={}, job_queue={})'.format(
+            '<%s>'%len(jobids), job_type, job_queue))
+        return cmd_run(self.state, jobids, job_type, job_queue)
     def query(self, which='list', jobids=[]):
         log.debug('query(which={!r}, jobids={})'.format(
             which, '<%s>'%len(jobids)))
