@@ -16,7 +16,7 @@ setup(
     install_requires=[
         'rdflib == 3.4.0',
         'rdfextras >= 0.1',
-        'html5lib == 0.9999999',
+        'html5lib == 0.999999',
     ],
     entry_points = {'console_scripts': [
             'pwatcher-main=pwatcher.mains.pwatcher:main',
