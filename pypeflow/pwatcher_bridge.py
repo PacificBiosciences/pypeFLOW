@@ -336,14 +336,14 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
         return True # to indicate that it run, since we no longer rely on runFlag
 
     def check_missing(self):
-        timeout_s = 10
+        timeout_s = 30
         sleep_s = .1
         self.syncDirectories([o.localFileName for o in self.outputDataObjs.values()]) # Sometimes helps in NFS.
         lastUpdate = datetime.datetime.now()
         while timeout_s > (datetime.datetime.now()-lastUpdate).seconds:
             missing = [(k,o) for (k,o) in self.outputDataObjs.iteritems() if not o.exists]
             if missing:
-                log.debug("%s fails to generate all outputs; %s; missing:\n%s" %(
+                log.debug("%s failed to generate all outputs; %s; missing:\n%s" %(
                     self.URL, repr(self._status),
                     pprint.pformat(missing),
                 ))
