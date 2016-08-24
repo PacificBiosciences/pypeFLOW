@@ -35,6 +35,7 @@ import hashlib
 import logging
 import copy
 import sys
+import time
 
 PYTHONVERSION = sys.version_info[:2]
 if PYTHONVERSION == (2,5):
@@ -851,6 +852,16 @@ def timeStampCompare( inputDataObjs, outputDataObjs, parameters) :
 
     inputDataObjsTS = []
     for ft, f in inputDataObjs.iteritems():
+        if not f.exists:
+            wait_s = 60
+            logger.warning('input does not exist yet (in this filesystem): %r - waiting up to %ds' %(f, wait_s))
+            for i in range(wait_s):
+                time.sleep(1)
+                if f.exists:
+                    logger.warning('now exists: %r (after only %ds)' %(f, i))
+                    break
+            # At this point, if it still does not exist, the entire workflow will fail.
+            # What else can we do? The user's filesystem has too much latency.
         inputDataObjsTS.append((f.timeStamp, 'A', f))
 
     outputDataObjsTS = []
