@@ -115,10 +115,10 @@ sleep_s={sleep_s!r}""".format(
         log(' Unable to set pgid. Possibly a grid job? Hopefully there will be no dangling processes when killed: {}'.format(
             repr(e)))
 
-    thread = start_heartbeat(heartbeat_fn, sleep_s)
+    #thread = start_heartbeat(heartbeat_fn, sleep_s)
 
-    log('alive? {} pid={} pgid={}'.format(
-        bool(thread.is_alive()), os.getpid(), os.getpgid(0)))
+    #log('alive? {} pid={} pgid={}'.format(
+    #    bool(thread.is_alive()), os.getpid(), os.getpgid(0)))
 
     call = ' '.join(args.command)
     log('In cwd: {}, Blocking call: {!r}'.format(

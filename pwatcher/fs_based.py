@@ -533,25 +533,25 @@ def get_status(state, elistdir, reference_s, sentinel, heartbeat):
         with open(sentinel_path) as ifs:
             rc = ifs.read().strip()
         return 'EXIT {}'.format(rc)
-    # TODO: Record last stat times, to avoid extra stat if too frequent.
-    try:
-        mtime_s = os.path.getmtime(heartbeat_path)
-        if (mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
-            if (ALLOWED_SKEW_S + mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
-                msg = 'DEAD job? {} + 3*{} + {} < {} for {!r}'.format(
-                    mtime_s, HEARTBEAT_RATE_S, ALLOWED_SKEW_S, reference_s, heartbeat_path)
-                log.debug(msg)
-                warnonce(heartbeat_path, msg)
-                return 'DEAD'
-            else:
-                log.debug('{} + 3*{} < {} for {!r}. You might have a large clock-skew, or filesystem delays, or just filesystem time-rounding.'.format(
-                    mtime_s, HEARTBEAT_RATE_S, reference_s, heartbeat_path))
-    except Exception as exc:
-        # Probably, somebody deleted it after our call to os.listdir().
-        # TODO: Decide what this really means.
-        log.debug('Heartbeat not (yet?) found at %r: %r' %(heartbeat_path, exc))
-        return 'UNKNOWN'
-    return 'RUNNING'
+    ## TODO: Record last stat times, to avoid extra stat if too frequent.
+    #try:
+    #    mtime_s = os.path.getmtime(heartbeat_path)
+    #    if (mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
+    #        if (ALLOWED_SKEW_S + mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
+    #            msg = 'DEAD job? {} + 3*{} + {} < {} for {!r}'.format(
+    #                mtime_s, HEARTBEAT_RATE_S, ALLOWED_SKEW_S, reference_s, heartbeat_path)
+    #            log.debug(msg)
+    #            warnonce(heartbeat_path, msg)
+    #            return 'DEAD'
+    #        else:
+    #            log.debug('{} + 3*{} < {} for {!r}. You might have a large clock-skew, or filesystem delays, or just filesystem time-rounding.'.format(
+    #                mtime_s, HEARTBEAT_RATE_S, reference_s, heartbeat_path))
+    #except Exception as exc:
+    #    # Probably, somebody deleted it after our call to os.listdir().
+    #    # TODO: Decide what this really means.
+    #    log.debug('Heartbeat not (yet?) found at %r: %r' %(heartbeat_path, exc))
+    #    return 'UNKNOWN'
+    return 'RUNNING' # but actually it might not have started yet, or it could be dead, since we are not checking the heartbeat
 def cmd_query(state, which, jobids):
     """Return the state of named jobids.
     See find_jobids().
