@@ -287,7 +287,7 @@ class MetaJobSge(object):
         heartbeat_fn = os.path.join(hdir, heartbeat)
         jobid = self.mjob.job.jobid
         job_name = self.get_jobname()
-        sge_cmd = 'qdel {}'.format(
+        sge_cmd = 'qdel -k {}'.format(
                 job_name)
         system(sge_cmd, checked=False)
     def get_jobname(self):
