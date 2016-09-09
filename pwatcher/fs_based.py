@@ -235,24 +235,11 @@ def background(script, exe='/bin/bash'):
     #system(checkcall, checked=True)
     return pid
 
-def qstripped(option):
-    """Given a string of options, remove any -q foo.
-
-    >>> qstripped('-xy -q foo -z bar')
-    '-xy -z bar'
-    """
-    # For now, do not strip -qfoo
-    vals = option.strip().split()
-    while '-q' in vals:
-        i = vals.index('-q')
-        vals = vals[0:i] + vals[i+2:]
-    return ' '.join(vals)
-
 class MetaJobLocal(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
-        #sge_option = self.mjob.job.options['sge_option']
+        sge_option = self.mjob.job.options['sge_option']
         #assert sge_option is None, sge_option # might be set anyway
         pid = background(script_fn, exe=self.mjob.lang_exe)
     def kill(self, state, heartbeat):
@@ -285,13 +272,12 @@ class MetaJobSge(object):
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        sge_option = self.mjob.job.options['sge_option']
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -329,13 +315,12 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        sge_option = self.mjob.job.options['sge_option']
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -366,14 +351,13 @@ class MetaJobTorque(object):
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        sge_option = self.mjob.job.options['sge_option']
         cwd = os.getcwd()
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -d {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -d {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -394,17 +378,16 @@ class MetaJobTorque(object):
     def __repr__(self):
         return 'MetaJobTorque(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        self.mjob = mjob
+        super(MetaJobTorque, self).__init__(mjob)
         self.specific = '-V' # pass enV; '-j oe' => combine out/err
 class MetaJobSlurm(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        sge_option = self.mjob.job.options['sge_option']
         cwd = os.getcwd()
-        sge_cmd = 'sbatch -J {job_name} -q {job_queue} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
+        sge_cmd = 'sbatch -J {job_name} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
                 **locals())
         # "By default all environment variables are propagated."
         #  http://slurm.schedmd.com/sbatch.html
@@ -433,9 +416,8 @@ class MetaJobLsf(object):
         """Can raise.
         """
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
-        sge_cmd = 'bsub -J {job_name} -q {job_queue} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
+        sge_option = self.mjob.job.options['sge_option']
+        sge_cmd = 'bsub -J {job_name} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
                 **locals())
         # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
@@ -476,19 +458,12 @@ def cmd_run(state, jobids, job_type, job_queue):
     for jobid, desc in jobids.iteritems():
         assert 'cmd' in desc
         options = {}
-        if 'job_queue' not in desc:
-            raise Exception(pprint.pformat(desc))
         for k in ('sge_option', 'job_type', 'job_queue'): # extras to be stored
             if k in desc:
-                if desc[k]:
-                    options[k] = desc[k]
+                options[k] = desc[k]
         if options.get('sge_option', None) is None:
             # This way we can always safely include it.
-            options['sge_option'] = ''
-        if not options.get('job_queue'):
-            options['job_queue'] = job_queue
-        if not options.get('job_type'):
-            options['job_type'] = job_type
+            options = {'sge_option': ''}
         jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     for jobid, job in jobs.iteritems():
@@ -716,13 +691,6 @@ class ProcessWatcher(object):
         return cmd_delete(self.state, which, jobids)
     def __init__(self, state):
         self.state = state
-
-def get_process_watcher(directory):
-    state = get_state(directory)
-    #log.debug('state =\n%s' %pprint.pformat(state.top))
-    return ProcessWatcher(state)
-    #State_save(state)
-
 @contextlib.contextmanager
 def process_watcher(directory):
     """This will (someday) hold a lock, so that

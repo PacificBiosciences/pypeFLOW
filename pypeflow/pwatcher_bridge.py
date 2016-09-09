@@ -6,9 +6,8 @@ of pypeFLOW.
 With PypeProcWatcherWorkflow, the refreshTargets() loop will
 be single-threaded!
 """
+from pwatcher import fs_based, network_based
 from pypeflow.task import PypeTask, PypeThreadTaskBase, PypeTaskBase, TaskFunctionError
-import pwatcher.blocking
-import pwatcher.fs_based
 import pypeflow.controller
 import pypeflow.task
 import collections
@@ -26,22 +25,13 @@ import traceback
 
 log = logging.getLogger(__name__)
 
-def PypeProcWatcherWorkflow(
-        URL = None,
-        job_type='local',
-        job_queue='UNSPECIFIED_QUEUE',
-        **attributes):
+def PypeProcWatcherWorkflow(URL = None, job_type='local', watcher_type='fs_based', watcher_directory='mypwatcher', **attributes):
     """Factory for the workflow using our new
     filesystem process watcher.
     """
-    if job_type == 'string':
-        pwatcher_impl = pwatcher.blocking
-    else:
-        pwatcher_impl = pwatcher.fs_based
-    watcher = pwatcher_impl.get_process_watcher('mypwatcher')
-    th = MyPypeFakeThreadsHandler(watcher, job_type, job_queue)
+    th = MyPypeFakeThreadsHandler(watcher_directory, job_type, watcher_type)
     mq = MyMessageQueue()
-    se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)
+    se = MyFakeShutdownEvent()
     return pypeflow.controller._PypeConcurrentWorkflow(URL=URL, thread_handler=th, messageQueue=mq, shutdown_event=se,
             attributes=attributes)
 
@@ -167,47 +157,55 @@ class MyPypeFakeThreadsHandler(object):
                 cmd = '/bin/bash {}'.format(basename)
                 sge_option = fred.task().parameters.get('sge_option', None)
                 job_type = fred.task().parameters.get('job_type', None)
-                job_queue = fred.task().parameters.get('job_queue', None)
-                job_nprocs = fred.task().parameters.get('job_nprocs', None)
                 jobids[jobid] = {
                     'cmd': cmd,
                     'rundir': rundir,
                     # These are optional:
                     'job_type': job_type,
-                    'job_queue': job_queue,
-                    'job_nprocs': job_nprocs,
                     'sge_option': sge_option,
                 }
-            # Also send the default type and queue-name.
             watcher_args = {
                     'jobids': jobids,
                     'job_type': self.__job_type,
-                    'job_queue': self.__job_queue,
             }
-            result = self.watcher.run(**watcher_args)
-            log.debug('Result of watcher.run()={}'.format(repr(result)))
-            submitted = result['submitted']
-            self.__running.update(submitted)
-            #log.info("QQQ ADDED: {}".format(jobid))
-            for jobid in set(jobids.keys()) - set(submitted):
-                fred = ready[jobid]
-                fred.endrun('UNSUBMITTED')
-
+            if self.__watcher_type == 'network_based':
+                with network_based.process_watcher(self.__state_directory) as watcher:
+                    result = watcher.run(**watcher_args)
+                    #log.debug('Result of watcher.run()={}'.format(repr(result)))
+                    submitted = result['submitted']
+                    self.__running.update(submitted)
+                    for jobid in set(jobids.keys()) - set(submitted):
+                        fred = ready[jobid]
+                        fred.endrun('UNSUBMITTED')
+            elif self.__watcher_type == 'fs_based':
+                with fs_based.process_watcher(self.__state_directory) as watcher:
+                    result = watcher.run(**watcher_args)
+                    #log.debug('Result of watcher.run()={}'.format(repr(result)))
+                    submitted = result['submitted']
+                    self.__running.update(submitted)
+                    for jobid in set(jobids.keys()) - set(submitted):
+                        fred = ready[jobid]
+                        fred.endrun('UNSUBMITTED')
         watcher_args = {
             'jobids': list(self.__running),
             'which': 'list',
         }
-        q = self.watcher.query(**watcher_args)
+        if self.__watcher_type == 'network_based':
+            with network_based.process_watcher(self.__state_directory) as watcher:
+                q = watcher.query(**watcher_args)
+        elif self.__watcher_type == 'fs_based':
+            with fs_based.process_watcher(self.__state_directory) as watcher:
+                q = watcher.query(**watcher_args)
         #log.debug('In alive(), result of query:%s' %repr(q))
         global _prev_q
         if q != _prev_q:
-            #log.debug('In alive(), updated result of query:%s' %repr(q))
+            log.debug('In alive(), updated result of query:%s' %repr(q))
             _prev_q = q
             _prev_q = None
         for jobid, status in q['jobids'].iteritems():
+            #log.debug('j={}, s={}'.format(jobid, status))
             if status.startswith('EXIT') or status.startswith('DEAD'):
                 self.__running.remove(jobid)
-                #log.info("QQQ REMOVED: {}".format(jobid))
                 fred = self.__known[jobid]
                 try:
                     fred.endrun(status)
@@ -241,22 +239,22 @@ class MyPypeFakeThreadsHandler(object):
             'jobids': list(self.__running),
             'which': 'known',
         }
-        q = self.watcher.delete(**watcher_args)
+        if self.__watcher_type == 'network_based':
+            with network_based.process_watcher(self.__state_directory) as watcher:
+                q = watcher.delete(**watcher_args)
+        elif self.__watcher_type == 'fs_based':
+            with fs_based.process_watcher(self.__state_directory) as watcher:
+                q = watcher.delete(**watcher_args)
         log.debug('In notifyTerminate(), result of delete:%s' %repr(q))
 
 
     # And our special methods.
     def enqueue(self, fred):
         self.__jobq.append(fred)
-    def __init__(self, watcher, job_type, job_queue=None):
-        """
-        job_type and job_queue are defaults, possibly over-ridden for specific jobs.
-        Note: job_queue is a string, not a collection. If None, then it would need to
-        come via per-job settings.
-        """
-        self.watcher = watcher
+    def __init__(self, state_directory, job_type, watcher_type):
+        self.__state_directory = state_directory
         self.__job_type = job_type
-        self.__job_queue = job_queue
+        self.__watcher_type = watcher_type
         self.__jobq = collections.deque()
         self.__running = set()
         self.__known = dict()
@@ -340,14 +338,14 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
         return True # to indicate that it run, since we no longer rely on runFlag
 
     def check_missing(self):
-        timeout_s = 30
+        timeout_s = 10
         sleep_s = .1
         self.syncDirectories([o.localFileName for o in self.outputDataObjs.values()]) # Sometimes helps in NFS.
         lastUpdate = datetime.datetime.now()
         while timeout_s > (datetime.datetime.now()-lastUpdate).seconds:
             missing = [(k,o) for (k,o) in self.outputDataObjs.iteritems() if not o.exists]
             if missing:
-                log.debug("%s failed to generate all outputs; %s; missing:\n%s" %(
+                log.debug("%s fails to generate all outputs; %s; missing:\n%s" %(
                     self.URL, repr(self._status),
                     pprint.pformat(missing),
                 ))
