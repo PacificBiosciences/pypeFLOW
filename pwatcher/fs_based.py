@@ -378,7 +378,7 @@ class MetaJobTorque(object):
     def __repr__(self):
         return 'MetaJobTorque(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        super(MetaJobTorque, self).__init__(mjob)
+        self.mjob = mjob
         self.specific = '-V' # pass enV; '-j oe' => combine out/err
 class MetaJobSlurm(object):
     def submit(self, state, exe, script_fn):
