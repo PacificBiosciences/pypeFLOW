@@ -480,14 +480,15 @@ def cmd_run(state, jobids, job_type, job_queue):
             raise Exception(pprint.pformat(desc))
         for k in ('sge_option', 'job_type', 'job_queue'): # extras to be stored
             if k in desc:
-                options[k] = desc[k]
+                if desc[k]:
+                    options[k] = desc[k]
         if options.get('sge_option', None) is None:
             # This way we can always safely include it.
             options['sge_option'] = ''
         if not options.get('job_queue'):
             options['job_queue'] = job_queue
-            if not job_queue:
-                raise Exception(pprint.pformat(desc))
+        if not options.get('job_type'):
+            options['job_type'] = job_type
         jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     for jobid, job in jobs.iteritems():
