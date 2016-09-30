@@ -10,7 +10,7 @@ import pprint
 import random
 import time
 
-LOG = logging.getLogger()
+LOG = logging.getLogger(__name__)
 
 # These globals exist only to support the old PypeTask API,
 # which relies on inputs/outputs instead of direct Node dependencies.
@@ -59,6 +59,7 @@ class PwatcherTaskQueue(object):
             #node.satisfy() # This would do the job without a process-watcher.
             jobid = node.jobid
             self.__known[jobid] = node
+            mkdirs(node.wdir)
             generated_script_fn = node.execute()
             if not generated_script_fn:
                 raise Exception('Missing generated_script_fn for Node {}'.format(node))
@@ -168,6 +169,11 @@ def find_all_roots(g):
 class Workflow(object):
     def addTask(self, pypetask):
         node = create_node(pypetask)
+        sentinel_done_fn = node.sentinel_done_fn()
+        if sentinel_done_fn in self.sentinels:
+            msg = 'Found sentinel {!r} twice: {!r} and {!r}\nNote: Each task needs its own sentinel (and preferably its own run-dir).'.format(sentinel_done_fn, node, self.sentinels[sentinel_done_fn])
+            raise Exception(msg)
+        self.sentinels[sentinel_done_fn] = node
         self.graph.add_node(node)
         for need in node.needs:
             print "Need:", need, node
@@ -182,10 +188,10 @@ class Workflow(object):
             self.tq.terminate()
             raise
     def _refreshTargets(self, updateFreq, exitOnFailure, max_concurrency):
-        """Return the number of failures, unless exitOnFailure.
+        """Raise Exception (eventually) on any failure.
         - updateFreq (seconds) is really a max; we climb toward it gradually, and we reset when things change.
         - max_concurrency is the number of simultaneous qsubs.
-        - exitOnFailure=False would allow us to keep running when parallel jobs fail.
+        - exitOnFailure=False would allow us to keep running (for a while) when parallel jobs fail.
         """
         assert networkx.algorithms.dag.is_directed_acyclic_graph(self.graph)
         failures = 0
@@ -208,16 +214,19 @@ class Workflow(object):
             LOG.debug('N in queue: {}'.format(len(queued)))
             recently_done = set(self.tq.check_done())
             if not recently_done:
+                if not queued:
+                    LOG.warning('Nothing is happening, and we had {} failures. Quitting.'.format(failures))
+                    break
                 time.sleep(sleep_time)
                 sleep_time = sleep_time + 0.1 if (sleep_time < updateFreq) else updateFreq
                 continue
             else:
                 sleep_time = init_sleep_time
             queued -= recently_done
-            #print "recently_done:", [(rd, rd.satisfied()) for rd in recently_done]
+            LOG.debug('recently_done: {!r}'.format([(rd, rd.satisfied()) for rd in recently_done]))
             recently_satisfied = set(n for n in recently_done if n.satisfied())
             recently_done -= recently_satisfied
-            #print "Now N recently_done:", len(recently_done)
+            LOG.debug('Now N recently_done: {}'.format(len(recently_done)))
             LOG.debug('recently_satisfied: {!r}'.format(recently_satisfied))
             for node in recently_satisfied:
                 ready.update(find_next_ready(unsatg, node))
@@ -230,10 +239,14 @@ class Workflow(object):
                     raise Exception(msg)
         assert not queued
         assert not ready
-        return failures
+        if failures:
+            raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
+                failures, len(unsatg)))
+
     def __init__(self, job_type, job_queue):
         self.graph = networkx.DiGraph()
         self.tq = PwatcherTaskQueue(state_directory='mypwatcher', job_type=job_type, job_queue=job_queue) # TODO: Inject this.
+        self.sentinels = dict() # sentinel_done_fn -> Node
 
 class NodeBase(object):
     """Graph node.
@@ -253,6 +266,7 @@ class NodeBase(object):
         But if we finished a distributed job with exit-code 0, we do not need
         to wait for the sentinel; we know we had success.
         """
+        LOG.warning('satisfied({!r}) for sentinel {!r}'.format(self, self.sentinel_done_fn()))
         if self.__satisfied is not None:
             return self.__satisfied
         if os.path.exists(self.sentinel_done_fn()):
@@ -261,12 +275,17 @@ class NodeBase(object):
     def satisfy(self):
         if self.__satisfied:
             return
+        # Technically, we might need to cd into wdir first.
         script_fn = self.execute()
         if script_fn:
             run(script_fn)
         self.__satisfied = True
     def execute(self):
-        actual_script_fn = self.generate_script()
+        try:
+            actual_script_fn = self.generate_script()
+        except Exception:
+            LOG.exception('Failed generate_script() for {!r}'.format(self))
+            raise
         sentinel_done_fn = self.sentinel_done_fn()
         wdir = self.workdir()
         rel_actual_script_fn = os.path.relpath(actual_script_fn, wdir)
@@ -309,13 +328,12 @@ class PypeNode(NodeBase):
         pt = self.pypetask
         func = pt.func
         func(pt) # Run the function! Probably just generate a script.
-        print dir(pt)
         generated_script_fn = getattr(pt, 'generated_script_fn', None) # by convention
         try:
             # Maybe we should require a script always.
             generated_script_fn = pt.generated_script_fn
         except Exception:
-            print pt.name, pt.URL
+            LOG.exception('name={!r} URL={!r}'.format(pt.name, pt.URL))
             raise
         return generated_script_fn
     def __init__(self, name, wdir, pypetask, needs): #, script_fn):
@@ -358,18 +376,23 @@ class PypeTask(object):
         if name:
             self.name = name
         else:
-            dirnames = list(os.path.dirname(os.path.normpath(o)) for o in self.outputs.values())
+            dirnames = set(os.path.dirname(os.path.normpath(o)) for o in self.outputs.values())
             if len(dirnames) == 1:
                 d = dirnames.pop()
                 self.name = os.path.basename(d)
                 if not self.wdir:
                     self.wdir = os.path.abspath(d)
             else:
+                LOG.debug('dirnames={!r}'.format(dirnames))
                 self.name = os.path.basename(self.URL)
+        if not self.wdir:
+            self.wdir = self.parameters.get('wdir')
+        if not self.URL:
+            self.URL = 'task://localhost/{}'.format(self.name)
         for key, bn in inputs.iteritems():
-            setattr(self, key, bn)
+            setattr(self, key, os.path.abspath(bn))
         for key, bn in outputs.iteritems():
-            setattr(self, key, bn)
+            setattr(self, key, os.path.abspath(bn))
 
 MyFakePypeThreadTaskBase = None  # just a symbol, not really used
 # A PypeLocalFile is just a string now.
@@ -388,5 +411,6 @@ def PypeProcWatcherWorkflow(
     #se = MyFakeShutdownEvent()
     #return pypeflow.controller._PypeConcurrentWorkflow(URL=URL, thread_handler=th, messageQueue=mq, shutdown_event=se,
     #        attributes=attributes)
+PypeProcWatcherWorkflow.setNumThreadAllowed = lambda x, y: None
 
 __all__ = ['PypeProcWatcherWorkflow', 'fn', 'makePypeLocalFile', 'MyFakePypeThreadTaskBase', 'PypeTask']
