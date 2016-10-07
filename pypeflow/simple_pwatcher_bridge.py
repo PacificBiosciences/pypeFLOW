@@ -397,7 +397,11 @@ class PypeTask(object):
 MyFakePypeThreadTaskBase = None  # just a symbol, not really used
 # A PypeLocalFile is just a string now.
 def makePypeLocalFile(p): return p
-def fn(p): return p
+def fn(p):
+    """This must be run in the top run-dir.
+    All task funcs are executed there.
+    """
+    return os.path.abspath(p)
 # Here is the main factory.
 def PypeProcWatcherWorkflow(
         job_type='local',
