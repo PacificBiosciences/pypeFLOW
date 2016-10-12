@@ -171,7 +171,7 @@ class Workflow(object):
         node = create_node(pypetask)
         sentinel_done_fn = node.sentinel_done_fn()
         if sentinel_done_fn in self.sentinels:
-            msg = 'Found sentinel {!r} twice: {!r} and {!r}\nNote: Each task needs its own sentinel (and preferably its own run-dir).'.format(sentinel_done_fn, node, self.sentinels[sentinel_done_fn])
+            msg = 'FOUND sentinel {!r} twice: {!r} ({!r}) and {!r}\nNote: Each task needs its own sentinel (and preferably its own run-dir).'.format(sentinel_done_fn, node, pypetask, self.sentinels[sentinel_done_fn])
             raise Exception(msg)
         self.sentinels[sentinel_done_fn] = node
         self.graph.add_node(node)
@@ -364,10 +364,13 @@ class PypeTask(object):
     def __call__(self, func):
         self.func = func
         return self
-    def __init__(self, inputs, outputs, parameters, TaskType, URL=None, wdir=None, name=None):
+    def __repr__(self):
+        return 'PypeTask({!r})'.format(self.outputs)
+    def __init__(self, inputs, outputs, TaskType, parameters=None, URL=None, wdir=None, name=None):
         """Kind of a mess. inputs/outputs become actual attributes.
         Someday, we will change how Tasks are specified.
         """
+        if parameters is None: parameters = {}
         self.inputs = dict(inputs)
         self.outputs = dict(outputs)
         self.parameters = dict(parameters)
