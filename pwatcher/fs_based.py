@@ -716,6 +716,13 @@ class ProcessWatcher(object):
         return cmd_delete(self.state, which, jobids)
     def __init__(self, state):
         self.state = state
+
+def get_process_watcher(directory):
+    state = get_state(directory)
+    #log.debug('state =\n%s' %pprint.pformat(state.top))
+    return ProcessWatcher(state)
+    #State_save(state)
+
 @contextlib.contextmanager
 def process_watcher(directory):
     """This will (someday) hold a lock, so that
