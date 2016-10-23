@@ -201,20 +201,28 @@ eval "$cmd"
 
 class JobThread(threading.Thread):
     """
-    TODO: Maybe use Popen() so we can propagate signals better.
-    (But at least Ctrl-C seems to be working.)
+    TODO: Using Popen(), propagate signals better.
     """
     def run(self):
+        """Propagate environment, plus env_extra.
+        """
         self.notify_start(self.jobname)
         print 'hello! started Thread {}'.format(threading.current_thread())
-        rc = system(self.cmd)
+        myenv = dict(os.environ)
+        myenv.update(self.env_extra)
+        print "myenv:\n{}".format(pprint.pformat(myenv))
+        p = subprocess.Popen(self.cmd, env=myenv, shell=True)
+        print "pid: {}".format(p.pid)
+        p.wait()
+        rc = p.returncode
         self.notify_exit(self.jobname, rc)
-    def __init__(self, jobname, cmd, notify_start, notify_exit):
+    def __init__(self, jobname, cmd, notify_start, notify_exit, env_extra):
         super(JobThread, self).__init__()
         self.jobname = jobname
         self.cmd = cmd
         self.notify_start = notify_start
         self.notify_exit = notify_exit
+        self.env_extra = env_extra
 
 class StringJobSubmitter(object):
     def submit(self, jobid, mjob, state):
@@ -236,14 +244,15 @@ class StringJobSubmitter(object):
         # We wrap in a program that waits for the executable to exist, so
         # the filesystem has time to catch up on the remote machine.
         # Hopefully, this will allow dependencies to become ready as well.
-        CMD = '{} -m pwatcher.mains.job_start {}'.format(sys.executable, script_fn)
+        job_start_fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mains/job_start.py')
+        CMD = job_start_fn
         mapping = dict()
         mapping['CMD'] = CMD
         mapping['JOB_ID'] = jobname
         mapping['STDOUT_FILE'] = script_fn + '.stdout'
         mapping['STDERR_FILE'] = script_fn + '.stderr'
         mapping['NPROC'] = str(nproc)
-        print repr(mapping), self.submission_string
+        print 'mapping, submission_string: {}, {}'.format(repr(mapping), self.submission_string)
         t = string.Template(self.submission_string)
         return t.substitute(mapping)
     def start(self, jobname, state, exe, script_fn):
@@ -252,9 +261,13 @@ class StringJobSubmitter(object):
         nproc = 4
         #cmd = script_fn
         cmd = self.get_cmd(jobname, script_fn, nproc)
+        env_extra = {
+            "PYPEFLOW_JOB_START_SCRIPT": script_fn,
+            "PYPEFLOW_JOB_START_TIMEOUT": "60",
+        }
         notify_start = state.notify_started
         notify_exit = state.notify_exited
-        th = JobThread(jobname, cmd, notify_start, notify_exit)
+        th = JobThread(jobname, cmd, notify_start, notify_exit, env_extra)
         #th.setDaemon(True)
         th.start()
     def __repr__(self):
