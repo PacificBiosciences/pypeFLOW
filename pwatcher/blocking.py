@@ -207,12 +207,13 @@ class JobThread(threading.Thread):
         """Propagate environment, plus env_extra.
         """
         self.notify_start(self.jobname)
-        print 'hello! started Thread {}'.format(threading.current_thread())
+        log.debug('hello! started Thread {}'.format(threading.current_thread()))
         myenv = dict(os.environ)
         myenv.update(self.env_extra)
-        print "myenv:\n{}".format(pprint.pformat(myenv))
+        log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
+        log.debug("cmd: '{}'".format(self.cmd))
         p = subprocess.Popen(self.cmd, env=myenv, shell=True)
-        print "pid: {}".format(p.pid)
+        log.debug("pid: {}".format(p.pid))
         p.wait()
         rc = p.returncode
         self.notify_exit(self.jobname, rc)
@@ -244,7 +245,7 @@ class StringJobSubmitter(object):
         # We wrap in a program that waits for the executable to exist, so
         # the filesystem has time to catch up on the remote machine.
         # Hopefully, this will allow dependencies to become ready as well.
-        job_start_fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mains/job_start.py')
+        job_start_fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mains/job_start.sh')
         CMD = job_start_fn
         mapping = dict()
         mapping['CMD'] = CMD

@@ -25,4 +25,5 @@ setup(
             'heartbeat-wrapper=pwatcher.mains.fs_heartbeat:main',
         ],
     },
+    package_data={'pwatcher.mains': ['*.sh']}
 )
