@@ -1,27 +1,39 @@
 #!/usr/bin/env python2.7
 """Network-based process-watcher.
 
-This is meant to be part of a 2-process system. For now, let's call these processes the Definer and the Watcher.
-* The Definer creates a graph of tasks and starts a resolver loop, like pypeflow. It keeps a Waiting list, a Running list, and a Done list. It then communicates with the Watcher.
+This is meant to be part of a 2-process system. For now, let's call these
+processes the Definer and the Watcher.
+* The Definer creates a graph of tasks and starts a resolver loop, like
+  pypeflow. It keeps a Waiting list, a Running list, and a Done list. It then
+  communicates with the Watcher.
 * The Watcher has 3 basic functions in its API.
   1. Spawn jobs.
   2. Kill jobs.
   3. Query jobs.
 1. Spawning jobs
-The job definition includes the script, how to run it (locally, qsub, etc.), and maybe some details (unique-id, run-directory). The Watcher then:
-  * wraps the script within something to update the heartbeat server periodically,
-  * spawns each job (possibly as a background process locally),
-  * and records info (including PID or qsub-name) in a persistent database.
+   The job definition includes the script, how to run it (locally, qsub, etc.),
+   and maybe some details (unique-id, run-directory). The Watcher then:
+     * wraps the script within something to update the heartbeat server
+       periodically,
+     * spawns each job (possibly as a background process locally),
+     * and records info (including PID or qsub-name) in a persistent database.
 2. Kill jobs.
-Since it has a persistent database, it can always kill any job, upon request.
+   Since it has a persistent database, it can always kill any job, upon request.
 3. Query jobs.
-Whenever requested, it can poll the server for all or any jobs, returning the subset of completed jobs.
+   Whenever requested, it can poll the server for all or any jobs, returning the
+   subset of completed jobs.
 
-The Definer would call the Watcher to spawn tasks, and then periodically to poll them. Because these are both now single-threaded, the Watcher *could* be a function within the Definer, or a it could be blocking call to a separate process.
+The Definer would call the Watcher to spawn tasks, and then periodically to poll
+them. Because these are both now single-threaded, the Watcher *could* be a
+function within the Definer, or a it could be blocking call to a separate
+process.
 
-Caching/timestamp-checking would be done in the Definer, flexibly specific to each Task.
+Caching/timestamp-checking would be done in the Definer, flexibly specific to
+each Task.
 
-Eventually, the Watcher could be in a different programming language. Maybe perl. (In bash, a background heartbeat gets is own process group, so it can be hard to clean up.)
+Eventually, the Watcher could be in a different programming language. Maybe
+perl. (In bash, a background heartbeat gets is own process group, so it can be
+hard to clean up.)
 """
 try:
     from shlex import quote
@@ -208,7 +220,7 @@ class ReuseAddrServer(SocketServer.TCPServer):
                     rc = f.readline().strip()
                 if rc:
                     if file in self.server_job_list:
-                        self.server_job_list[file][0] = os.getmtime(fn)
+                        self.server_job_list[file][0] = os.path.getmtime(fn)
                         self.server_job_list[file][3] = rc
                     else:
                         self.server_job_list[file] = [os.getmtime(fn), None, None, rc]
@@ -450,11 +462,24 @@ def background(script, exe='/bin/bash'):
     #system(checkcall, checked=True)
     return pid
 
+def qstripped(option):
+    """Given a string of options, remove any -q foo.
+
+    >>> qstripped('-xy -q foo -z bar')
+    '-xy -z bar'
+    """
+    # For now, do not strip -qfoo
+    vals = option.strip().split()
+    while '-q' in vals:
+        i = vals.index('-q')
+        vals = vals[0:i] + vals[i+2:]
+    return ' '.join(vals)
+
 class MetaJobLocal(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
-        sge_option = self.mjob.job.options['sge_option']
+        #sge_option = self.mjob.job.options['sge_option']
         #assert sge_option is None, sge_option # might be set anyway
         pid = background(script_fn, exe=self.mjob.lang_exe)
     def kill(self, state):
@@ -490,12 +515,13 @@ class MetaJobSge(object):
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
+        sge_option = qstripped(self.mjob.job.options['sge_option'])
+        job_queue = self.mjob.job.options['job_queue']
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o /dev/null -e /dev/null -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -530,12 +556,13 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
+        sge_option = qstripped(self.mjob.job.options['sge_option'])
+        job_queue = self.mjob.job.options['job_queue']
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -o /dev/null -e /dev/null -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -o ev/null -e /dev/null -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -563,13 +590,14 @@ class MetaJobTorque(object):
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
+        sge_option = qstripped(self.mjob.job.options['sge_option'])
+        job_queue = self.mjob.job.options['job_queue']
         cwd = os.getcwd()
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -d {cwd} -o /dev/null -e /dev/null -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -d {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -594,9 +622,10 @@ class MetaJobSlurm(object):
         """Can raise.
         """
         job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
+        sge_option = qstripped(self.mjob.job.options['sge_option'])
+        job_queue = self.mjob.job.options['job_queue']
         cwd = os.getcwd()
-        sge_cmd = 'sbatch -J {job_name} {sge_option} -D {cwd} -o /dev/null -e /dev/null --wrap="{exe} {script_fn}"'.format(
+        sge_cmd = 'sbatch -J {job_name} -q {job_queue} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
                 **locals())
         # "By default all environment variables are propagated."
         #  http://slurm.schedmd.com/sbatch.html
@@ -622,8 +651,9 @@ class MetaJobLsf(object):
         """Can raise.
         """
         job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
-        sge_cmd = 'bsub -J {job_name} {sge_option} -o /dev/null -e /dev/null "{exe} {script_fn}"'.format(
+        sge_option = qstripped(self.mjob.job.options['sge_option'])
+        job_queue = self.mjob.job.options['job_queue']
+        sge_cmd = 'bsub -J {job_name} -q {job_queue} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
                 **locals())
         # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
@@ -644,7 +674,7 @@ class MetaJobLsf(object):
     def __init__(self, mjob):
         self.mjob = mjob
 
-def cmd_run(state, jobids, job_type):
+def cmd_run(state, jobids, job_type, job_queue):
     """On stdin, each line is a unique job-id, followed by run-dir, followed by command+args.
     Wrap them and run them locally, in the background.
     """
@@ -654,12 +684,19 @@ def cmd_run(state, jobids, job_type):
     for jobid, desc in jobids.iteritems():
         assert 'cmd' in desc
         options = {}
-        for k in ('sge_option', 'job_type'): # extras to be stored
+        if 'job_queue' not in desc:
+            raise Exception(pprint.pformat(desc))
+        for k in ('sge_option', 'job_type', 'job_queue'): # extras to be stored
             if k in desc:
-                options[k] = desc[k]
+                if desc[k]:
+                    options[k] = desc[k]
         if options.get('sge_option', None) is None:
             # This way we can always safely include it.
-            options = {'sge_option': ''}
+            options['sge_option'] = ''
+        if not options.get('job_queue'):
+            options['job_queue'] = job_queue
+        if not options.get('job_type'):
+            options['job_type'] = job_type
         jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     for jobid, job in jobs.iteritems():
@@ -848,11 +885,11 @@ def readjson(ifs):
     return jsonval
 
 class ProcessWatcher(object):
-    def run(self, jobids, job_type):
+    def run(self, jobids, job_type, job_queue):
         #import traceback; log.debug(''.join(traceback.format_stack()))
-        log.debug('run(jobids={}, job_type={})'.format(
-            '<%s>'%len(jobids), job_type))
-        return cmd_run(self.state, jobids, job_type)
+        log.debug('run(jobids={}, job_type={}, job_queue={})'.format(
+            '<%s>'%len(jobids), job_type, job_queue))
+        return cmd_run(self.state, jobids, job_type, job_queue)
     def query(self, which='list', jobids=[]):
         log.debug('query(which={!r}, jobids={})'.format(
             which, '<%s>'%len(jobids)))

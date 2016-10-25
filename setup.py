@@ -17,6 +17,7 @@ setup(
         'rdflib == 3.4.0',
         'rdfextras >= 0.1',
         'html5lib == 0.999999',
+        'networkx >=1.7, <=1.10',
     ],
     entry_points = {'console_scripts': [
             'pwatcher-main=pwatcher.mains.pwatcher:main',
@@ -24,4 +25,5 @@ setup(
             'heartbeat-wrapper=pwatcher.mains.fs_heartbeat:main',
         ],
     },
+    package_data={'pwatcher.mains': ['*.sh']}
 )
