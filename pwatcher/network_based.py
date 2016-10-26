@@ -1,32 +1,45 @@
 #!/usr/bin/env python2.7
-"""Filesytem-based process-watcher.
+"""Network-based process-watcher.
 
-This is meant to be part of a 2-process system. For now, let's call these processes the Definer and the Watcher.
-* The Definer creates a graph of tasks and starts a resolver loop, like pypeflow. It keeps a Waiting list, a Running list, and a Done list. It then communicates with the Watcher.
+This is meant to be part of a 2-process system. For now, let's call these
+processes the Definer and the Watcher.
+* The Definer creates a graph of tasks and starts a resolver loop, like
+  pypeflow. It keeps a Waiting list, a Running list, and a Done list. It then
+  communicates with the Watcher.
 * The Watcher has 3 basic functions in its API.
   1. Spawn jobs.
   2. Kill jobs.
   3. Query jobs.
 1. Spawning jobs
-The job definition includes the script, how to run it (locally, qsub, etc.), and maybe some details (unique-id, run-directory). The Watcher then:
-  * wraps the script without something to update a heartbeat-file periodically,
-  * spawns each job (possibly as a background process locally),
-  * and records info (including PID or qsub-name) in a persistent database.
+   The job definition includes the script, how to run it (locally, qsub, etc.),
+   and maybe some details (unique-id, run-directory). The Watcher then:
+     * wraps the script within something to update the heartbeat server
+       periodically,
+     * spawns each job (possibly as a background process locally),
+     * and records info (including PID or qsub-name) in a persistent database.
 2. Kill jobs.
-Since it has a persistent database, it can always kill any job, upon request.
+   Since it has a persistent database, it can always kill any job, upon request.
 3. Query jobs.
-Whenever requested, it can poll the filesystem for all or any jobs, returning the subset of completed jobs. (For NFS efficiency, all the job-exit sentinel files can be in the same directory, along with the heartbeats.)
+   Whenever requested, it can poll the server for all or any jobs, returning the
+   subset of completed jobs.
 
-The Definer would call the Watcher to spawn tasks, and then periodically to poll them. Because these are both now single-threaded, the Watcher *could* be a function within the Definer, or a it could be blocking call to a separate process. With proper locking on the database, users could also query the same executable as a separate process.
+The Definer would call the Watcher to spawn tasks, and then periodically to poll
+them. Because these are both now single-threaded, the Watcher *could* be a
+function within the Definer, or a it could be blocking call to a separate
+process.
 
-Caching/timestamp-checking would be done in the Definer, flexibly specific to each Task.
+Caching/timestamp-checking would be done in the Definer, flexibly specific to
+each Task.
 
-Eventually, the Watcher could be in a different programming language. Maybe perl. (In bash, a background heartbeat gets is own process group, so it can be hard to clean up.)
+Eventually, the Watcher could be in a different programming language. Maybe
+perl. (In bash, a background heartbeat gets is own process group, so it can be
+hard to clean up.)
 """
 try:
     from shlex import quote
 except ImportError:
     from pipes import quote
+import SocketServer
 import collections
 import contextlib
 import glob
@@ -35,16 +48,18 @@ import logging
 import os
 import pprint
 import re
+import shutil
 import signal
+import socket
 import subprocess
 import sys
+import multiprocessing
 import time
 import traceback
 
 log = logging.getLogger(__name__)
 
-HEARTBEAT_RATE_S = 10.0
-ALLOWED_SKEW_S = 120.0
+HEARTBEAT_RATE_S = 600
 STATE_FN = 'state.py'
 Job = collections.namedtuple('Job', ['jobid', 'cmd', 'rundir', 'options'])
 MetaJob = collections.namedtuple('MetaJob', ['job', 'lang_exe'])
@@ -62,6 +77,173 @@ def cd(newdir):
         log.debug('CD: %r -> %r' %(newdir, prevdir))
         os.chdir(prevdir)
 
+# send message delimited with a \0
+def socket_send(socket, message):
+    socket.sendall(b'{}\0'.format(message))
+
+# receive all of \0 delimited message
+# may discard content past \0, if any, so not safe to call twice on same socket
+def socket_read(socket):
+    buffer = bytearray(b' ' * 256)
+    nbytes = socket.recv_into(buffer, 256)
+    if nbytes == 0:		# empty message
+        return
+    message = ''
+    while nbytes != 0:
+        try:	# index() raises when it can't find the character
+            i = buffer[:nbytes].index('\0')
+            message += str(buffer[:i])	# discard past delimiter
+            break
+        except ValueError:	# haven't reached end yet
+            message += str(buffer)
+        nbytes = socket.recv_into(buffer, 256)
+    return message
+
+# TODO: have state be persistent in some fashion, so we can be killed
+# and restarted
+class StatusServer(SocketServer.BaseRequestHandler):
+    """input format is "command [jobid [arg1 [arg2]]]"
+    job status update commands are:
+        i <jobid> <pid> <pgid>	- initialize job
+        d <jobid>		- delete job info
+        e <jobid> <exit_status>	- job exit
+        h <jobid>		- heartbeat
+        s <jobid> <stdout/stderr output> - record script output
+    job status query commands are:
+        A         - returns authentication key
+        D         - returns the entire server state
+        L         - returns a space-delimited list of all jobids
+        P <jobid> - returns "pid pgid" if available
+        Q <jobid> - for done/exited jobs returns "EXIT <exit_status>"
+                  - for others, returns "RUNNING <seconds_since_last_update>"
+    """
+    def handle(self):
+        message = socket_read(self.request)
+        if not message:
+            return
+        args = message.split(None, 4)
+        if not args:		# make sure we have some arguments
+            return
+        command = args[0]
+        if command == 'A':	# send authentication key
+            # need repr() as it's a byte string and may have zeroes
+            socket_send(self.request, repr(multiprocessing.Process().authkey))
+            return
+        if command == 'D':	# send server state
+            socket_send(self.request, repr(self.server.server_job_list))
+            return
+        if command == 'L':	# send list of jobids
+            socket_send(self.request, ' '.join(self.server.server_job_list.keys()))
+            return
+        if len(args) < 2:	# make sure we have a jobid argument
+            return
+        jobid = args[1]
+        if command == 'i':	# job start (with pid and pgid)
+            if len(args) < 4:	# missing pid/pgid
+                self.server.server_job_list[jobid] = [time.time(), None, None, None]
+            else:
+                self.server.server_job_list[jobid] = [time.time(), args[2], args[3], None]
+                with open(os.path.join(self.server.server_pid_dir, jobid), 'w') as f:
+                    f.write('{} {}'.format(args[2], args[3]))
+        elif command == 'h' or command == 'e' or command == 's': # updates
+            log_file = os.path.join(self.server.server_log_dir, jobid)
+            if jobid in self.server.server_job_list:
+                j = self.server.server_job_list[jobid]
+                j[0] = time.time()
+            else:	# unknown jobid, so create job
+                j = self.server.server_job_list[jobid] = [time.time(), None, None, None]
+                with open(log_file, 'w'):
+                    pass
+            os.utime(log_file, (j[0], j[0]))
+            if command == 'e':		# exit (with exit code)
+                if len(args) < 3:	# lack of error code is an error (bug)
+                    j[3] = '99'
+                else:
+                    j[3] = args[2]
+                with open(os.path.join(self.server.server_exitrc_dir, jobid), 'w') as f:
+                    f.write(str(j[3]))
+            elif command == 's':	# record log output
+                if len(args) > 2:
+                    with open(log_file, 'a') as f:
+                        f.writelines(' '.join(args[2:]))
+        elif jobid not in self.server.server_job_list:	# unknown jobid
+            return
+        elif command == 'd':		# delete job info
+            del self.server.server_job_list[jobid]
+        elif command == 'Q' or command == 'P':			# queries
+            j = self.server.server_job_list[jobid]
+            if command == 'Q':		# query job status
+                if j[3]:		# has exit status
+                    socket_send(self.request, 'EXIT {}'.format(j[3]))
+                else:			# return time since last heartbeat
+                    # convert to int to keep message shorter -
+                    # we don't need the extra precision, anyway
+                    diff = int(time.time() - j[0])
+                    if diff < 0:	# possible with a clock change
+                        diff = 0
+                    socket_send(self.request, 'RUNNING {}'.format(diff))
+            elif command == 'P':	# get job pid and pgid
+                if j[1] != None and j[2] != None:
+                    socket_send(self.request, '{} {}'.format(j[1], j[2]))
+
+# get local ip address while avoiding some common problems
+def get_localhost_ipaddress(hostname, port):
+    if hostname == '0.0.0.0':
+        # use getaddrinfo to work with ipv6
+        list = socket.getaddrinfo(socket.gethostname(), port, socket.AF_INET, socket.SOCK_STREAM)
+        for a in list:
+            # TODO: have this part work with ipv6 addresses
+            if len(a[4]) == 2 and a[4][0] != '127.0.0.1':
+                return a[4][0]
+    return hostname
+
+# if we end up restarting a partially killed process, we'll try
+# to pick up the ongoing heartbeats
+class ReuseAddrServer(SocketServer.TCPServer):
+    def restore_from_directories(self):
+        """
+        as our heartbeat server has been down, there's no accurate way
+        to set the heartbeat times, so we just use the current time, and
+        hope for an update from the process before the heartbeat timeout
+        """
+        if os.path.isdir(self.server_pid_dir):
+            for file in os.listdir(self.server_pid_dir):
+                with open(os.path.join(self.server_pid_dir, file)) as f:
+                    (pid, pgid) = f.readline().strip().split()
+                if pid and pgid:
+                    self.server_job_list[file] = [time.time(), pid, pgid, None]
+        # for finished proceses, though, we use the exit file time
+        if os.path.isdir(self.server_exitrc_dir):
+            for file in os.listdir(self.server_exitrc_dir):
+                fn = os.path.join(self.server_exitrc_dir, file)
+                with open(fn) as f:
+                    rc = f.readline().strip()
+                if rc:
+                    if file in self.server_job_list:
+                        self.server_job_list[file][0] = os.path.getmtime(fn)
+                        self.server_job_list[file][3] = rc
+                    else:
+                        self.server_job_list[file] = [os.getmtime(fn), None, None, rc]
+    def __init__(self, server_address, RequestHandlerClass, server_directories):
+        self.allow_reuse_address = True
+        self.server_log_dir, self.server_pid_dir, self.server_exitrc_dir = server_directories
+        # {jobid} = [pid, pgid, heartbeat timestamp, exit rc]
+        self.server_job_list = dict()
+        self.restore_from_directories()
+        SocketServer.TCPServer.__init__(self, server_address, RequestHandlerClass)
+
+def start_server(server_directories, hostname='', port=0):
+    server = ReuseAddrServer((hostname, port), StatusServer, server_directories)
+    hostname, port = server.socket.getsockname()
+    hostname = get_localhost_ipaddress(hostname, port)
+    # we call it a thread, but use a process to avoid the gil
+    hb_thread = multiprocessing.Process(target=server.serve_forever)
+    # set daemon to make sure server shuts down when main program finishes
+    hb_thread.daemon = True
+    hb_thread.start()
+    log.debug('server ({}, {}) alive?'.format(hostname, port, hb_thread.is_alive()))
+    return (hb_thread.authkey, (hostname, port))
+
 class MetaJobClass(object):
     ext = {
         lang_python_exe: '.py',
@@ -69,10 +251,6 @@ class MetaJobClass(object):
     }
     def get_wrapper(self):
         return 'run-%s%s' %(self.mj.job.jobid, self.ext[self.mj.lang_exe])
-    def get_sentinel(self):
-        return 'exit-%s' %self.mj.job.jobid # in watched dir
-    def get_heartbeat(self):
-        return 'heartbeat-%s' %self.mj.job.jobid # in watched dir
     def get_pid(self):
         return self.mj.pid
     def kill(self, pid, sig):
@@ -86,37 +264,32 @@ class MetaJobClass(object):
         os.kill(pid, sig)
     def __init__(self, mj):
         self.mj = mj
+
 class State(object):
     def get_state_fn(self):
         return os.path.join(self.__directory, STATE_FN)
-    def get_directory(self):
-        return self.__directory
+    def get_heartbeat_server(self):
+        return self.top['server']
     def get_directory_wrappers(self):
         return os.path.join(self.__directory, 'wrappers')
-    def get_directory_heartbeats(self):
-        return os.path.join(self.__directory, 'heartbeats')
-    def get_directory_exits(self):
-        return os.path.join(self.__directory, 'exits')
-    def get_directory_jobs(self):
-        # B/c the other directories can get big, we put most per-job data here, under each jobid.
-        return os.path.join(self.__directory, 'jobs')
-    def get_directory_job(self, jobid):
-        return os.path.join(self.get_directory_jobs(), jobid)
+    def get_directory_exits(self):	# more like, emergency exits ;)
+        return 'exits'
+    def get_server_directories(self):
+        return (os.path.join(self.__directory, 'log'), os.path.join(self.__directory, 'pid'), os.path.join(self.__directory, 'exit'))
     def submit_background(self, bjob):
         """Run job in background.
         Record in state.
         """
-        self.top['jobs'][bjob.mjob.job.jobid] = bjob
         jobid = bjob.mjob.job.jobid
+        self.top['jobs'][jobid] = bjob
         mji = MetaJobClass(bjob.mjob)
         script_fn = os.path.join(self.get_directory_wrappers(), mji.get_wrapper())
         exe = bjob.mjob.lang_exe
-        run_dir = self.get_directory_job(jobid)
-        makedirs(run_dir)
-        with cd(run_dir):
+        with cd(bjob.mjob.job.rundir):
             bjob.submit(self, exe, script_fn) # Can raise
         log.info('Submitted backgroundjob=%s'%repr(bjob))
         self.top['jobids_submitted'].append(jobid)
+        self.__changed = True
     def get_mji(self, jobid):
         mjob = self.top['jobs'][jobid].mjob
         return MetaJobClass(mjob)
@@ -128,64 +301,117 @@ class State(object):
         return {jobid: bjob.mjob for jobid, bjob in self.top['jobs'].iteritems()}
     def add_deleted_jobid(self, jobid):
         self.top['jobids_deleted'].append(jobid)
-    def serialize(state):
-        return pprint.pformat(state.top)
-    @staticmethod
-    def deserialize(directory, content):
-        state = State(directory)
-        state.top = eval(content)
-        state.content_prev = content
-        return state
-    @staticmethod
-    def create(directory):
-        state = State(directory)
-        makedirs(state.get_directory_wrappers())
-        makedirs(state.get_directory_heartbeats())
-        makedirs(state.get_directory_exits())
-        #system('lfs setstripe -c 1 {}'.format(state.get_directory_heartbeats())) # no improvement noticed
-        makedirs(state.get_directory_jobs())
-        return state
-    def __init__(self, directory):
+        self.__changed = True
+    def restart_server(self):
+        hsocket = socket.socket()
+        try:		# see if our old server is still there
+            hsocket.settimeout(60)
+            hsocket.connect(self.get_heartbeat_server())
+            socket_send(hsocket, 'A')
+            line = socket_read(hsocket)
+            hsocket.close()
+            # auth is binary, so we have to eval to restore it
+            if self.top['auth'] != eval(line):	# not our server
+                raise IOError()
+        except IOError:	# need to restart server
+            try:	# first we try restarting at same location
+                old_hostname, old_port = self.get_heartbeat_server()
+                self.top['auth'], self.top['server'] = start_server(self.get_server_directories(), old_hostname, old_port)
+            except StandardError:
+                log.exception('Failed to restore previous watcher server settings')
+                try:	# next we try restarting with original arguments
+                    old_hostname, old_port = self.top['server_args']
+                    self.top['auth'], self.top['server'] = start_server(self.get_server_directories(), old_hostname, old_port)
+                except StandardError:
+                    self.top['auth'], self.top['server'] = start_server(self.get_server_directories())
+                self__.changed = True
+    # if we restarted, orphaned jobs might have left exit files
+    # update the server with exit info
+    def cleanup_exits(self):
+        if os.path.exists(self.get_directory_exits()):
+            for file in os.listdir(self.get_directory_exits()):
+                exit_fn = os.path.join(self.get_directory_exits(), file)
+                with open(exit_fn) as f:
+                    rc = f.readline().strip()
+                hsocket = socket.socket()
+                hsocket.connect(self.get_heartbeat_server())
+                socket_send(hsocket, 'e {} {}'.format(jobid, rc))
+                hsocket.close()
+                os.remove(fn)
+        else:
+            makedirs(self.get_directory_exits())
+    def restore_from_save(self, state_fn):
+        with open(state_fn) as f:
+            self.top = eval(f.read())
+        self.restart_server()
+        self.cleanup_exits()
+        self.__initialized = True
+    def initialize(self, directory, hostname='', port=0):
         self.__directory = os.path.abspath(directory)
-        self.content_prev = ''
+        state_fn = self.get_state_fn()
+        if os.path.exists(state_fn):
+            try:			# try to restore state from last save
+                if self.restore_from_save(state_fn):
+                    return
+            except StandardError:
+                log.exception('Failed to use saved state "%s". Ignoring (and soon over-writing) current state.'%state_fn)
+        makedirs(self.get_directory_wrappers())
+        makedirs(self.get_directory_exits())
+        for i in self.get_server_directories():
+            makedirs(i)
+        if directory != 'mypwatcher':	# link mypwatcher to dir
+            if os.path.exists('mypwatcher'):
+                try:
+                    if os.path.islink('mypwatcher'):
+                        os.remove('mypwatcher')
+                    else:
+                        shutil.rmtree('mypwatcher')
+                except OSError:
+                    pass
+            os.symlink(self.__directory, 'mypwatcher')
+        self.top['server_args'] = (hostname, port)
+        self.top['auth'], self.top['server'] = start_server(self.get_server_directories(), hostname, port)
+        self.__initialized = True
+        self.__changed = True
+    def is_initialized(self):
+        return self.__initialized
+    def save(self):
+        # TODO: RW Locks, maybe for runtime of whole program.
+        # only save if there has been a change
+        if self.__changed:
+            content = pprint.pformat(self.top)
+            fn = self.get_state_fn()
+            with open(fn + '.tmp', 'w') as f:
+                f.write(content)
+            # as atomic as we can portably manage
+            shutil.move(fn + '.tmp', fn)
+            self.__changed = False
+            log.debug('saved state to %s' %repr(os.path.abspath(fn)))
+    def __init__(self):
+        self.__initialized = False
+        self.__changed = False
         self.top = dict()
         self.top['jobs'] = dict()
         self.top['jobids_deleted'] = list()
         self.top['jobids_submitted'] = list()
 
-def get_state(directory):
-    state_fn = os.path.join(directory, STATE_FN)
-    if not os.path.exists(state_fn):
-        return State.create(directory)
-    try:
-        return State.deserialize(directory, open(state_fn).read())
-    except Exception:
-        log.exception('Failed to read state "%s". Ignoring (and soon over-writing) current state.'%state_fn)
-        # TODO: Backup previous STATE_FN?
-        return State(directory)
-def State_save(state):
-    # TODO: RW Locks, maybe for runtime of whole program.
-    content = state.serialize()
-    content_prev = state.content_prev
-    if content == content_prev:
-        return
-    fn = state.get_state_fn()
-    open(fn, 'w').write(content)
-    log.debug('saved state to %s' %repr(os.path.abspath(fn)))
+watcher_state = State()
+
+def get_state(directory, hostname='', port=0):
+    if not watcher_state.is_initialized():
+        watcher_state.initialize(directory, hostname, port)
+    return watcher_state
 def Job_get_MetaJob(job, lang_exe=lang_bash_exe):
     return MetaJob(job, lang_exe=lang_exe)
 def MetaJob_wrap(mjob, state):
     """Write wrapper contents to mjob.wrapper.
     """
     wdir = state.get_directory_wrappers()
-    hdir = state.get_directory_heartbeats()
-    edir = state.get_directory_exits()
+    # the wrapped job may chdir(), so use abspath
+    edir = os.path.abspath(state.get_directory_exits())
     metajob_rundir = mjob.job.rundir
 
     bash_template = """#!%(lang_exe)s
-printenv
-echo
-set -x
 %(cmd)s
     """
     # We do not bother with 'set -e' here because this script is run either
@@ -196,14 +422,14 @@ set -x
     }
     mji = MetaJobClass(mjob)
     wrapper_fn = os.path.join(wdir, mji.get_wrapper())
-    exit_sentinel_fn=os.path.join(edir, mji.get_sentinel())
-    heartbeat_fn=os.path.join(hdir, mji.get_heartbeat())
+    heartbeat_server, heartbeat_port = state.get_heartbeat_server()
     rate = HEARTBEAT_RATE_S
     command = mjob.job.cmd
+    jobid = mjob.job.jobid
+    exit_sentinel_fn = os.path.join(edir, jobid)
 
-    prog = 'heartbeat-wrapper' # missing in mobs
-    prog = 'python2.7 -m pwatcher.mains.fs_heartbeat'
-    heartbeat_wrapper_template = "{prog} --directory={metajob_rundir} --heartbeat-file={heartbeat_fn} --exit-file={exit_sentinel_fn} --rate={rate} {command} || echo 99 >| {exit_sentinel_fn}"
+    prog = 'python2.7 -m pwatcher.mains.network_heartbeat'
+    heartbeat_wrapper_template = "{prog} --directory={metajob_rundir} --heartbeat-server={heartbeat_server} --heartbeat-port={heartbeat_port} --exit-dir={edir} --rate={rate} --jobid={jobid} {command} || echo 99 >| {exit_sentinel_fn}"
     # We write 99 into exit-sentinel if the wrapper fails.
     wrapped = heartbeat_wrapper_template.format(**locals())
     log.debug('Wrapped "%s"' %wrapped)
@@ -213,7 +439,8 @@ set -x
         cmd=wrapped,
     )
     log.debug('Writing wrapper "%s"' %wrapper_fn)
-    open(wrapper_fn, 'w').write(wrapped)
+    with open(wrapper_fn, 'w') as f:
+        f.write(wrapped)
 
 def background(script, exe='/bin/bash'):
     """Start script in background (so it keeps going when we exit).
@@ -223,8 +450,8 @@ def background(script, exe='/bin/bash'):
     """
     args = [exe, script]
     sin = open(os.devnull)
-    sout = open('stdout', 'w')
-    serr = open('stderr', 'w')
+    sout = open(os.devnull, 'w')
+    serr = open(os.devnull, 'w')
     pseudo_call = '{exe} {script} 1>|stdout 2>|stderr & '.format(exe=exe, script=script)
     log.debug('dir: {!r}\ncall: {!r}'.format(os.getcwd(), pseudo_call))
     proc = subprocess.Popen([exe, script], stdin=sin, stdout=sout, stderr=serr)
@@ -255,25 +482,28 @@ class MetaJobLocal(object):
         #sge_option = self.mjob.job.options['sge_option']
         #assert sge_option is None, sge_option # might be set anyway
         pid = background(script_fn, exe=self.mjob.lang_exe)
-    def kill(self, state, heartbeat):
+    def kill(self, state):
         """Can raise.
-        (Actually, we could derive heartbeat from state. But for now, we know it anyway.)
         """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        with open(heartbeat_fn) as ifs:
-            line = ifs.readline()
-            pid = line.split()[1]
-            pid = int(pid)
-            pgid = line.split()[2]
-            pgid = int(pgid)
-            sig =signal.SIGKILL
-            log.info('Sending signal(%s) to pgid=-%s (pid=%s) based on heartbeat=%r' %(sig, pgid, pid, heartbeat))
-            try:
-                os.kill(-pgid, sig)
-            except Exception:
-                log.exception('Failed to kill(%s) pgid=-%s for %r. Trying pid=%s' %(sig, pgid, heartbeat_fn, pid))
-                os.kill(pid, sig)
+        hsocket = socket.socket()
+        try:
+            hsocket.connect(state.get_heartbeat_server())
+            socket_send(hsocket, 'P {}'.format(self.mj.job.jobid))
+            line = socket_read(hsocket)
+            hsocket.close()
+        except IOError as e:
+            log.exception('Failed to get pig/pgid for {}: {!r}'.format(self.mj.job.jobid, e))
+            return
+        args = line.split(None, 2)
+        pid = int(args[0])
+        pgid = int(args[1])
+        sig = signal.SIGKILL
+        log.info('Sending signal(%s) to pgid=-%s (pid=%s) based on heartbeat server' %(sig, pgid, pid))
+        try:
+            os.kill(-pgid, sig)
+        except Exception:
+            log.exception('Failed to kill(%s) pgid=-%s for %r. Trying pid=%s' %(sig, pgid, self.mj.job.jobid, pid))
+            os.kill(pid, sig)
     def __repr__(self):
         return 'MetaJobLocal(%s)' %repr(self.mjob)
     def __init__(self, mjob):
@@ -297,11 +527,8 @@ class MetaJobSge(object):
     def kill(self, state, heartbeat):
         """Can raise.
         """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
         job_name = self.get_jobname()
-        sge_cmd = 'qdel -k {}'.format(
+        sge_cmd = 'qdel {}'.format(
                 job_name)
         system(sge_cmd, checked=False)
     def get_jobname(self):
@@ -335,15 +562,12 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -o ev/null -e /dev/null -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
         """Can raise.
         """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
         job_name = self.get_jobname()
         sge_cmd = 'qdel {}'.format(
                 job_name)
@@ -379,9 +603,6 @@ class MetaJobTorque(object):
     def kill(self, state, heartbeat):
         """Can raise.
         """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
         job_name = self.get_jobname()
         sge_cmd = 'qdel {}'.format(
                 job_name)
@@ -394,7 +615,7 @@ class MetaJobTorque(object):
     def __repr__(self):
         return 'MetaJobTorque(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        self.mjob = mjob
+        super(MetaJobTorque, self).__init__(mjob)
         self.specific = '-V' # pass enV; '-j oe' => combine out/err
 class MetaJobSlurm(object):
     def submit(self, state, exe, script_fn):
@@ -412,9 +633,6 @@ class MetaJobSlurm(object):
     def kill(self, state, heartbeat):
         """Can raise.
         """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
         job_name = self.get_jobname()
         sge_cmd = 'scancel -n {}'.format(
                 job_name)
@@ -442,9 +660,6 @@ class MetaJobLsf(object):
     def kill(self, state, heartbeat):
         """Can raise.
         """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
         job_name = self.get_jobname()
         sge_cmd = 'bkill -J {}'.format(
                 job_name)
@@ -458,13 +673,6 @@ class MetaJobLsf(object):
         return 'MetaJobLsf(%s)' %repr(self.mjob)
     def __init__(self, mjob):
         self.mjob = mjob
-
-def link_rundir(state_rundir, user_rundir):
-    if user_rundir:
-        link_fn = os.path.join(user_rundir, 'pwatcher.dir')
-        if os.path.lexists(link_fn):
-            os.unlink(link_fn)
-        os.symlink(os.path.abspath(state_rundir), link_fn)
 
 def cmd_run(state, jobids, job_type, job_queue):
     """On stdin, each line is a unique job-id, followed by run-dir, followed by command+args.
@@ -516,22 +724,14 @@ def cmd_run(state, jobids, job_type, job_queue):
         else:
             raise Exception('Unknown my_job_type=%s' %repr(my_job_type))
         try:
-            link_rundir(state.get_directory_job(jobid), desc.get('rundir'))
             state.submit_background(bjob)
             submitted.append(jobid)
         except Exception:
-            log.exception('In pwatcher.fs_based.cmd_run(), failed to submit background-job:\n{!r}'.format(
+            log.exception('In pwatcher.network_based.cmd_run(), failed to submit background-job:\n{!r}'.format(
                 bjob))
     return result
     # The caller is responsible for deciding what to do about job-submission failures. Re-try, maybe?
 
-re_heartbeat = re.compile(r'heartbeat-(.+)')
-def get_jobid_for_heartbeat(heartbeat):
-    """This cannot fail unless we change the filename format.
-    """
-    mo = re_heartbeat.search(heartbeat)
-    jobid = mo.group(1)
-    return jobid
 def system(call, checked=False):
     log.info('!{}'.format(call))
     rc = os.system(call)
@@ -545,59 +745,41 @@ def warnonce(hashkey, msg):
     log.warning(msg)
     _warned[hashkey] = True
 
-def get_status(state, elistdir, reference_s, sentinel, heartbeat):
-    heartbeat_path = os.path.join(state.get_directory_heartbeats(), heartbeat)
-    # We take listdir so we can avoid extra system calls.
-    if sentinel in elistdir:
-        try:
-            os.remove(heartbeat_path)
-        except Exception:
-            log.debug('Unable to remove heartbeat {} when sentinal was found in exit-sentinels listdir.\n{}'.format(
-                repr(heartbeat_path), traceback.format_exc()))
-        sentinel_path = os.path.join(state.get_directory_exits(), sentinel)
-        with open(sentinel_path) as ifs:
-            rc = ifs.read().strip()
-        return 'EXIT {}'.format(rc)
-    ## TODO: Record last stat times, to avoid extra stat if too frequent.
-    #try:
-    #    mtime_s = os.path.getmtime(heartbeat_path)
-    #    if (mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
-    #        if (ALLOWED_SKEW_S + mtime_s + 3*HEARTBEAT_RATE_S) < reference_s:
-    #            msg = 'DEAD job? {} + 3*{} + {} < {} for {!r}'.format(
-    #                mtime_s, HEARTBEAT_RATE_S, ALLOWED_SKEW_S, reference_s, heartbeat_path)
-    #            log.debug(msg)
-    #            warnonce(heartbeat_path, msg)
-    #            return 'DEAD'
-    #        else:
-    #            log.debug('{} + 3*{} < {} for {!r}. You might have a large clock-skew, or filesystem delays, or just filesystem time-rounding.'.format(
-    #                mtime_s, HEARTBEAT_RATE_S, reference_s, heartbeat_path))
-    #except Exception as exc:
-    #    # Probably, somebody deleted it after our call to os.listdir().
-    #    # TODO: Decide what this really means.
-    #    log.debug('Heartbeat not (yet?) found at %r: %r' %(heartbeat_path, exc))
-    #    return 'UNKNOWN'
-    return 'RUNNING' # but actually it might not have started yet, or it could be dead, since we are not checking the heartbeat
+def get_status(state, jobid):
+    hsocket = socket.socket()
+    try:
+        hsocket.connect(state.get_heartbeat_server())
+        socket_send(hsocket, 'Q {}'.format(jobid))
+        line = socket_read(hsocket)
+        hsocket.close()
+    except IOError:	# server can't be reached for comment
+        return 'UNKNOWN'
+    if not line:	# bad formatting
+        return 'UNKNOWN'
+    args = line.split(None, 2)	# status, arg
+    if len(args) != 2:
+        return 'UNKNOWN'
+    if args[0] == 'EXIT':
+        return line
+    elif args[0] == 'RUNNING':
+        if 3*HEARTBEAT_RATE_S < int(args[1]):
+            msg = 'DEAD job? 3*{} < {} for {!r}'.format(
+                HEARTBEAT_RATE_S, args[1], jobid)
+            log.debug(msg)
+            warnonce(jobid, msg)
+            return 'DEAD'
+        else:
+            return 'RUNNING'
+    return 'UNKNOWN'
 def cmd_query(state, which, jobids):
     """Return the state of named jobids.
-    See find_jobids().
     """
-    found = dict()
-    edir = state.get_directory_exits()
-    for heartbeat in find_heartbeats(state, which, jobids):
-        jobid = get_jobid_for_heartbeat(heartbeat)
-        mji = state.get_mji(jobid)
-        sentinel = mji.get_sentinel()
-        #system('ls -l {}/{} {}/{}'.format(edir, sentinel, hdir, heartbeat), checked=False)
-        found[jobid] = (sentinel, heartbeat)
-    elistdir = os.listdir(edir)
-    current_time_s = time.time()
     result = dict()
     jobstats = dict()
     result['jobids'] = jobstats
-    for jobid, pair in found.iteritems():
-        sentinel, heartbeat = pair
-        status = get_status(state, elistdir, current_time_s, sentinel, heartbeat)
-        log.debug('Status %s for heartbeat:%s' %(status, heartbeat))
+    for jobid in find_jobids(state, which, jobids):
+        status = get_status(state, jobid)
+        log.debug('Status %s for jobid:%s' %(status, jobid))
         jobstats[jobid] = status
     return result
 def get_jobid2pid(pid2mjob):
@@ -606,65 +788,67 @@ def get_jobid2pid(pid2mjob):
         jobid = mjob.job.jobid
         result[jobid] = pid
     return result
-def find_heartbeats(state, which, jobids):
-    """Yield heartbeat filenames.
+def find_jobids(state, which, jobids):
+    """Yield jobids.
     If which=='list', then query jobs listed as jobids.
     If which=='known', then query all known jobs.
     If which=='infer', then query all jobs with heartbeats.
     These are not quite finished, but already useful.
     """
-    #log.debug('find_heartbeats for which=%s, jobids=%s' %(which, pprint.pformat(jobids)))
+    #log.debug('find_jobids for which=%s, jobids=%s' %(which, pprint.pformat(jobids)))
     if which == 'infer':
-        for fn in glob.glob(os.path.join(state.get_directory_heartbeats(), 'heartbeat*')):
-            yield fn
+        hsocket = socket.socket()
+        try:
+            hsocket.connect(state.get_heartbeat_server())
+            socket_send(hsocket, 'L')
+            line = socket_read(hsocket)
+            hsocket.close()
+        except IOError as e:
+            log.exception('In find_jobids(), unable to infer jobid list: {!r}'.format(e))
+            yield
+        for jobid in line.split():
+            yield jobid
     elif which == 'known':
         jobid2mjob = state.get_mjobs()
         for jobid, mjob in jobid2mjob.iteritems():
-            mji = MetaJobClass(mjob)
-            yield mji.get_heartbeat()
+            yield jobid
     elif which == 'list':
-        jobid2mjob = state.get_mjobs()
+        #jobid2mjob = state.get_mjobs()
         #log.debug('jobid2mjob:\n%s' %pprint.pformat(jobid2mjob))
         for jobid in jobids:
             #log.debug('jobid=%s; jobids=%s' %(repr(jobid), repr(jobids)))
             #if jobid not in jobid2mjob:
             #    log.info("jobid=%s is not known. Might have been deleted already." %jobid)
-            mjob = jobid2mjob[jobid]
-            mji = MetaJobClass(mjob)
-            yield mji.get_heartbeat()
+            yield jobid
     else:
         raise Exception('which=%s'%repr(which))
-def delete_heartbeat(state, heartbeat, keep=False):
+def delete_jobid(state, jobid, keep=False):
     """
     Kill the job with this heartbeat.
     (If there is no heartbeat, then the job is already gone.)
     Delete the entry from state and update its jobid.
-    Remove the heartbeat file, unless 'keep'.
     """
-    hdir = state.get_directory_heartbeats()
-    heartbeat_fn = os.path.join(hdir, heartbeat)
-    jobid = get_jobid_for_heartbeat(heartbeat)
     try:
         bjob = state.get_bjob(jobid)
     except Exception:
-        log.exception('In delete_heartbeat(), unable to find batchjob for % (from %s)' %(jobid, heartbeat))
-        log.warning('Cannot delete. You might be able to delete this yourself if you examine the content of %s.' %heartbeat_fn)
+        log.exception('In delete_jobid(), unable to find batchjob for %' %(jobid))
         # TODO: Maybe provide a default grid type, so we can attempt to delete anyway?
         return
     try:
-        bjob.kill(state, heartbeat)
+        bjob.kill(state, jobid)
     except Exception as exc:
-        log.debug('Failed to kill job for heartbeat {!r}: {!r}'.format(
-            heartbeat, exc))
+        log.debug('Failed to kill job for jobid {!r}: {!r}'.format(
+            jobid , exc))
     state.add_deleted_jobid(jobid)
     # For now, keep it in the 'jobs' table.
+    hsocket = socket.socket()
     try:
-        os.remove(heartbeat_fn)
-        log.debug('Removed heartbeat=%s' %repr(heartbeat))
-    except OSError as exc:
-        log.debug('Cannot remove heartbeat: {!r}'.format(exc))
-    # Note: If sentinel suddenly appeared, that means the job exited. The pwatcher might wrongly think
-    # it was deleted, but its output might be available anyway.
+        hsocket.connect(state.get_heartbeat_server())
+        socket_send(hsocket, 'd {}'.format(jobid))
+        hsocket.close()
+        log.debug('Removed jobid=%s' %repr(jobid))
+    except IOError as e:
+        log.debug('Cannot remove jobid {}: {!r}'.format(jobid, e))
 def cmd_delete(state, which, jobids):
     """Kill designated jobs, including (hopefully) their
     entire process groups.
@@ -675,8 +859,8 @@ def cmd_delete(state, which, jobids):
     """
     log.debug('Deleting jobs for jobids from %s (%s)' %(
         which, repr(jobids)))
-    for heartbeat in find_heartbeats(state, which, jobids):
-        delete_heartbeat(state, heartbeat)
+    for jobid in find_jobids(state, which, jobids):
+        delete_jobid(state, jobid)
 def makedirs(path):
     if not os.path.isdir(path):
         os.makedirs(path)
@@ -724,16 +908,16 @@ def get_process_watcher(directory):
     #State_save(state)
 
 @contextlib.contextmanager
-def process_watcher(directory):
+def process_watcher(directory, hostname='', port=0):
     """This will (someday) hold a lock, so that
     the State can be written safely at the end.
     """
-    state = get_state(directory)
+    state = get_state(directory, hostname, port)
     #log.debug('state =\n%s' %pprint.pformat(state.top))
     yield ProcessWatcher(state)
     # TODO: Sometimes, maybe we should not save state.
     # Or maybe we *should* on exception.
-    State_save(state)
+    state.save()
 
 def main(prog, cmd, state_dir='mainpwatcher', argsfile=None):
     logging.basicConfig()
@@ -763,44 +947,57 @@ cmd='%(cmd)s'
 # But we will use python for now.
 #
 python_template = r"""#!%(lang_exe)s
-import threading, time, os, sys
+import threading, time, os, sys, subprocess, socket
 
 cmd='%(cmd)s'
-sentinel_fn='%(sentinel_fn)s'
-heartbeat_fn='%(heartbeat_fn)s'
+heartbeat_server=('%(heartbeat_server)s' %(heartbeat_port)s)
+jobid='%(jobid)s'
 sleep_s=%(sleep_s)s
 cwd='%(cwd)s'
 
 os.chdir(cwd)
 
+def socket_send(socket, message):
+    socket.sendall(b'{}\0'.format(message))
+
 def log(msg):
-    sys.stderr.write(msg)
-    sys.stderr.write('\n')
-    #sys.stdout.flush()
+    hsocket = socket.socket()
+    try:
+        hsocket.connect(heartbeat_server)
+        socket_send(hsocket, 's {} {}\n'.format(jobid, msg))
+        hsocket.close()
+    except IOError:             # better to miss a line than terminate
+        pass
 
 def thread_heartbeat():
-    ofs = open(heartbeat_fn, 'w')
     pid = os.getpid()
     pgid = os.getpgid(0)
-    x = 0
+    hsocket = socket.socket()
+    try:
+        hsocket.connect(heartbeat_server)
+        socket_send(hsocket, 'i {} {} {}'.format(jobid, pid, pgid))
+        hsocket.close()
+    except IOError:	# hope it's a temporary error
+        pass
     while True:
-        ofs.write('{} {} {}\n'.format(x, pid, pgid))
-        ofs.flush()
         time.sleep(sleep_s)
-        x += 1
+        hsocket = socket.socket()
+        try:
+            hsocket.connect(heartbeat_server)
+            socket_send(hsocket, 'h {}'.format(jobid))
+            hsocket.close()
+        except IOError:	# hope it's a temporary error
+            pass
+
 def start_heartbeat():
     hb = threading.Thread(target=thread_heartbeat)
     log('alive? {}'.format(hb.is_alive()))
     hb.daemon = True
     hb.start()
     return hb
+
 def main():
     log('cwd:{!r}'.format(os.getcwd()))
-    if os.path.exists(sentinel_fn):
-        os.remove(sentinel_fn)
-    if os.path.exists(heartbeat_fn):
-        os.remove(heartbeat_fn)
-    os.system('touch {}'.format(heartbeat_fn))
     log("before: pid={}s pgid={}s".format(os.getpid(), os.getpgid(0)))
     try:
         os.setpgid(0, 0)
@@ -810,14 +1007,19 @@ def main():
     log("after: pid={}s pgid={}s".format(os.getpid(), os.getpgid(0)))
     hb = start_heartbeat()
     log('alive? {} pid={} pgid={}'.format(hb.is_alive(), os.getpid(), os.getpgid(0)))
-    rc = os.system(cmd)
-    # Do not delete the heartbeat here. The discoverer of the sentinel will do that,
-    # to avoid a race condition.
-    #if os.path.exists(heartbeat_fn):
-    #    os.remove(heartbeat_fn)
-    with open(sentinel_fn, 'w') as ofs:
-        ofs.write(str(rc))
+    sp = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    with sp.stdout as f:
+        for line in iter(f.readline, b''):
+            log(heartbeat_server, jobid, line)
+    rc = sp.wait()
     # sys.exit(rc) # No-one would see this anyway.
+    hsocket = socket.socket()
+    try:
+        hsocket.connect(heartbeat_server)
+        socket_send(hsocket, 'e {} {}'.format(jobid, rc))
+        hsocket.close()
+    except IOError as e:
+        log('could not update heartbeat server with exit status: {} {}: {!r}'.format(jobid, rc, e))
     if rc:
         raise Exception('{} <- {!r}'.format(rc, cmd))
 main()

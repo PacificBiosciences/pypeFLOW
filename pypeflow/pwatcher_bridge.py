@@ -9,6 +9,7 @@ be single-threaded!
 from pypeflow.task import PypeTask, PypeThreadTaskBase, PypeTaskBase, TaskFunctionError
 import pwatcher.blocking
 import pwatcher.fs_based
+import pwatcher.network_based
 import pypeflow.controller
 import pypeflow.task
 import collections
@@ -30,15 +31,19 @@ def PypeProcWatcherWorkflow(
         URL = None,
         job_type='local',
         job_queue='UNSPECIFIED_QUEUE',
+        watcher_type='fs_based',
+        watcher_directory='mypwatcher',
         **attributes):
     """Factory for the workflow using our new
     filesystem process watcher.
     """
-    if job_type == 'string':
+    if job_type == 'string' or watcher_type == 'string':
         pwatcher_impl = pwatcher.blocking
+    elif watcher_type == 'network_based':
+        pwatcher_impl = pwatcher.network_based
     else:
         pwatcher_impl = pwatcher.fs_based
-    watcher = pwatcher_impl.get_process_watcher('mypwatcher')
+    watcher = pwatcher_impl.get_process_watcher(watcher_directory)
     th = MyPypeFakeThreadsHandler(watcher, job_type, job_queue)
     mq = MyMessageQueue()
     se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)

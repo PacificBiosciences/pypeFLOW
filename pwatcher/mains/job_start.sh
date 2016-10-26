@@ -7,11 +7,11 @@
 # But we use the .py extension because we want this installed with our Python
 # code, so we do not need to deal with mobs for installation. (But we might
 # need to chmod +x.)
-# 
+#
 # This can be run via
-# 
+#
 #     bash -c pwatcher/mains.job_start.py myprog 60
-# 
+#
 # Note: If anyone replaces this, you must ensure that running this is exactly equivalent
 # to running the "executable". In other words, no 'mkdir', no 'cd', etc. That will help
 # with debugging.
