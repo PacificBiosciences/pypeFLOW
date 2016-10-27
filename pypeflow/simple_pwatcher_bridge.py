@@ -1,5 +1,7 @@
-from pwatcher import fs_based
 from .util import (mkdirs, system, touch, run, cd)
+import pwatcher.blocking
+import pwatcher.fs_based
+import pwatcher.network_based
 import networkx
 import networkx.algorithms.dag #import (topological_sort, is_directed_acyclic_graph)
 
@@ -91,13 +93,13 @@ class PwatcherTaskQueue(object):
                 'job_type': self.__job_type,
                 'job_queue': self.__job_queue,
         }
-        with fs_based.process_watcher(self.__state_directory) as watcher:
-            result = watcher.run(**watcher_args)
-            #LOG.debug('Result of watcher.run()={}'.format(repr(result)))
-            submitted = result['submitted']
-            self.__running.update(submitted)
-            for jobid in (set(jobids.keys()) - set(submitted)):
-                yield self.__known[jobid] # TODO: What should be the status for these submission failures?
+        result = self.watcher.run(**watcher_args)
+        LOG.debug('Result of watcher.run()={}'.format(repr(result)))
+        submitted = result['submitted']
+        self.__running.update(submitted)
+        #log.info("QQQ ADDED: {}".format(jobid))
+        for jobid in (set(jobids.keys()) - set(submitted)):
+            yield self.__known[jobid] # TODO: What should be the status for these submission failures?
 
     def check_done(self):
         """Yield Nodes which have finished since the last check.
@@ -106,8 +108,7 @@ class PwatcherTaskQueue(object):
             'jobids': list(self.__running),
             'which': 'list',
         }
-        with fs_based.process_watcher(self.__state_directory) as watcher:
-            q = watcher.query(**watcher_args)
+        q = self.watcher.query(**watcher_args)
         #LOG.debug('In check_done(), result of query:%s' %repr(q))
         for jobid, status in q['jobids'].iteritems():
             if status.startswith('EXIT') or status.startswith('DEAD'):
@@ -129,12 +130,11 @@ class PwatcherTaskQueue(object):
             'jobids': list(self.__running),
             'which': 'known',
         }
-        with fs_based.process_watcher(self.__state_directory) as watcher:
-            q = watcher.delete(**watcher_args)
+        q = self.watcher.delete(**watcher_args)
         LOG.debug('In notifyTerminate(), result of delete:%s' %repr(q))
 
-    def __init__(self, state_directory="STATE", job_type='local', job_queue=None):
-        self.__state_directory = state_directory
+    def __init__(self, watcher, job_type='local', job_queue=None):
+        self.watcher = watcher
         self.__job_type = job_type
         self.__job_queue = job_queue
         #self.__jobq = collections.deque()
@@ -243,9 +243,9 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
-    def __init__(self, job_type, job_queue):
+    def __init__(self, watcher, job_type, job_queue):
         self.graph = networkx.DiGraph()
-        self.tq = PwatcherTaskQueue(state_directory='mypwatcher', job_type=job_type, job_queue=job_queue) # TODO: Inject this.
+        self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue) # TODO: Inject this.
         self.sentinels = dict() # sentinel_done_fn -> Node
 
 class NodeBase(object):
@@ -407,15 +407,25 @@ def fn(p):
     return os.path.abspath(p)
 # Here is the main factory.
 def PypeProcWatcherWorkflow(
+        URL = None,
         job_type='local',
-        job_queue='dev',
+        job_queue='UNSPECIFIED_QUEUE',
+        watcher_type='fs_based',
+        watcher_directory='mypwatcher',
         **attributes):
     """Factory for the workflow.
     """
-    return Workflow(job_type=job_type, job_queue=job_queue)
+    if job_type == 'string' or watcher_type == 'blocking':
+        pwatcher_impl = pwatcher.blocking
+    elif watcher_type == 'network_based':
+        pwatcher_impl = pwatcher.network_based
+    else:
+        pwatcher_impl = pwatcher.fs_based
+    watcher = pwatcher_impl.get_process_watcher(watcher_directory)
+    return Workflow(watcher, job_type=job_type, job_queue=job_queue)
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
-    #se = MyFakeShutdownEvent()
+    #se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)
     #return pypeflow.controller._PypeConcurrentWorkflow(URL=URL, thread_handler=th, messageQueue=mq, shutdown_event=se,
     #        attributes=attributes)
 PypeProcWatcherWorkflow.setNumThreadAllowed = lambda x, y: None
