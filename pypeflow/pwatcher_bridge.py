@@ -7,6 +7,7 @@ With PypeProcWatcherWorkflow, the refreshTargets() loop will
 be single-threaded!
 """
 from pypeflow.task import PypeTask, PypeThreadTaskBase, PypeTaskBase, TaskFunctionError
+from pypeflow.data import fn
 import pwatcher.blocking
 import pwatcher.fs_based
 import pwatcher.network_based
@@ -266,6 +267,11 @@ class MyPypeFakeThreadsHandler(object):
         self.__running = set()
         self.__known = dict()
 
+def makedirs(path):
+    if not os.path.isdir(path):
+        log.debug('makedirs {!r}'.format(path))
+        os.makedirs(path)
+
 class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
     """Fake for PypeConcurrentWorkflow.
     It demands a subclass, even though we do not use threads at all.
@@ -331,6 +337,8 @@ class MyFakePypeThreadTaskBase(PypeThreadTaskBase):
         self.syncDirectories([o.localFileName for o in inputDataObjs.values()])
 
         outputDataObjs = self.outputDataObjs
+        for datao in outputDataObjs.values():
+            makedirs(os.path.dirname(fn(datao)))
         parameters = self.parameters
 
         log.info('Running task from function %s()' %(self._taskFun.__name__))
