@@ -290,7 +290,8 @@ def cmd_run(state, jobids, job_type, job_queue):
     jobs = dict()
     submitted = list()
     result = {'submitted': submitted}
-    assert job_type == 'string'
+    if job_type != 'string':
+        log.warning("In blocking pwatcher, job_type={!r}, should be 'string'".format(job_type))
     for jobid, desc in jobids.iteritems():
         assert 'cmd' in desc
         cmd = desc['cmd']

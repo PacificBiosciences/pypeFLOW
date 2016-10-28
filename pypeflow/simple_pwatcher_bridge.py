@@ -209,7 +209,7 @@ class Workflow(object):
                 LOG.debug('will queue: {!r}'.format(node))
             if to_queue:
                 unqueued = set(self.tq.enque(to_queue))
-                assert not unqueued, 'TODO: Decided what to do when enqueue fails.'
+                assert not unqueued, 'TODO: Decide what to do when enqueue fails.'
                 queued.update(to_queue - unqueued)
             LOG.debug('N in queue: {}'.format(len(queued)))
             recently_done = set(self.tq.check_done())
