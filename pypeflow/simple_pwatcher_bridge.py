@@ -6,6 +6,7 @@ import networkx
 import networkx.algorithms.dag #import (topological_sort, is_directed_acyclic_graph)
 
 import collections
+import hashlib
 import json
 import logging
 import os
@@ -16,10 +17,11 @@ import time
 
 LOG = logging.getLogger(__name__)
 
-# These globals exist only to support the old PypeTask API,
-# which relies on inputs/outputs instead of direct Node dependencies.
-#PRODUCER = dict()
-#CONSUMERS = collections.defaultdict(set)
+def generate_jobid(node, script_fn):
+    # For now, we keep it simple. Just the task.json.
+    script_content = open(script_fn).read()
+    checksum = hashlib.md5(script_content).hexdigest()
+    return 'P' + checksum[0:14]
 
 def endrun(thisnode, status):
     """By convention for now, status is one of:
@@ -61,10 +63,8 @@ class PwatcherTaskQueue(object):
         #sge_option='-pe smp 8 -q default'
         for node in nodes:
             #node.satisfy() # This would do the job without a process-watcher.
-            jobid = node.jobid
-            self.__known[jobid] = node
             mkdirs(node.wdir)
-            generated_script_fn = node.execute()
+            generated_script_fn = node.execute() # misnomer; this only dumps task.json now
             if not generated_script_fn:
                 raise Exception('Missing generated_script_fn for Node {}'.format(node))
                 # This task is done.
@@ -73,6 +73,8 @@ class PwatcherTaskQueue(object):
                 continue
                 # For now, consider it as "submitted" and finished.
                 # (It would throw exception on error.)
+            jobid = generate_jobid(node, generated_script_fn)
+            self.__known[jobid] = node
 
             rundir, basename = os.path.split(os.path.abspath(generated_script_fn))
             cmd = '/bin/bash {}'.format(basename)
@@ -305,14 +307,12 @@ touch {sentinel_done_fn}
     def generate_script(self):
         raise NotImplementedError(repr(self))
     def __repr__(self):
-        return 'Node({}, {})'.format(self.name, self.jobid)
+        return 'Node({})'.format(self.name)
     def __init__(self, name, wdir, needs):
         self.__satisfied = None  # satisfiable
         self.name = name
         self.wdir = wdir
         self.needs = needs
-        #self.script_fn = script_fn
-        self.jobid = 'Pup{}'.format(random.randint(0, 1000000))
 class ComboNode(NodeBase):
     """Several Nodes to be executed in sequence.
     Only this ComboNode will be in the DiGraph, not the sub-Nodes.
@@ -379,15 +379,20 @@ def create_node(pypetask):
     LOG.debug('New {!r} needs {!r}'.format(node, needs))
     return node
 
-PRODUCER_TASKS = dict()
-CONSUMER_TASKS = dict()
+# This global exists only because we continue to support the old PypeTask style,
+# where a PypeLocalFile does not know the PypeTask which produces it.
+# (This also allows us to specify PypeTasks out of order, fwiw.)
+# Someday, we might require PypeTasks to depend on outputs of other PypeTasks explicitly;
+# then we can drop this dict.
+PRODUCERS = dict()
+
 def findPypeLocalFile(path):
     """Look-up based on tail dirname.
     Do not call this for paths relative to their work-dirs.
     """
     basename = os.path.basename(path)
     basedir = os.path.basename(os.path.dirname(path))
-    producer = PRODUCER_TASKS.get(basedir)
+    producer = PRODUCERS.get(basedir)
     if producer is None:
         msg = 'Failed to find producer PypeTask for basedir {!r} from path {!r}'.format(
             basedir, path)
@@ -440,10 +445,10 @@ def PypeTask(inputs, outputs, TaskType, parameters=None, URL=None, wdir=None, na
     this = _PypeTask(inputs, outputs, parameters, URL, wdir, name)
     #basedir = os.path.basename(wdir)
     basedir = this.name
-    if basedir in PRODUCER_TASKS:
+    if basedir in PRODUCERS:
         raise Exception('Basedir {!r} already used for {!r}. Cannot create new PypeTask {!r}.'.format(
-            basedir, PRODUCER_TASKS[basedir], this))
-    PRODUCER_TASKS[basedir] = this
+            basedir, PRODUCERS[basedir], this))
+    PRODUCERS[basedir] = this
     for key, val in outputs.items():
         if not isinstance(val, PypeLocalFile):
             outputs[key] = PypeLocalFile(val, this)
