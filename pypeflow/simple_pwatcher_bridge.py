@@ -6,10 +6,12 @@ import networkx
 import networkx.algorithms.dag #import (topological_sort, is_directed_acyclic_graph)
 
 import collections
+import json
 import logging
 import os
 import pprint
 import random
+import sys
 import time
 
 LOG = logging.getLogger(__name__)
@@ -326,6 +328,24 @@ class PypeNode(NodeBase):
     """
     def generate_script(self):
         pt = self.pypetask
+        task_desc = {
+                'inputs': {k:v.path for k,v in pt.inputs.items()},
+                'outputs': {k:v.path for k,v in pt.outputs.items()},
+                'parameters': pt.parameters,
+                'python_function': pt.func_name,
+        }
+        task_content = json.dumps(task_desc)
+        task_json_fn = os.path.join(pt.wdir, 'task.json')
+        open(task_json_fn, 'w').write(task_content)
+        cmd = '{} -m pypeflow.do_task {}'.format(sys.executable, task_json_fn)
+        script_content = """#!/bin/bash
+{}
+""".format(cmd)
+        script_fn = os.path.join(pt.wdir, 'task.sh')
+        open(script_fn, 'w').write(script_content)
+        return script_fn
+    def old_generate_script(self):
+        pt = self.pypetask
         func = pt.func
         func(pt) # Run the function! Probably just generate a script.
         generated_script_fn = getattr(pt, 'generated_script_fn', None) # by convention
@@ -396,11 +416,14 @@ class PypeLocalFile(object):
     def __init__(self, path, producer=None):
         self.path = path
         self.producer = producer
-def makePypeLocalFile(p): return PypeLocalFile(p)
+def makePypeLocalFile(p):
+    return PypeLocalFile(os.path.abspath(p))
 def fn(p):
     """This must be run in the top run-dir.
     All task funcs are executed there.
     """
+    if isinstance(p, PypeLocalFile):
+        p = p.path
     return os.path.abspath(p)
 def only_path(p):
     if isinstance(p, PypeLocalFile):
@@ -415,10 +438,11 @@ def PypeTask(inputs, outputs, TaskType, parameters=None, URL=None, wdir=None, na
     if wdir is None:
         wdir = find_work_dir([only_path(v) for v in outputs.values()])
     this = _PypeTask(inputs, outputs, parameters, URL, wdir, name)
-    basedir = os.path.basename(wdir)
+    #basedir = os.path.basename(wdir)
+    basedir = this.name
     if basedir in PRODUCER_TASKS:
         raise Exception('Basedir {!r} already used for {!r}. Cannot create new PypeTask {!r}.'.format(
-            PRODUCER_TASKS[basedir], this))
+            basedir, PRODUCER_TASKS[basedir], this))
     PRODUCER_TASKS[basedir] = this
     for key, val in outputs.items():
         if not isinstance(val, PypeLocalFile):
@@ -436,6 +460,7 @@ class _PypeTask(object):
     """
     def __call__(self, func):
         self.func = func
+        self.func_name = '{}.{}'.format(func.__module__, func.__name__)
         return self
     def __repr__(self):
         return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))
@@ -445,7 +470,7 @@ class _PypeTask(object):
         if wdir is None:
             wdir = parameters.get('wdir', name) # One of these must be a string!
         if name is None:
-            name = os.path.basename(wdir)
+            name = os.path.relpath(wdir)
         if URL is None:
             URL = 'task://localhost/{}'.format(name)
         self.inputs = inputs
