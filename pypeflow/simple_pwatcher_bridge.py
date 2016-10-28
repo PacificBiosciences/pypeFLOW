@@ -16,8 +16,8 @@ LOG = logging.getLogger(__name__)
 
 # These globals exist only to support the old PypeTask API,
 # which relies on inputs/outputs instead of direct Node dependencies.
-PRODUCER = dict()
-CONSUMERS = collections.defaultdict(set)
+#PRODUCER = dict()
+#CONSUMERS = collections.defaultdict(set)
 
 def endrun(thisnode, status):
     """By convention for now, status is one of:
@@ -340,71 +340,134 @@ class PypeNode(NodeBase):
         super(PypeNode, self).__init__(name, wdir, needs)
         self.pypetask = pypetask
 
+pypetask2node = dict()
 def create_node(pypetask):
     """Given a PypeTask, return a Node for our Workflow graph.
     """
     needs = set()
+    print "Create_node for", repr(pypetask)
+    print dir(pypetask)
     node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs) #, pypetask.generated_script_fn)
-    for key, path in pypetask.outputs.iteritems():
-        PRODUCER[path] = node
-        LOG.debug('{} produces {!r}'.format(node, path))
-    for key, path in pypetask.inputs.iteritems():
-        CONSUMERS[path].add(node)
-        LOG.debug('{} consumes {!r}'.format(node, path))
-        if path in PRODUCER:
-            needs.add(PRODUCER[path])
-        else:
-            print "{} not in PRODUCER".format(path)
-    LOG.debug(' Therefore, {} needs {}'.format(node, needs))
+    pypetask2node[pypetask] = node
+    for key, plf in pypetask.inputs.iteritems():
+        if plf.producer is None:
+            continue
+        if plf.producer not in pypetask2node:
+            create_node(plf.producer)
+        needed_node = pypetask2node[plf.producer]
+        needs.add(needed_node)
+    LOG.debug('New {!r} needs {!r}'.format(node, needs))
     return node
 
-class PypeTask(object):
+PRODUCER_TASKS = dict()
+CONSUMER_TASKS = dict()
+def findPypeLocalFile(path):
+    """Look-up based on tail dirname.
+    Do not call this for paths relative to their work-dirs.
+    """
+    basename = os.path.basename(path)
+    basedir = os.path.basename(os.path.dirname(path))
+    producer = PRODUCER_TASKS.get(basedir)
+    if producer is None:
+        msg = 'Failed to find producer PypeTask for basedir {!r} from path {!r}'.format(
+            basedir, path)
+        log.debug(msg)
+        return PypeLocalFile(path, None)
+    siblings = producer.outputs
+    for plf in siblings.values():
+        sibling_basename = os.path.basename(plf.path)
+        if sibling_basename == basename:
+            return plf
+    raise Exception('Failed to find a PypeLocalFile for {!r} among outputs of {!r}'.format(
+        path, producer))
+def find_work_dir(paths):
+    """Return absolute path to directory of all these paths.
+    Must be same for all.
+    """
+    dirnames = set(os.path.dirname(os.path.normpath(p)) for p in paths)
+    if len(dirnames) != 1:
+        raise Exception('Cannot find work-dir for paths in multiple (or zero) dirs: {!r}'.format(
+            paths))
+    d = dirnames.pop()
+    return os.path.abspath(d)
+class PypeLocalFile(object):
+    def __repr__(self):
+        return 'PLF({!r}, {!r}'.format(self.path, self.producer.wdir if self.producer else None)
+    def __init__(self, path, producer=None):
+        self.path = path
+        self.producer = producer
+def makePypeLocalFile(p): return PypeLocalFile(p)
+def fn(p):
+    """This must be run in the top run-dir.
+    All task funcs are executed there.
+    """
+    return os.path.abspath(p)
+def only_path(p):
+    if isinstance(p, PypeLocalFile):
+        return p.path
+    else:
+        return p
+def PypeTask(inputs, outputs, TaskType, parameters=None, URL=None, wdir=None, name=None):
+    """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
+    """
+    inputs = dict(inputs)
+    outputs = dict(outputs)
+    if wdir is None:
+        wdir = find_work_dir([only_path(v) for v in outputs.values()])
+    this = _PypeTask(inputs, outputs, parameters, URL, wdir, name)
+    basedir = os.path.basename(wdir)
+    if basedir in PRODUCER_TASKS:
+        raise Exception('Basedir {!r} already used for {!r}. Cannot create new PypeTask {!r}.'.format(
+            PRODUCER_TASKS[basedir], this))
+    PRODUCER_TASKS[basedir] = this
+    for key, val in outputs.items():
+        if not isinstance(val, PypeLocalFile):
+            outputs[key] = PypeLocalFile(val, this)
+        else:
+            val.producer = this
+    for key, val in inputs.items():
+        if not isinstance(val, PypeLocalFile):
+            inputs[key] = findPypeLocalFile(val)
+    common = set(inputs.keys()) & set(outputs.keys())
+    assert (not common), 'Keys in both inputs and outputs of PypeTask({}): {!r}'.format(wdir, common)
+    return this
+class _PypeTask(object):
     """Adaptor from old PypeTask API.
     """
     def __call__(self, func):
         self.func = func
         return self
     def __repr__(self):
-        return 'PypeTask({!r})'.format(self.outputs)
-    def __init__(self, inputs, outputs, TaskType, parameters=None, URL=None, wdir=None, name=None):
-        """Kind of a mess. inputs/outputs become actual attributes.
-        Someday, we will change how Tasks are specified.
-        """
-        if parameters is None: parameters = {}
-        self.inputs = dict(inputs)
-        self.outputs = dict(outputs)
-        self.parameters = dict(parameters)
-        self.URL = URL
+        return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))
+    def __init__(self, inputs, outputs, parameters=None, URL=None, wdir=None, name=None):
+        if parameters is None:
+            parameters = {}
+        if wdir is None:
+            wdir = parameters.get('wdir', name) # One of these must be a string!
+        if name is None:
+            name = os.path.basename(wdir)
+        if URL is None:
+            URL = 'task://localhost/{}'.format(name)
+        self.inputs = inputs
+        self.outputs = outputs
+        self.parameters = parameters
         self.wdir = wdir
-        if name:
-            self.name = name
-        else:
-            dirnames = set(os.path.dirname(os.path.normpath(o)) for o in self.outputs.values())
-            if len(dirnames) == 1:
-                d = dirnames.pop()
-                self.name = os.path.basename(d)
-                if not self.wdir:
-                    self.wdir = os.path.abspath(d)
-            else:
-                LOG.debug('dirnames={!r}'.format(dirnames))
-                self.name = os.path.basename(self.URL)
-        if not self.wdir:
-            self.wdir = self.parameters.get('wdir')
-        if not self.URL:
-            self.URL = 'task://localhost/{}'.format(self.name)
-        for key, bn in inputs.iteritems():
-            setattr(self, key, os.path.abspath(bn))
-        for key, bn in outputs.iteritems():
-            setattr(self, key, os.path.abspath(bn))
+        self.name = name
+        self.URL = URL
+        #for key, bn in inputs.iteritems():
+        #    setattr(self, key, os.path.abspath(bn))
+        #for key, bn in outputs.iteritems():
+        #    setattr(self, key, os.path.abspath(bn))
+        print "Created", repr(self)
+
+class DummyPypeTask(_PypeTask):
+    def __init__(self):
+        super(DummyPypeTask, self).__init__({}, {}, {}, wdir='/')
+
+#ROOT_PYPE_TASK = DummyPypeTask()
 
 MyFakePypeThreadTaskBase = None  # just a symbol, not really used
-# A PypeLocalFile is just a string now.
-def makePypeLocalFile(p): return p
-def fn(p):
-    """This must be run in the top run-dir.
-    All task funcs are executed there.
-    """
-    return os.path.abspath(p)
+
 # Here is the main factory.
 def PypeProcWatcherWorkflow(
         URL = None,
