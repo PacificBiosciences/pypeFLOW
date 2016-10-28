@@ -334,7 +334,7 @@ class PypeNode(NodeBase):
                 'parameters': pt.parameters,
                 'python_function': pt.func_name,
         }
-        task_content = json.dumps(task_desc)
+        task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': '))
         task_json_fn = os.path.join(pt.wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
         cmd = '{} -m pypeflow.do_task {}'.format(sys.executable, task_json_fn)
