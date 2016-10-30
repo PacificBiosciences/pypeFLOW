@@ -71,9 +71,12 @@ class MetaJobClass(object):
     def __init__(self, mj):
         self.mj = mj
 class State(object):
+    def notify_threaded(self, jobid):
+        self.jobids_threaded.add(jobid)
     def notify_started(self, jobid):
         #state.top['jobids_submitted'].append(jobid)
         self.jobids_submitted.add(jobid)
+        self.jobids_threaded.remove(jobid)
     def notify_exited(self, jobid, rc):
         #self.top['jobid2exit'][jobid] = rc
         self.jobid2exit[jobid] = rc
@@ -82,6 +85,9 @@ class State(object):
         # Is this needed? For now, we are not actually saving state, so no.
         self.top['jobs'][jobid] = mjob
     def update_jobid2status(self, jobid2status):
+        for jobid in self.jobids_threaded:
+            status = 'THREADED'
+            jobid2status[jobid] = status
         for jobid in self.jobids_submitted:
             status = 'RUNNING'
             # but actually it might not have started yet, or it could be dead, since we have blocking qsub calls
@@ -112,6 +118,7 @@ class State(object):
         self.top['jobs'] = dict()
         #self.top['jobids_submitted'] = list()
         #self.top['jobid2exit'] = dict()
+        self.jobids_threaded = set()
         self.jobids_submitted = set()
         self.jobid2exit = dict()
 
@@ -119,6 +126,9 @@ class SafeState(object):
     """Synchronized State proxy for accessing any
     data which might be modified in a Thread.
     """
+    def notify_threaded(self, jobid):
+        with self.lock:
+            self.state.notify_threaded(jobid)
     def notify_started(self, jobid):
         with self.lock:
             self.state.notify_started(jobid)
@@ -226,18 +236,24 @@ class JobThread(threading.Thread):
         self.env_extra = env_extra
 
 class StringJobSubmitter(object):
-    def submit(self, jobid, mjob, state):
-        """Run job in thread.
-        Thread will notify state.
+    """Substitute some variables into self.submission_string.
+    Use mains/job_start.sh as the top script. That requires
+    PYPEFLOW_JOB_START_SCRIPT in the environment as the real
+    script to run. This way, we are guaranteed that the top script exists,
+    and we can wait for the rest to appear in the filesystem.
+    """
+    def submit(self, jobname, mjob, state):
+        """Prepare job (based on wrappers) and submit as a new thread.
         """
-        state.set_job(jobid, mjob)
-        jobid = mjob.job.jobid
+        state.set_job(jobname, mjob)
+        jobname = mjob.job.jobid
         mji = MetaJobClass(mjob)
         #script_fn = os.path.join(state.get_directory_wrappers(), mji.get_wrapper())
         script_fn = mji.get_wrapper()
         exe = mjob.lang_exe
 
-        self.start(jobid, state, exe, script_fn) # Can raise
+        state.notify_threaded(jobname)
+        self.start(jobname, state, exe, script_fn) # Can raise
     def get_cmd(self, jobname, script_fn, nproc):
         """Vars:
         JOB_ID, STDOUT_FILE, STDERR_FILE, NPROC, CMD
