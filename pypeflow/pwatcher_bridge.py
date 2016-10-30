@@ -34,6 +34,7 @@ def PypeProcWatcherWorkflow(
         job_queue='UNSPECIFIED_QUEUE',
         watcher_type='fs_based',
         watcher_directory='mypwatcher',
+        max_jobs=None, # ignore here for now
         **attributes):
     """Factory for the workflow using our new
     filesystem process watcher.

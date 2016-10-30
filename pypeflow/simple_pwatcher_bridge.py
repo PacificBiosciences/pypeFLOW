@@ -202,18 +202,24 @@ class Workflow(object):
     def addTasks(self, tlist):
         for t in tlist:
             self.addTask(t)
-    def refreshTargets(self, targets=None, updateFreq=10, exitOnFailure=True, max_concurrency=2):
+    def refreshTargets(self, targets=None, updateFreq=10, exitOnFailure=True):
         try:
-            self._refreshTargets(updateFreq, exitOnFailure, max_concurrency)
+            self._refreshTargets(updateFreq, exitOnFailure)
         except:
             self.tq.terminate()
             raise
-    def _refreshTargets(self, updateFreq, exitOnFailure, max_concurrency):
+    def _refreshTargets(self, updateFreq, exitOnFailure):
         """Raise Exception (eventually) on any failure.
         - updateFreq (seconds) is really a max; we climb toward it gradually, and we reset when things change.
-        - max_concurrency is the number of simultaneous qsubs.
         - exitOnFailure=False would allow us to keep running (for a while) when parallel jobs fail.
+        - self.max_jobs: the max number of concurrently running jobs
+          - possibly this should be the number of cpus in use, but for now it is qsub jobs, for simplicity.
         """
+        # Note: With the 'blocking' pwatcher, we will have 1 thread per live qsub job.
+        # If/when that becomes a problem, please re-write the pwatcher as Go or Nim.
+        # This loop is single-threaded. If we ignore max_jobs,
+        # then we would send large queries for no reason, but that is not really a big deal.
+        # The Python 'blocking' pwatcher is the real reason to limit jobs, for now.
         assert networkx.algorithms.dag.is_directed_acyclic_graph(self.graph)
         failures = 0
         unsatg = get_unsatisfied_subgraph(self.graph)
@@ -225,13 +231,12 @@ class Workflow(object):
         while unsatg:
             # Nodes cannot be in ready or queued unless they are also in unsatg.
             to_queue = set()
-            while ready and max_concurrency > len(queued):
+            while ready and (self.max_jobs > len(queued) + len(to_queue)):
                 node = ready.pop()
                 to_queue.add(node)
                 LOG.info('About to submit: {!r}'.format(node))
             if to_queue:
-                unqueued = set(self.tq.enque(to_queue))
-                #assert not unqueued, 'TODO: Decide what to do when enqueue fails.'
+                unqueued = set(self.tq.enque(to_queue)) # In theory, this traps exceptions.
                 if unqueued:
                     LOG.warning('Failed to enqueue {} of {} jobs: {!r}'.format(
                         len(unqueued), len(to_queue), unqueued))
@@ -272,9 +277,11 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
-    def __init__(self, watcher, job_type, job_queue):
+    def __init__(self, watcher, job_type, job_queue, max_jobs):
         self.graph = networkx.DiGraph()
         self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue) # TODO: Inject this.
+        assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
+        self.max_jobs = max_jobs
         self.sentinels = dict() # sentinel_done_fn -> Node
         self.pypetask2node = dict()
 
@@ -512,6 +519,7 @@ def PypeProcWatcherWorkflow(
         job_queue='UNSPECIFIED_QUEUE',
         watcher_type='fs_based',
         watcher_directory='mypwatcher',
+        max_jobs = 24, # must be > 0, but not too high
         **attributes):
     """Factory for the workflow.
     """
@@ -525,7 +533,7 @@ def PypeProcWatcherWorkflow(
     LOG.info('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     watcher = pwatcher_impl.get_process_watcher(watcher_directory)
     LOG.info('job_type={!r}, job_queue={!r}'.format(job_type, job_queue))
-    return Workflow(watcher, job_type=job_type, job_queue=job_queue)
+    return Workflow(watcher, job_type=job_type, job_queue=job_queue, max_jobs=max_jobs)
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
     #se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)
