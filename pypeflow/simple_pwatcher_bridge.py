@@ -171,8 +171,25 @@ def find_all_roots(g):
     return roots
 
 class Workflow(object):
+    def _create_node(self, pypetask):
+        """Given a PypeTask, return a Node for our Workflow graph.
+        Recursively create more nodes based on 'pypetask.inputs',
+        record them as 'node.needs', and update the global pypetask2node table.
+        """
+        needs = set()
+        node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs) #, pypetask.generated_script_fn)
+        self.pypetask2node[pypetask] = node
+        for key, plf in pypetask.inputs.iteritems():
+            if plf.producer is None:
+                continue
+            if plf.producer not in self.pypetask2node:
+                self._create_node(plf.producer)
+            needed_node = self.pypetask2node[plf.producer]
+            needs.add(needed_node)
+        LOG.debug('New {!r} needs {!r}'.format(node, needs))
+        return node
     def addTask(self, pypetask):
-        node = create_node(pypetask)
+        node = self._create_node(pypetask)
         sentinel_done_fn = node.sentinel_done_fn()
         if sentinel_done_fn in self.sentinels:
             msg = 'FOUND sentinel {!r} twice: {!r} ({!r}) and {!r}\nNote: Each task needs its own sentinel (and preferably its own run-dir).'.format(sentinel_done_fn, node, pypetask, self.sentinels[sentinel_done_fn])
@@ -259,6 +276,7 @@ class Workflow(object):
         self.graph = networkx.DiGraph()
         self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue) # TODO: Inject this.
         self.sentinels = dict() # sentinel_done_fn -> Node
+        self.pypetask2node = dict()
 
 class NodeBase(object):
     """Graph node.
@@ -367,25 +385,6 @@ class PypeNode(NodeBase):
     def __init__(self, name, wdir, pypetask, needs): #, script_fn):
         super(PypeNode, self).__init__(name, wdir, needs)
         self.pypetask = pypetask
-
-pypetask2node = dict()
-def create_node(pypetask):
-    """Given a PypeTask, return a Node for our Workflow graph.
-    """
-    needs = set()
-    print "Create_node for", repr(pypetask)
-    print dir(pypetask)
-    node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs) #, pypetask.generated_script_fn)
-    pypetask2node[pypetask] = node
-    for key, plf in pypetask.inputs.iteritems():
-        if plf.producer is None:
-            continue
-        if plf.producer not in pypetask2node:
-            create_node(plf.producer)
-        needed_node = pypetask2node[plf.producer]
-        needs.add(needed_node)
-    LOG.debug('New {!r} needs {!r}'.format(node, needs))
-    return node
 
 # This global exists only because we continue to support the old PypeTask style,
 # where a PypeLocalFile does not know the PypeTask which produces it.
