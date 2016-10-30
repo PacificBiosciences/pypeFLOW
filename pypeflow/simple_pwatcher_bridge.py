@@ -516,7 +516,7 @@ def PypeProcWatcherWorkflow(
         **attributes):
     """Factory for the workflow.
     """
-    if job_type == 'string' or watcher_type == 'blocking':
+    if watcher_type == 'blocking':
         pwatcher_impl = pwatcher.blocking
     elif watcher_type == 'network_based':
         pwatcher_impl = pwatcher.network_based

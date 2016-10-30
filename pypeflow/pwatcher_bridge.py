@@ -38,7 +38,7 @@ def PypeProcWatcherWorkflow(
     """Factory for the workflow using our new
     filesystem process watcher.
     """
-    if job_type == 'string' or watcher_type == 'string':
+    if watcher_type == 'blocking':
         pwatcher_impl = pwatcher.blocking
     elif watcher_type == 'network_based':
         pwatcher_impl = pwatcher.network_based
