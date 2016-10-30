@@ -29,7 +29,8 @@ This program will run on the work host, and it will do several things:
     - Run in CWD.
     - Verify that inputs are available. (Wait til timeout if not.)
     - Possibly, cd to tmpdir and create symlinks from inputs.
-    - Run the python-module.
+    - Run the python-function.
+      - Its module must be available (e.g. in PYTHONPATH).
       - Pass a kwd-dict of the union of inputs/outputs/parameters.
       - Ignore return-value. Expect exceptions.
     - Possibly, mv outputs from tmpdir to workdir.
@@ -40,8 +41,6 @@ This program will run on the work host, and it will do several things:
 (Someday, we might also support runnable Python modules, or even executables via execvp().)
 
 Note: qsub will *not* run this directly. There is a higher layer.
-"""
-"""
 """
 
 def get_parser():
