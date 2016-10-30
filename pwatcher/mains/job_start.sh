@@ -18,12 +18,16 @@
 
 set -vex
 executable=${PYPEFLOW_JOB_START_SCRIPT}
-timeout=${PYPEFLOW_JOB_START_TIMEOUT:-120} # wait 2 mins by default
+timeout=${PYPEFLOW_JOB_START_TIMEOUT:-60} # wait 60s by default
 
 # Wait up to timeout seconds for the executable to become "executable",
 # then exec.
 #timeleft = int(timeout)
-while [[ ! -x "${executable}" && "${timeout}" != "0" ]]; do
+while [[ ! -x "${executable}" ]]; do
+    if [[ "${timeout}" == "0" ]]; then
+        echo "timed out waiting for (${executable})"
+        exit 77
+    fi
     echo "not executable: '${executable}', waiting ${timeout}s"
     sleep 1
     timeout=$((timeout-1))

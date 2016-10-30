@@ -71,9 +71,12 @@ class MetaJobClass(object):
     def __init__(self, mj):
         self.mj = mj
 class State(object):
+    def notify_threaded(self, jobid):
+        self.jobids_threaded.add(jobid)
     def notify_started(self, jobid):
         #state.top['jobids_submitted'].append(jobid)
         self.jobids_submitted.add(jobid)
+        self.jobids_threaded.remove(jobid)
     def notify_exited(self, jobid, rc):
         #self.top['jobid2exit'][jobid] = rc
         self.jobid2exit[jobid] = rc
@@ -82,6 +85,9 @@ class State(object):
         # Is this needed? For now, we are not actually saving state, so no.
         self.top['jobs'][jobid] = mjob
     def update_jobid2status(self, jobid2status):
+        for jobid in self.jobids_threaded:
+            status = 'THREADED'
+            jobid2status[jobid] = status
         for jobid in self.jobids_submitted:
             status = 'RUNNING'
             # but actually it might not have started yet, or it could be dead, since we have blocking qsub calls
@@ -112,6 +118,7 @@ class State(object):
         self.top['jobs'] = dict()
         #self.top['jobids_submitted'] = list()
         #self.top['jobid2exit'] = dict()
+        self.jobids_threaded = set()
         self.jobids_submitted = set()
         self.jobid2exit = dict()
 
@@ -119,6 +126,9 @@ class SafeState(object):
     """Synchronized State proxy for accessing any
     data which might be modified in a Thread.
     """
+    def notify_threaded(self, jobid):
+        with self.lock:
+            self.state.notify_threaded(jobid)
     def notify_started(self, jobid):
         with self.lock:
             self.state.notify_started(jobid)
@@ -200,9 +210,6 @@ eval "$cmd"
     system('chmod +x {}'.format(wrapper_fn))
 
 class JobThread(threading.Thread):
-    """
-    TODO: Using Popen(), propagate signals better.
-    """
     def run(self):
         """Propagate environment, plus env_extra.
         """
@@ -211,11 +218,12 @@ class JobThread(threading.Thread):
         myenv = dict(os.environ)
         myenv.update(self.env_extra)
         log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
-        log.debug("cmd: '{}'".format(self.cmd))
+        log.info("Popen: '{}'".format(self.cmd))
         p = subprocess.Popen(self.cmd, env=myenv, shell=True)
         log.debug("pid: {}".format(p.pid))
         p.wait()
         rc = p.returncode
+        log.debug("rc: {}".format(rc))
         self.notify_exit(self.jobname, rc)
     def __init__(self, jobname, cmd, notify_start, notify_exit, env_extra):
         super(JobThread, self).__init__()
@@ -226,18 +234,24 @@ class JobThread(threading.Thread):
         self.env_extra = env_extra
 
 class StringJobSubmitter(object):
-    def submit(self, jobid, mjob, state):
-        """Run job in thread.
-        Thread will notify state.
+    """Substitute some variables into self.submission_string.
+    Use mains/job_start.sh as the top script. That requires
+    PYPEFLOW_JOB_START_SCRIPT in the environment as the real
+    script to run. This way, we are guaranteed that the top script exists,
+    and we can wait for the rest to appear in the filesystem.
+    """
+    def submit(self, jobname, mjob, state):
+        """Prepare job (based on wrappers) and submit as a new thread.
         """
-        state.set_job(jobid, mjob)
-        jobid = mjob.job.jobid
+        state.set_job(jobname, mjob)
+        jobname = mjob.job.jobid
         mji = MetaJobClass(mjob)
         #script_fn = os.path.join(state.get_directory_wrappers(), mji.get_wrapper())
         script_fn = mji.get_wrapper()
         exe = mjob.lang_exe
 
-        self.start(jobid, state, exe, script_fn) # Can raise
+        state.notify_threaded(jobname)
+        self.start(jobname, state, exe, script_fn) # Can raise
     def get_cmd(self, jobname, script_fn, nproc):
         """Vars:
         JOB_ID, STDOUT_FILE, STDERR_FILE, NPROC, CMD
@@ -253,19 +267,23 @@ class StringJobSubmitter(object):
         mapping['STDOUT_FILE'] = script_fn + '.stdout'
         mapping['STDERR_FILE'] = script_fn + '.stderr'
         mapping['NPROC'] = str(nproc)
-        print 'mapping, submission_string: {}, {}'.format(repr(mapping), self.submission_string)
+        log.debug('mapping, submission_string: {}, {}'.format(repr(mapping), self.submission_string))
         t = string.Template(self.submission_string)
         return t.substitute(mapping)
     def start(self, jobname, state, exe, script_fn):
-        """Can raise.
+        """Run job in thread.
+        Thread will notify state.
+        Can raise.
         """
         nproc = 4
         #cmd = script_fn
         cmd = self.get_cmd(jobname, script_fn, nproc)
+        # job_start.sh relies on PYPEFLOW_*
         env_extra = {
             "PYPEFLOW_JOB_START_SCRIPT": script_fn,
             "PYPEFLOW_JOB_START_TIMEOUT": "60",
         }
+        log.debug('env_extra={}'.format(pprint.pformat(env_extra)))
         notify_start = state.notify_started
         notify_exit = state.notify_exited
         th = JobThread(jobname, cmd, notify_start, notify_exit, env_extra)
@@ -290,7 +308,8 @@ def cmd_run(state, jobids, job_type, job_queue):
     jobs = dict()
     submitted = list()
     result = {'submitted': submitted}
-    assert job_type == 'string'
+    if job_type != 'string':
+        log.warning("In blocking pwatcher, job_type={!r}, should be 'string'".format(job_type))
     for jobid, desc in jobids.iteritems():
         assert 'cmd' in desc
         cmd = desc['cmd']
@@ -303,10 +322,10 @@ def cmd_run(state, jobids, job_type, job_queue):
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     submission_string = job_queue
     submitter = StringJobSubmitter(submission_string)
-    print submitter
+    log.debug('submitter: {!r}'.format(submitter))
     for jobid, job in jobs.iteritems():
         desc = jobids[jobid]
-        log.info('starting job %s' %pprint.pformat(job))
+        log.debug('starting job %s' %pprint.pformat(job))
         mjob = Job_get_MetaJob(job)
         MetaJob_wrap(mjob, state)
         try:
@@ -432,10 +451,11 @@ def main(prog, cmd, state_dir='mainpwatcher', argsfile=None):
     with process_watcher(state_dir) as watcher:
         result = getattr(watcher, cmd)(**argsdict)
         if result is not None:
-            print pprint.pformat(result)
-        print "wait for running jobs"
+            log.info('getattr({!r}, {!r}): {}'.format(
+                watcher, cmd, pprint.pformat(result)))
+        log.info('Waiting for running jobs...r')
         while watcher.state.get_running_jobids():
-            print "running:", watcher.state.get_running_jobids()
+            log.info('running: {!s}'.format(watcher.state.get_running_jobids()))
             time.sleep(1)
 
 if __name__ == "__main__":
