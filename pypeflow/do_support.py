@@ -44,7 +44,7 @@ def run_bash(script_fn):
     # available in the filesystem.
     # However, we cannot be sure that the execute permission is set,
     # so run it as a script.
-    cmd = '{} {}'.format(BASH, script_fn)
+    cmd = '{} -vex {}'.format(BASH, script_fn)
     LOG.info('!{}'.format(cmd))
     rc = os.system(cmd)
     if rc:
