@@ -180,7 +180,7 @@ class Workflow(object):
         self.sentinels[sentinel_done_fn] = node
         self.graph.add_node(node)
         for need in node.needs:
-            print "Need:", need, node
+            #print "Need:", need, node
             self.graph.add_edge(need, node)
     def addTasks(self, tlist):
         for t in tlist:
@@ -204,37 +204,45 @@ class Workflow(object):
         queued = set()
         init_sleep_time = 0.1
         sleep_time = init_sleep_time
+        LOG.info('Num unsatisfied: {}'.format(len(unsatg)))
         while unsatg:
             # Nodes cannot be in ready or queued unless they are also in unsatg.
             to_queue = set()
             while ready and max_concurrency > len(queued):
                 node = ready.pop()
                 to_queue.add(node)
-                LOG.debug('will queue: {!r}'.format(node))
+                LOG.info('About to submit: {!r}'.format(node))
             if to_queue:
                 unqueued = set(self.tq.enque(to_queue))
-                assert not unqueued, 'TODO: Decide what to do when enqueue fails.'
+                #assert not unqueued, 'TODO: Decide what to do when enqueue fails.'
+                if unqueued:
+                    LOG.warning('Failed to enqueue {} of {} jobs: {!r}'.format(
+                        len(unqueued), len(to_queue), unqueued))
+                    ready.update(unqueued)
                 queued.update(to_queue - unqueued)
             LOG.debug('N in queue: {}'.format(len(queued)))
             recently_done = set(self.tq.check_done())
             if not recently_done:
                 if not queued:
-                    LOG.warning('Nothing is happening, and we had {} failures. Quitting.'.format(failures))
-                    break
+                    LOG.warning('Nothing is happening, and we had {} failures. Should we quit? Instead, we will just sleep.'.format(failures))
+                    #break
+                LOG.info('sleep {}'.format(sleep_time))
                 time.sleep(sleep_time)
                 sleep_time = sleep_time + 0.1 if (sleep_time < updateFreq) else updateFreq
                 continue
-            else:
-                sleep_time = init_sleep_time
-            queued -= recently_done
             LOG.debug('recently_done: {!r}'.format([(rd, rd.satisfied()) for rd in recently_done]))
+            LOG.debug('Num done in this iteration: {}'.format(len(recently_done)))
+            sleep_time = init_sleep_time
+            queued -= recently_done
             recently_satisfied = set(n for n in recently_done if n.satisfied())
             recently_done -= recently_satisfied
-            LOG.debug('Now N recently_done: {}'.format(len(recently_done)))
-            LOG.debug('recently_satisfied: {!r}'.format(recently_satisfied))
+            #LOG.debug('Now N recently_done: {}'.format(len(recently_done)))
+            LOG.info('recently_satisfied: {!r}'.format(recently_satisfied))
+            LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
             for node in recently_satisfied:
                 ready.update(find_next_ready(unsatg, node))
                 unsatg.remove_node(node)
+            LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
             if recently_done:
                 msg = 'Some tasks are recently_done but not satisfied: {!r}'.format(recently_done)
                 LOG.error(msg)
@@ -270,11 +278,11 @@ class NodeBase(object):
         But if we finished a distributed job with exit-code 0, we do not need
         to wait for the sentinel; we know we had success.
         """
-        LOG.warning('satisfied({!r}) for sentinel {!r}'.format(self, self.sentinel_done_fn()))
+        #LOG.debug('Checking satisfied({!r}) for sentinel {!r}'.format(self, self.sentinel_done_fn()))
         if self.__satisfied is not None:
             return self.__satisfied
         if os.path.exists(self.sentinel_done_fn()):
-            self.__satisfied = True
+            self.setSatisfied(True)
         return self.__satisfied == True
     def satisfy(self):
         if self.__satisfied:
@@ -488,7 +496,7 @@ class _PypeTask(object):
         #    setattr(self, key, os.path.abspath(bn))
         #for key, bn in outputs.iteritems():
         #    setattr(self, key, os.path.abspath(bn))
-        print "Created", repr(self)
+        LOG.debug('Created {!r}'.format(self))
 
 class DummyPypeTask(_PypeTask):
     def __init__(self):
