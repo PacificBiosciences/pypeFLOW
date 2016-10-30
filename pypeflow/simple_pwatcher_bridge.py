@@ -522,7 +522,10 @@ def PypeProcWatcherWorkflow(
         pwatcher_impl = pwatcher.network_based
     else:
         pwatcher_impl = pwatcher.fs_based
+    LOG.warning('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
+    LOG.info('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     watcher = pwatcher_impl.get_process_watcher(watcher_directory)
+    LOG.info('job_type={!r}, job_queue={!r}'.format(job_type, job_queue))
     return Workflow(watcher, job_type=job_type, job_queue=job_queue)
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
