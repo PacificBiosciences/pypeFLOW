@@ -433,10 +433,10 @@ class PypeLocalFile(object):
     def __repr__(self):
         return 'PLF({!r}, {!r}'.format(self.path, self.producer.wdir if self.producer else None)
     def __init__(self, path, producer=None):
-        self.path = path
+        self.path = os.path.abspath(path)
         self.producer = producer
 def makePypeLocalFile(p):
-    return PypeLocalFile(os.path.abspath(p))
+    return PypeLocalFile(p)
 def fn(p):
     """This must be run in the top run-dir.
     All task funcs are executed there.
@@ -449,7 +449,7 @@ def only_path(p):
         return p.path
     else:
         return p
-def PypeTask(inputs, outputs, TaskType, parameters=None, URL=None, wdir=None, name=None):
+def PypeTask(inputs, outputs, TaskType=None, parameters=None, URL=None, wdir=None, name=None):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     """
     inputs = dict(inputs)

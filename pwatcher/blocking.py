@@ -186,7 +186,7 @@ def MetaJob_wrap(mjob, state):
 cmd="%(cmd)s"
 rundir="%(rundir)s"
 finish() {
-  echo "hi $?"
+  echo "finish code: $?"
 }
 trap finish 0
 #printenv
