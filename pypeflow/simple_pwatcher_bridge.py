@@ -236,9 +236,9 @@ class Workflow(object):
             if to_submit:
                 unsubmitted = set(self.tq.enque(to_submit)) # In theory, this traps exceptions.
                 if unsubmitted:
-                    LOG.warning('Failed to enqueue {} of {} jobs: {!r}'.format(
+                    LOG.error('Failed to enqueue {} of {} jobs: {!r}'.format(
                         len(unsubmitted), len(to_submit), unsubmitted))
-                    ready.update(unsubmitted) # Always resubmit?
+                    #ready.update(unsubmitted) # Resubmit only in pwatcher, if at all.
                 submitted.update(to_submit - unsubmitted)
             LOG.debug('N in queue: {}'.format(len(submitted)))
             recently_done = set(self.tq.check_done())
