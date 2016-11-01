@@ -5,7 +5,6 @@ import pwatcher.network_based
 import networkx
 import networkx.algorithms.dag #import (topological_sort, is_directed_acyclic_graph)
 
-import collections
 import hashlib
 import json
 import logging
@@ -141,7 +140,6 @@ class PwatcherTaskQueue(object):
         self.watcher = watcher
         self.__job_type = job_type
         self.__job_queue = job_queue
-        #self.__jobq = collections.deque()
         self.__running = set() # jobids
         self.__known = dict() # jobid -> Node
         self.__to_report = list() # Nodes
@@ -224,28 +222,28 @@ class Workflow(object):
         failures = 0
         unsatg = get_unsatisfied_subgraph(self.graph)
         ready = find_all_roots(unsatg)
-        queued = set()
+        submitted = set()
         init_sleep_time = 0.1
         sleep_time = init_sleep_time
         LOG.info('Num unsatisfied: {}'.format(len(unsatg)))
-        while unsatg:
-            # Nodes cannot be in ready or queued unless they are also in unsatg.
-            to_queue = set()
-            while ready and (self.max_jobs > len(queued) + len(to_queue)):
+        while ready or submitted:
+            # Nodes cannot be in ready or submitted unless they are also in unsatg.
+            to_submit = set()
+            while ready and (self.max_jobs > len(submitted) + len(to_submit)):
                 node = ready.pop()
-                to_queue.add(node)
+                to_submit.add(node)
                 LOG.info('About to submit: {!r}'.format(node))
-            if to_queue:
-                unqueued = set(self.tq.enque(to_queue)) # In theory, this traps exceptions.
-                if unqueued:
+            if to_submit:
+                unsubmitted = set(self.tq.enque(to_submit)) # In theory, this traps exceptions.
+                if unsubmitted:
                     LOG.warning('Failed to enqueue {} of {} jobs: {!r}'.format(
-                        len(unqueued), len(to_queue), unqueued))
-                    ready.update(unqueued)
-                queued.update(to_queue - unqueued)
-            LOG.debug('N in queue: {}'.format(len(queued)))
+                        len(unsubmitted), len(to_submit), unsubmitted))
+                    ready.update(unsubmitted) # Always resubmit?
+                submitted.update(to_submit - unsubmitted)
+            LOG.debug('N in queue: {}'.format(len(submitted)))
             recently_done = set(self.tq.check_done())
             if not recently_done:
-                if not queued:
+                if not submitted:
                     LOG.warning('Nothing is happening, and we had {} failures. Should we quit? Instead, we will just sleep.'.format(failures))
                     #break
                 LOG.info('sleep {}'.format(sleep_time))
@@ -255,7 +253,7 @@ class Workflow(object):
             LOG.debug('recently_done: {!r}'.format([(rd, rd.satisfied()) for rd in recently_done]))
             LOG.debug('Num done in this iteration: {}'.format(len(recently_done)))
             sleep_time = init_sleep_time
-            queued -= recently_done
+            submitted -= recently_done
             recently_satisfied = set(n for n in recently_done if n.satisfied())
             recently_done -= recently_satisfied
             #LOG.debug('Now N recently_done: {}'.format(len(recently_done)))
@@ -271,7 +269,7 @@ class Workflow(object):
                 failures += len(recently_done)
                 if exitOnFailure:
                     raise Exception(msg)
-        assert not queued
+        assert not submitted
         assert not ready
         if failures:
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
