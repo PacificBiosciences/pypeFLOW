@@ -12,7 +12,7 @@ import sys
 import time
 DONE = 'done'
 STATUS = 'status'
-TIMEOUT = 0
+TIMEOUT = 30
 LOG = logging.getLogger()
 DESCRIPTION = """Given a JSON description, call a python-function.
 """
@@ -75,7 +75,7 @@ def mkdirs(path):
 
 def wait_for(fn):
     global TIMEOUT
-    LOG.debug('Checking existence of {!r}'.format(fn))
+    LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, TIMEOUT))
     while not os.path.exists(fn):
         if TIMEOUT > 0:
             time.sleep(1)
