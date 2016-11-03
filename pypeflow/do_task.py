@@ -120,6 +120,8 @@ def run(json_fn, timeout, tmpdir):
             func(**kwds)
         else:
             # old way, for now
+            cwd = os.getcwd()
+            cfg['parameters']['cwd'] = cwd
             self = OldTaskRunner(cfg['inputs'], cfg['outputs'], cfg['parameters'])
             func(self=self)
             script_fn = getattr(self, 'generated_script_fn', None)
@@ -129,6 +131,8 @@ def run(json_fn, timeout, tmpdir):
         # Report the actual function spec.
         LOG.error('For function "{}", {}'.format(python_function_name, inspect.getargspec(func)))
         raise
+    for fn in cfg['outputs'].values():
+        wait_for(fn)
 
 def main():
     parser = get_parser()

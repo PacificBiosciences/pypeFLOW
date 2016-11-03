@@ -266,6 +266,7 @@ class Workflow(object):
             if recently_done:
                 msg = 'Some tasks are recently_done but not satisfied: {!r}'.format(recently_done)
                 LOG.error(msg)
+                LOG.error('ready: {!r}\nsubmitted: {!r}'.format(ready, submitted))
                 failures += len(recently_done)
                 if exitOnFailure:
                     raise Exception(msg)
@@ -275,9 +276,9 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
-    def __init__(self, watcher, job_type, job_queue, max_jobs):
+    def __init__(self, watcher, job_type, job_queue, max_jobs, sge_option=''):
         self.graph = networkx.DiGraph()
-        self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue) # TODO: Inject this.
+        self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue, sge_option=sge_option) # TODO: Inject this.
         assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
         self.max_jobs = max_jobs
         self.sentinels = dict() # sentinel_done_fn -> Node
@@ -402,13 +403,14 @@ def findPypeLocalFile(path):
     """Look-up based on tail dirname.
     Do not call this for paths relative to their work-dirs.
     """
+    assert os.path.isabs(path)
     basename = os.path.basename(path)
-    basedir = os.path.basename(os.path.dirname(path))
+    basedir = os.path.relpath(os.path.dirname(path))
     producer = PRODUCERS.get(basedir)
     if producer is None:
-        msg = 'Failed to find producer PypeTask for basedir {!r} from path {!r}'.format(
+        msg = 'No producer PypeTask for basedir {!r} from path {!r} -- Pure input?'.format(
             basedir, path)
-        log.debug(msg)
+        LOG.debug(msg)
         return PypeLocalFile(path, None)
     siblings = producer.outputs
     for plf in siblings.values():
@@ -429,12 +431,18 @@ def find_work_dir(paths):
     return os.path.abspath(d)
 class PypeLocalFile(object):
     def __repr__(self):
-        return 'PLF({!r}, {!r}'.format(self.path, self.producer.wdir if self.producer else None)
-    def __init__(self, path, producer=None):
+        if self.producer:
+            path = os.path.relpath(self.path, self.producer.wdir)
+            return 'PLF({!r}, {!r})'.format(path, os.path.relpath(self.producer.wdir))
+        else:
+            path = os.path.relpath(self.path)
+            wdir = None
+            return 'PLF({!r}, {!r})'.format(path, None)
+    def __init__(self, path, producer):
         self.path = os.path.abspath(path)
         self.producer = producer
-def makePypeLocalFile(p):
-    return PypeLocalFile(p)
+def makePypeLocalFile(p, producer=None):
+    return PypeLocalFile(p, producer)
 def fn(p):
     """This must be run in the top run-dir.
     All task funcs are executed there.
@@ -460,17 +468,28 @@ def PypeTask(inputs, outputs, TaskType=None, parameters=None, URL=None, wdir=Non
     if basedir in PRODUCERS:
         raise Exception('Basedir {!r} already used for {!r}. Cannot create new PypeTask {!r}.'.format(
             basedir, PRODUCERS[basedir], this))
+    LOG.debug('Added PRODUCERS[{!r}] = {!r}'.format(basedir, this))
     PRODUCERS[basedir] = this
     for key, val in outputs.items():
         if not isinstance(val, PypeLocalFile):
-            outputs[key] = PypeLocalFile(val, this)
+            # If relative, then it is relative to our wdir.
+            #LOG.warning('Making PLF: {!r} {!r}'.format(val, this))
+            if not os.path.isabs(val):
+                if not wdir:
+                    raise Exception('No wdir for {!r}'.format(this))
+                val = os.path.join(wdir, val)
+            #LOG.warning('Muking PLF: {!r} {!r}'.format(val, this))
+            val = PypeLocalFile(val, this)
+            outputs[key] = val
         else:
             val.producer = this
     for key, val in inputs.items():
         if not isinstance(val, PypeLocalFile):
+            assert os.path.isabs(val), 'Inputs cannot be relative at this point: {!r} in {!r}'.format(val, this)
             inputs[key] = findPypeLocalFile(val)
     common = set(inputs.keys()) & set(outputs.keys())
     assert (not common), 'Keys in both inputs and outputs of PypeTask({}): {!r}'.format(wdir, common)
+    LOG.debug('Built {!r}'.format(this))
     return this
 class _PypeTask(object):
     """Adaptor from old PypeTask API.
