@@ -77,7 +77,7 @@ class PwatcherTaskQueue(object):
 
             rundir, basename = os.path.split(os.path.abspath(generated_script_fn))
             cmd = '/bin/bash {}'.format(basename)
-            sge_option = node.pypetask.parameters.get('sge_option', None)
+            sge_option = node.pypetask.parameters.get('sge_option', self.__sge_option)
             job_type = node.pypetask.parameters.get('job_type', None)
             job_queue = node.pypetask.parameters.get('job_queue', None)
             job_nprocs = node.pypetask.parameters.get('job_nprocs', None)
@@ -136,10 +136,11 @@ class PwatcherTaskQueue(object):
         q = self.watcher.delete(**watcher_args)
         LOG.debug('In notifyTerminate(), result of delete:%s' %repr(q))
 
-    def __init__(self, watcher, job_type='local', job_queue=None):
+    def __init__(self, watcher, job_type='local', job_queue=None, sge_option=None):
         self.watcher = watcher
         self.__job_type = job_type
         self.__job_queue = job_queue
+        self.__sge_option = sge_option
         self.__running = set() # jobids
         self.__known = dict() # jobid -> Node
         self.__to_report = list() # Nodes
@@ -537,6 +538,7 @@ def PypeProcWatcherWorkflow(
         watcher_type='fs_based',
         watcher_directory='mypwatcher',
         max_jobs = 24, # must be > 0, but not too high
+        sge_option = None,
         **attributes):
     """Factory for the workflow.
     """
@@ -550,7 +552,7 @@ def PypeProcWatcherWorkflow(
     LOG.info('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     watcher = pwatcher_impl.get_process_watcher(watcher_directory)
     LOG.info('job_type={!r}, job_queue={!r}'.format(job_type, job_queue))
-    return Workflow(watcher, job_type=job_type, job_queue=job_queue, max_jobs=max_jobs)
+    return Workflow(watcher, job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option)
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
     #se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)
