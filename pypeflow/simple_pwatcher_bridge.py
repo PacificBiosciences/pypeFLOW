@@ -226,7 +226,7 @@ class Workflow(object):
         submitted = set()
         init_sleep_time = 0.1
         sleep_time = init_sleep_time
-        LOG.info('Num unsatisfied: {}'.format(len(unsatg)))
+        LOG.info('Num unsatisfied: {}, graph: {}'.format(len(unsatg), len(self.graph)))
         while ready or submitted:
             # Nodes cannot be in ready or submitted unless they are also in unsatg.
             to_submit = set()
