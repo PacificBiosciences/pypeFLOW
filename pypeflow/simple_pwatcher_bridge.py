@@ -461,9 +461,8 @@ def only_path(p):
         return p
 def PypeTask(inputs, outputs, TaskType=None, parameters=None, URL=None, wdir=None, name=None):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
+    This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
-    inputs = dict(inputs)
-    outputs = dict(outputs)
     if wdir is None:
         wdir = find_work_dir([only_path(v) for v in outputs.values()])
     this = _PypeTask(inputs, outputs, parameters, URL, wdir, name)
