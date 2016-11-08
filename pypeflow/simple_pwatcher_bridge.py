@@ -370,7 +370,8 @@ class PypeNode(NodeBase):
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': '))
         task_json_fn = os.path.join(pt.wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
-        cmd = '{} -m pypeflow.do_task {}'.format(sys.executable, task_json_fn)
+        python = 'python2.7' # sys.executable fails sometimes because of binwrapper: SE-152
+        cmd = '{} -m pypeflow.do_task {}'.format(python, task_json_fn)
         script_content = """#!/bin/bash
 hostname
 env | sort
