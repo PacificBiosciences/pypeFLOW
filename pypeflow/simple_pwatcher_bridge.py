@@ -372,8 +372,8 @@ class PypeNode(NodeBase):
         open(task_json_fn, 'w').write(task_content)
         cmd = '{} -m pypeflow.do_task {}'.format(sys.executable, task_json_fn)
         script_content = """#!/bin/bash
-env | sort
 hostname
+env | sort
 pwd
 time {}
 """.format(cmd)
