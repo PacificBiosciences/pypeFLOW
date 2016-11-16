@@ -77,6 +77,9 @@ class PwatcherTaskQueue(object):
 
             rundir, basename = os.path.split(os.path.abspath(generated_script_fn))
             cmd = '/bin/bash {}'.format(basename)
+            LOG.debug('In rundir={!r}, sge_option={!r}, __sge_option={!r}'.format(
+                rundir,
+                node.pypetask.parameters.get('sge_option'), self.__sge_option))
             sge_option = node.pypetask.parameters.get('sge_option', self.__sge_option)
             job_type = node.pypetask.parameters.get('job_type', None)
             job_queue = node.pypetask.parameters.get('job_queue', None)
@@ -241,7 +244,7 @@ class Workflow(object):
                         len(unsubmitted), len(to_submit), unsubmitted))
                     #ready.update(unsubmitted) # Resubmit only in pwatcher, if at all.
                 submitted.update(to_submit - unsubmitted)
-            LOG.debug('N in queue: {}'.format(len(submitted)))
+            LOG.debug('N in queue: {} (max_jobs={})'.format(len(submitted), self.max_jobs))
             recently_done = set(self.tq.check_done())
             if not recently_done:
                 if not submitted:
@@ -554,7 +557,7 @@ def PypeProcWatcherWorkflow(
     LOG.warning('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     LOG.info('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     watcher = pwatcher_impl.get_process_watcher(watcher_directory)
-    LOG.info('job_type={!r}, job_queue={!r}'.format(job_type, job_queue))
+    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}'.format(job_type, job_queue, sge_option))
     return Workflow(watcher, job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option)
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
