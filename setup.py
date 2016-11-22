@@ -14,7 +14,7 @@ setup(
     package_dir = {'':'.'},
     zip_safe = False,
     install_requires=[
-        'networkx >=1.7, <=1.10',
+        'networkx >=1.7, <=1.11',
     ],
     entry_points = {'console_scripts': [
             'pwatcher-main=pwatcher.mains.pwatcher:main',
