@@ -250,7 +250,7 @@ class Workflow(object):
                 if not submitted:
                     LOG.warning('Nothing is happening, and we had {} failures. Should we quit? Instead, we will just sleep.'.format(failures))
                     #break
-                LOG.info('sleep {}'.format(sleep_time))
+                LOG.info('sleep {}s'.format(sleep_time))
                 time.sleep(sleep_time)
                 sleep_time = sleep_time + 0.1 if (sleep_time < updateFreq) else updateFreq
                 continue
@@ -433,8 +433,8 @@ def find_work_dir(paths):
     """
     dirnames = set(os.path.dirname(os.path.normpath(p)) for p in paths)
     if len(dirnames) != 1:
-        raise Exception('Cannot find work-dir for paths in multiple (or zero) dirs: {!r}'.format(
-            paths))
+        raise Exception('Cannot find work-dir for paths in multiple (or zero) dirs: {} in {}'.format(
+            pprint.pformat(paths), pprint.pformat(dirnames)))
     d = dirnames.pop()
     return os.path.abspath(d)
 class PypeLocalFile(object):
@@ -564,6 +564,5 @@ def PypeProcWatcherWorkflow(
     #se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)
     #return pypeflow.controller._PypeConcurrentWorkflow(URL=URL, thread_handler=th, messageQueue=mq, shutdown_event=se,
     #        attributes=attributes)
-PypeProcWatcherWorkflow.setNumThreadAllowed = lambda x, y: None
 
 __all__ = ['PypeProcWatcherWorkflow', 'fn', 'makePypeLocalFile', 'MyFakePypeThreadTaskBase', 'PypeTask']
