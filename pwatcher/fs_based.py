@@ -404,7 +404,7 @@ class MetaJobSlurm(object):
         sge_option = qstripped(self.mjob.job.options['sge_option'])
         job_queue = self.mjob.job.options['job_queue']
         cwd = os.getcwd()
-        sge_cmd = 'sbatch -J {job_name} -q {job_queue} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
+        sge_cmd = 'sbatch -J {job_name} -p {job_queue} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
                 **locals())
         # "By default all environment variables are propagated."
         #  http://slurm.schedmd.com/sbatch.html
