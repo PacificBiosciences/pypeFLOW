@@ -464,13 +464,13 @@ def only_path(p):
         return p.path
     else:
         return p
-def PypeTask(inputs, outputs, TaskType=None, parameters=None, URL=None, wdir=None, name=None):
+def PypeTask(inputs, outputs, parameters=None, wdir=None, name=None):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
     if wdir is None:
         wdir = find_work_dir([only_path(v) for v in outputs.values()])
-    this = _PypeTask(inputs, outputs, parameters, URL, wdir, name)
+    this = _PypeTask(inputs, outputs, parameters, wdir, name)
     #basedir = os.path.basename(wdir)
     basedir = this.name
     if basedir in PRODUCERS:
@@ -508,15 +508,14 @@ class _PypeTask(object):
         return self
     def __repr__(self):
         return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))
-    def __init__(self, inputs, outputs, parameters=None, URL=None, wdir=None, name=None):
+    def __init__(self, inputs, outputs, parameters=None, wdir=None, name=None):
         if parameters is None:
             parameters = {}
         if wdir is None:
             wdir = parameters.get('wdir', name) # One of these must be a string!
         if name is None:
             name = os.path.relpath(wdir)
-        if URL is None:
-            URL = 'task://localhost/{}'.format(name)
+        URL = 'task://localhost/{}'.format(name)
         self.inputs = inputs
         self.outputs = outputs
         self.parameters = parameters
