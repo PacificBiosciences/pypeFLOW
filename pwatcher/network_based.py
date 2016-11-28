@@ -223,7 +223,7 @@ class ReuseAddrServer(SocketServer.TCPServer):
                         self.server_job_list[file][0] = os.path.getmtime(fn)
                         self.server_job_list[file][3] = rc
                     else:
-                        self.server_job_list[file] = [os.getmtime(fn), None, None, rc]
+                        self.server_job_list[file] = [os.path.getmtime(fn), None, None, rc]
     def __init__(self, server_address, RequestHandlerClass, server_directories):
         self.allow_reuse_address = True
         self.server_log_dir, self.server_pid_dir, self.server_exitrc_dir = server_directories
