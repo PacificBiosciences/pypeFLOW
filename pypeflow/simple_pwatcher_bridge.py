@@ -12,6 +12,7 @@ import os
 import pprint
 import random
 import sys
+import tempfile
 import time
 import traceback
 
@@ -180,7 +181,8 @@ class Workflow(object):
         record them as 'node.needs', and update the global pypetask2node table.
         """
         needs = set()
-        node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs) #, pypetask.generated_script_fn)
+        use_tmpdir = self.use_tmpdir # TODO(CD): Let pypetask.use_tmpdir override this.
+        node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs, use_tmpdir) #, pypetask.generated_script_fn)
         self.pypetask2node[pypetask] = node
         for key, plf in pypetask.inputs.iteritems():
             if plf.producer is None:
@@ -281,13 +283,14 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
-    def __init__(self, watcher, job_type, job_queue, max_jobs, sge_option=''):
+    def __init__(self, watcher, job_type, job_queue, max_jobs, use_tmpdir, sge_option=''):
         self.graph = networkx.DiGraph()
         self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue, sge_option=sge_option) # TODO: Inject this.
         assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
         self.max_jobs = max_jobs
         self.sentinels = dict() # sentinel_done_fn -> Node
         self.pypetask2node = dict()
+        self.use_tmpdir = use_tmpdir
 
 class NodeBase(object):
     """Graph node.
@@ -365,23 +368,29 @@ class PypeNode(NodeBase):
     """
     def generate_script(self):
         pt = self.pypetask
+        wdir = pt.wdir # For now, assume dir already exists.
+        inputs = {k:v.path for k,v in pt.inputs.items()}
+        outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
+        for v in outputs.values():
+            assert not os.path.isabs(v), '{!r} is not relative'.format(v)
         task_desc = {
-                'inputs': {k:v.path for k,v in pt.inputs.items()},
-                'outputs': {k:v.path for k,v in pt.outputs.items()},
+                'inputs': inputs,
+                'outputs': outputs,
                 'parameters': pt.parameters,
                 'python_function': pt.func_name,
         }
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': '))
-        task_json_fn = os.path.join(pt.wdir, 'task.json')
+        task_json_fn = os.path.join(wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
         python = 'python2.7' # sys.executable fails sometimes because of binwrapper: SE-152
-        cmd = '{} -m pypeflow.do_task {}'.format(python, task_json_fn)
+        tmpdir_flag = '--tmpdir {}'.format(self.use_tmpdir) if self.use_tmpdir else ''
+        cmd = '{} -m pypeflow.do_task {} {}'.format(python, tmpdir_flag, task_json_fn)
         script_content = """#!/bin/bash
 hostname
 env | sort
 pwd
-time {}
-""".format(cmd)
+time {cmd}
+""".format(**locals())
         script_fn = os.path.join(pt.wdir, 'task.sh')
         open(script_fn, 'w').write(script_content)
         return script_fn
@@ -397,9 +406,10 @@ time {}
             LOG.exception('name={!r} URL={!r}'.format(pt.name, pt.URL))
             raise
         return generated_script_fn
-    def __init__(self, name, wdir, pypetask, needs): #, script_fn):
+    def __init__(self, name, wdir, pypetask, needs, use_tmpdir): #, script_fn):
         super(PypeNode, self).__init__(name, wdir, needs)
         self.pypetask = pypetask
+        self.use_tmpdir = use_tmpdir
 
 # This global exists only because we continue to support the old PypeTask style,
 # where a PypeLocalFile does not know the PypeTask which produces it.
@@ -479,30 +489,37 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None):
             basedir, PRODUCERS[basedir], this))
     LOG.debug('Added PRODUCERS[{!r}] = {!r}'.format(basedir, this))
     PRODUCERS[basedir] = this
-    for key, val in outputs.items():
-        if not isinstance(val, PypeLocalFile):
-            # If relative, then it is relative to our wdir.
-            #LOG.warning('Making PLF: {!r} {!r}'.format(val, this))
-            if not os.path.isabs(val):
-                if not wdir:
-                    raise Exception('No wdir for {!r}'.format(this))
-                val = os.path.join(wdir, val)
-            #LOG.warning('Muking PLF: {!r} {!r}'.format(val, this))
-            val = PypeLocalFile(val, this)
-            outputs[key] = val
-        else:
-            val.producer = this
-    for key, val in inputs.items():
-        if not isinstance(val, PypeLocalFile):
-            assert os.path.isabs(val), 'Inputs cannot be relative at this point: {!r} in {!r}'.format(val, this)
-            inputs[key] = findPypeLocalFile(val)
-    common = set(inputs.keys()) & set(outputs.keys())
-    assert (not common), 'Keys in both inputs and outputs of PypeTask({}): {!r}'.format(wdir, common)
+    this.canonicalize()
+    this.assert_canonical()
     LOG.debug('Built {!r}'.format(this))
     return this
 class _PypeTask(object):
     """Adaptor from old PypeTask API.
     """
+    def canonicalize(self):
+        for key, val in self.outputs.items():
+            if not isinstance(val, PypeLocalFile):
+                # If relative, then it is relative to our wdir.
+                #LOG.warning('Making PLF: {!r} {!r}'.format(val, self))
+                if not os.path.isabs(val):
+                    val = os.path.join(self.wdir, val)
+                #LOG.warning('Muking PLF: {!r} {!r}'.format(val, self))
+                val = PypeLocalFile(val, self)
+                self.outputs[key] = val
+            else:
+                val.producer = self
+        for key, val in self.inputs.items():
+            if not isinstance(val, PypeLocalFile):
+                assert os.path.isabs(val), 'Inputs cannot be relative at self point: {!r} in {!r}'.format(val, self)
+                self.inputs[key] = findPypeLocalFile(val)
+    def assert_canonical(self):
+        # Output values will be updated after PypeTask init, so refer back to self as producer.
+        for k,v in self.inputs.iteritems():
+            assert os.path.isabs(v.path), 'For {!r}, input {!r} is not absolute'.format(self.wdir, v)
+        for k,v in self.outputs.iteritems():
+            assert os.path.isabs(v.path), 'For {!r}, output {!r} is not absolute'.format(self.wdir, v)
+        common = set(self.inputs.keys()) & set(self.outputs.keys())
+        assert (not common), 'Keys in both inputs and outputs of PypeTask({}): {!r}'.format(wdir, common)
     def __call__(self, func):
         self.func = func
         self.func_name = '{}.{}'.format(func.__module__, func.__name__)
@@ -524,6 +541,7 @@ class _PypeTask(object):
         #    setattr(self, key, os.path.abspath(bn))
         #for key, bn in outputs.iteritems():
         #    setattr(self, key, os.path.abspath(bn))
+        assert self.wdir, 'No wdir for {!r} {!r}'.format(self.name, self.URL)
         LOG.debug('Created {!r}'.format(self))
 
 class DummyPypeTask(_PypeTask):
@@ -543,6 +561,7 @@ def PypeProcWatcherWorkflow(
         watcher_directory='mypwatcher',
         max_jobs = 24, # must be > 0, but not too high
         sge_option = None,
+        use_tmpdir = None,
         **attributes):
     """Factory for the workflow.
     """
@@ -555,8 +574,14 @@ def PypeProcWatcherWorkflow(
     LOG.warning('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     LOG.info('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     watcher = pwatcher_impl.get_process_watcher(watcher_directory)
-    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}'.format(job_type, job_queue, sge_option))
-    return Workflow(watcher, job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option)
+    if use_tmpdir:
+        try:
+            if not os.path.isabs(use_tmpdir):
+                use_tmpdir = os.path.abspath(use_tmpdir)
+        except (TypeError, AttributeError):
+            use_tmpdir = tempfile.gettempdir()
+    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}, use_tmpdir={!r}'.format(job_type, job_queue, sge_option, use_tmpdir))
+    return Workflow(watcher, job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option, use_tmpdir=use_tmpdir)
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
     #se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)
