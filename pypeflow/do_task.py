@@ -1,5 +1,5 @@
 #!/usr/bin/env python2.7
-from . import do_support
+from . import do_support, util
 import argparse
 import contextlib
 import importlib
@@ -71,6 +71,7 @@ def cd(newdir):
 
 def mkdirs(path):
     if not os.path.isdir(path):
+        LOG.debug('mkdir -p {}'.format(path))
         os.makedirs(path)
 
 def wait_for(fn):
@@ -99,6 +100,22 @@ class OldTaskRunner(object):
         self.inputs = inputs
         self.outputs = outputs
 
+def run_python_func(func, inputs, outputs, parameters):
+    if False:
+        kwds = dict()
+        kwds.update(inputs)
+        kwds.update(outputs)
+        kwds.update(parameters)
+        func(**kwds)
+    else:
+        # old way, for now
+        cwd = os.getcwd()
+        parameters['cwd'] = cwd
+        self = OldTaskRunner(inputs, outputs, parameters)
+        func(self=self)
+        script_fn = getattr(self, 'generated_script_fn', None)
+        if script_fn is not None:
+            do_support.run_bash(script_fn)
 def run(json_fn, timeout, tmpdir):
     if isinstance(timeout, int):
         global TIMEOUT
@@ -109,28 +126,38 @@ def run(json_fn, timeout, tmpdir):
     LOG.debug(pprint.pformat(cfg))
     for fn in cfg['inputs'].values():
         wait_for(fn)
+    inputs = cfg['inputs']
+    outputs = cfg['outputs']
+    parameters = cfg['parameters']
     python_function_name = cfg['python_function']
     func = get_func(python_function_name)
-    try:
-        if False:
-            kwds = dict()
-            kwds.update(cfg['inputs'])
-            kwds.update(cfg['outputs'])
-            kwds.update(cfg['parameters'])
-            func(**kwds)
-        else:
-            # old way, for now
-            cwd = os.getcwd()
-            cfg['parameters']['cwd'] = cwd
-            self = OldTaskRunner(cfg['inputs'], cfg['outputs'], cfg['parameters'])
-            func(self=self)
-            script_fn = getattr(self, 'generated_script_fn', None)
-            if script_fn is not None:
-                do_support.run_bash(script_fn)
-    except TypeError:
-        # Report the actual function spec.
-        LOG.error('For function "{}", {}'.format(python_function_name, inspect.getargspec(func)))
-        raise
+    myinputs = dict(inputs)
+    myoutputs = dict(outputs)
+    if tmpdir:
+        import getpass
+        user = getpass.getuser()
+        pid = os.getpid()
+        cwd = os.getcwd()
+        mytmpdir = '{tmpdir}/{user}/pypetmp/{cwd}'.format(**locals())
+        mkdirs(mytmpdir)
+        # TODO(CD): Copy inputs w/ flock.
+    with util.cd(mytmpdir):
+        try:
+            run_python_func(func, myinputs, myoutputs, parameters)
+        except TypeError:
+            # Report the actual function spec.
+            LOG.error('For function "{}", {}'.format(python_function_name, inspect.getargspec(func)))
+            raise
+    if tmpdir:
+        """
+        for k,v in outputs.iteritems():
+            cmd = 'mv -f {} {}'.format(
+                os.path.join(mytmpdir, v),
+                os.path.join(cwd, v))
+            util.system(cmd)
+        """
+        cmd = 'rsync -av {}/ {}; rm -rf {}'.format(mytmpdir, cwd, mytmpdir)
+        util.system(cmd)
     for fn in cfg['outputs'].values():
         wait_for(fn)
 
