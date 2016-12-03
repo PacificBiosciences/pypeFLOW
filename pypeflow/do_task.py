@@ -71,8 +71,15 @@ def cd(newdir):
 
 def mkdirs(path):
     if not os.path.isdir(path):
-        LOG.debug('mkdir -p {}'.format(path))
-        os.makedirs(path)
+        cmd = 'mkdir -p {}'.format(path)
+        util.system(cmd)
+def rmdirs(path):
+    if os.path.isdir(path):
+        if len(path) < 20 and 'home' in path:
+            LOG.error('Refusing to rm {!r} since it might be your homedir.'.format(path))
+            return
+        cmd = 'rm -rf {}'.format(path)
+        util.system(cmd)
 
 def wait_for(fn):
     global TIMEOUT
@@ -133,14 +140,17 @@ def run(json_fn, timeout, tmpdir):
     func = get_func(python_function_name)
     myinputs = dict(inputs)
     myoutputs = dict(outputs)
+    finaloutdir = os.getcwd()
     if tmpdir:
         import getpass
         user = getpass.getuser()
         pid = os.getpid()
-        finaloutdir = os.getcwd()
         myrundir = '{tmpdir}/{user}/pypetmp/{finaloutdir}'.format(**locals())
+        rmdirs(myrundir)
         mkdirs(myrundir)
         # TODO(CD): Copy inputs w/ flock.
+    else:
+        myrundir = finaloutdir
     with util.cd(myrundir):
         try:
             run_python_func(func, myinputs, myoutputs, parameters)
