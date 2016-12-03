@@ -137,11 +137,11 @@ def run(json_fn, timeout, tmpdir):
         import getpass
         user = getpass.getuser()
         pid = os.getpid()
-        cwd = os.getcwd()
-        mytmpdir = '{tmpdir}/{user}/pypetmp/{cwd}'.format(**locals())
-        mkdirs(mytmpdir)
+        finaloutdir = os.getcwd()
+        myrundir = '{tmpdir}/{user}/pypetmp/{finaloutdir}'.format(**locals())
+        mkdirs(myrundir)
         # TODO(CD): Copy inputs w/ flock.
-    with util.cd(mytmpdir):
+    with util.cd(myrundir):
         try:
             run_python_func(func, myinputs, myoutputs, parameters)
         except TypeError:
@@ -152,11 +152,11 @@ def run(json_fn, timeout, tmpdir):
         """
         for k,v in outputs.iteritems():
             cmd = 'mv -f {} {}'.format(
-                os.path.join(mytmpdir, v),
-                os.path.join(cwd, v))
+                os.path.join(myrundir, v),
+                os.path.join(finaloutdir, v))
             util.system(cmd)
         """
-        cmd = 'rsync -av {}/ {}; rm -rf {}'.format(mytmpdir, cwd, mytmpdir)
+        cmd = 'rsync -av {}/ {}; rm -rf {}'.format(myrundir, finaloutdir, myrundir)
         util.system(cmd)
     for fn in cfg['outputs'].values():
         wait_for(fn)
