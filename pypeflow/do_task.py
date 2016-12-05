@@ -131,6 +131,10 @@ def run(json_fn, timeout, tmpdir):
     LOG.debug('Loading JSON from {!r}'.format(json_fn))
     cfg = json.loads(open(json_fn).read())
     LOG.debug(pprint.pformat(cfg))
+    rundir = os.path.dirname(json_fn)
+    with cd(rundir):
+        run_cfg_in_tmpdir(cfg, tmpdir)
+def run_cfg_in_tmpdir(cfg, tmpdir):
     for fn in cfg['inputs'].values():
         wait_for(fn)
     inputs = cfg['inputs']
