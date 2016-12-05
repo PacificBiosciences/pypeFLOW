@@ -64,7 +64,6 @@ class PwatcherTaskQueue(object):
         #sge_option='-pe smp 8 -q default'
         for node in nodes:
             #node.satisfy() # This would do the job without a process-watcher.
-            mkdirs(node.wdir)
             generated_script_fn = node.execute() # misnomer; this only dumps task.json now
             if not generated_script_fn:
                 raise Exception('Missing generated_script_fn for Node {}'.format(node))
@@ -360,17 +359,55 @@ class ComboNode(NodeBase):
     Only this ComboNode will be in the DiGraph, not the sub-Nodes.
     """
     def generate_script(self):
-        raise NotImplementedError(repr(self))
-    def __init__(self, nodes):
-        #super(ComboNode, self).__init__(name, wdir, needs)
-        self.nodes = nodes
+        for node in self.nodes:
+            node.generate_script()
+        wdir = self.wdir
+        mkdirs(self.wdir)
+        combo_dirs = [node.wdir for node in self.nodes]
+        task_desc = {
+                'combo_dirs': combo_dirs,
+        }
+        task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': '))
+        task_json_fn = os.path.join(wdir, 'task.json')
+        open(task_json_fn, 'w').write(task_content)
+        script_content = """#!/bin/bash
+hostname
+env | sort
+pwd
+""".format(**locals())
+        for node in self.nodes:
+            node_task_json_fn = os.path.join(node.wdir, 'task.sh')
+            script_content += 'bash {}\n'.format(node_task_json_fn)
+        script_fn = os.path.join(wdir, 'task.sh')
+        open(script_fn, 'w').write(script_content)
+        return script_fn
+    def append(self, node):
+        if isinstance(node, ComboNode):
+            for n in node.nodes:
+                self.append(n)
+            #raise Exception('Already ComboNode: {!r}'.format(node))
+        else:
+            self.nodes.append(node)
+            self.needs.update(node.needs)
+    def __repr__(self):
+        return 'ComboNode({!r})'.format(','.join(n.name for n in self.nodes))
+    def __init__(self, start):
+        name = 'Combo-' + start.name
+        wdir = start.wdir + '/combo'
+        needs = start.needs
+        super(ComboNode, self).__init__(name, wdir, needs)
+        self.nodes = list()
+        self.nodes.append(start)
+        self.pypetask = start.pypetask
 class PypeNode(NodeBase):
     """
     We will clean this up later. For now, it is pretty tightly coupled to PypeTask.
     """
     def generate_script(self):
+        wdir = self.wdir
+        mkdirs(wdir)
         pt = self.pypetask
-        wdir = pt.wdir # For now, assume dir already exists.
+        assert pt.wdir == self.wdir
         inputs = {k:v.path for k,v in pt.inputs.items()}
         outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
         for v in outputs.values():
@@ -393,7 +430,7 @@ env | sort
 pwd
 time {cmd}
 """.format(**locals())
-        script_fn = os.path.join(pt.wdir, 'task.sh')
+        script_fn = os.path.join(wdir, 'task.sh')
         open(script_fn, 'w').write(script_content)
         return script_fn
     def old_generate_script(self):
