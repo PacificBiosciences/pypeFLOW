@@ -283,7 +283,7 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
-    def __init__(self, watcher, job_type, job_queue, max_jobs, use_tmpdir, sge_option=''):
+    def __init__(self, watcher, job_type, job_queue, max_jobs, use_tmpdir, squash, sge_option=''):
         self.graph = networkx.DiGraph()
         self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue, sge_option=sge_option) # TODO: Inject this.
         assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
@@ -291,6 +291,8 @@ class Workflow(object):
         self.sentinels = dict() # sentinel_done_fn -> Node
         self.pypetask2node = dict()
         self.use_tmpdir = use_tmpdir
+        self.squash = squash # This really should depend on each Task, but for now a global is fine.
+        # For small genomes, serial tasks should always be squashed.
 
 class NodeBase(object):
     """Graph node.
@@ -562,6 +564,7 @@ def PypeProcWatcherWorkflow(
         max_jobs = 24, # must be > 0, but not too high
         sge_option = None,
         use_tmpdir = None,
+        squash = False,
         **attributes):
     """Factory for the workflow.
     """
@@ -580,8 +583,13 @@ def PypeProcWatcherWorkflow(
                 use_tmpdir = os.path.abspath(use_tmpdir)
         except (TypeError, AttributeError):
             use_tmpdir = tempfile.gettempdir()
-    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}, use_tmpdir={!r}'.format(job_type, job_queue, sge_option, use_tmpdir))
-    return Workflow(watcher, job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option, use_tmpdir=use_tmpdir)
+    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}, use_tmpdir={!r}, squash={!r}'.format(
+        job_type, job_queue, sge_option, use_tmpdir, squash,
+    ))
+    return Workflow(watcher,
+            job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option, use_tmpdir=use_tmpdir,
+            squash=squash,
+    )
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
     #se = MyFakeShutdownEvent() # TODO: Save pwatcher state on ShutdownEvent. (Not needed for blocking pwatcher. Mildly useful for fs_based.)
