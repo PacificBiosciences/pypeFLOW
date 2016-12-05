@@ -155,14 +155,29 @@ def get_unsatisfied_subgraph(g):
         if n.satisfied():
             unsatg.remove_node(n)
     return unsatg
-def find_next_ready(g, node):
+def find_all_ancestors(g):
+    ancestors = dict()
+    def get_ancestors(node):
+        """memoized"""
+        if node not in ancestors:
+            myancestors = set()
+            for pred in g.predecessors_iter(node):
+                myancestors.update(get_ancestors(pred))
+            ancestors[node] = myancestors
+        return ancestors[node]
+    for node in g.nodes():
+        get_ancestors(node)
+    return ancestors
+def find_next_ready_and_remove(g, node):
     """Given a recently satisfied node,
     return any successors with in_degree 1.
+    Then remove node from g immediately.
     """
     ready = set()
     for n in g.successors_iter(node):
         if 1 == g.in_degree(n):
             ready.add(n)
+    g.remove_node(node)
     return ready
 def find_all_roots(g):
     """Find all nodes in g which have no predecessors.
@@ -266,8 +281,7 @@ class Workflow(object):
             LOG.info('recently_satisfied: {!r}'.format(recently_satisfied))
             LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
             for node in recently_satisfied:
-                ready.update(find_next_ready(unsatg, node))
-                unsatg.remove_node(node)
+                ready.update(find_next_ready_and_remove(unsatg, node))
             LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
             if recently_done:
                 msg = 'Some tasks are recently_done but not satisfied: {!r}'.format(recently_done)
