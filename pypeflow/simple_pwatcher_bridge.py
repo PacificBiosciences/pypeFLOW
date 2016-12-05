@@ -179,6 +179,74 @@ def find_next_ready_and_remove(g, node):
             ready.add(n)
     g.remove_node(node)
     return ready
+
+def get_squashed_graph(g):
+    """Create ComboNodes for purely serial nodes.
+    ComboNodes all run in the same distributed job,
+    under the same do_task invocation.
+    """
+    ancestors = find_all_ancestors(g)
+    canong = networkx.DiGraph(g)
+    # First, remove redundant edges.
+    for node in g.nodes():
+        mypreds = set(g.predecessors(node))
+        LOG.debug('preds[{!r}]: {!r}'.format(node, mypreds))
+        in_edges = list(g.in_edges(node))
+        for (pred,me) in in_edges:
+            assert me == node
+            LOG.debug('ancestors[{!r}]: {!r}'.format(pred, ancestors[pred]))
+            LOG.debug('mypreds - ancestors[pred]: {!r}'.format(mypreds - ancestors[pred]))
+            if (mypreds - ancestors[pred]) == set([pred]):
+                LOG.debug('We can combine {!r} into {!r}.'.format(node, pred))
+                for (u,v) in in_edges:
+                    LOG.debug('(u,v):{!r},{!r}'.format(u,v))
+                    assert v == node
+                    if u != pred:
+                        canong.remove(u, v)
+                assert set(canong.predecessors(node)) == set([pred])
+                break
+    # Find combinable edges.
+    serial = dict()
+    for node in canong.nodes():
+        LOG.debug('{!r} in_degree={}'.format(node, g.in_degree(node)))
+        in_edges = list(g.in_edges(node))
+        if len(in_edges) != 1:
+            continue
+        pred,v = in_edges[0]
+        if len(canong.out_edges(pred)) != 1:
+            continue
+        LOG.debug('canong.successors({!r}): {!r}'.format(pred, canong.successors(pred)))
+        assert set(canong.successors(pred)) == set([node])
+        assert pred not in serial
+        serial[pred] = node
+    squashedg = networkx.DiGraph(g)
+    replaced = dict()
+    for u,v in serial.items():
+        if u not in replaced:
+            combo = ComboNode(u)
+            in_edges = squashedg.in_edges(u)
+            out_edges = squashedg.out_edges(u)
+            squashedg.remove_node(u)
+            squashedg.add_node(combo)
+            for pred,_ in in_edges:
+                squashedg.add_edge(pred, combo)
+            for _,succ in out_edges:
+                squashedg.add_edge(combo, succ)
+            replaced[u] = combo
+        if v in replaced:
+            v = replaced[v]
+        #in_edges = squashedg.in_edges(v)
+        out_edges = squashedg.out_edges(v)
+        squashedg.remove_node(v)
+        #for pred,_ in in_edges:
+        #    squashedg.add_edge(pred, combo) # must already exist
+        for _,succ in out_edges:
+            squashedg.add_edge(combo, succ) # might already exist
+        assert v not in replaced
+        replaced[v] = combo
+        combo.append(v)
+    return squashedg
+
 def find_all_roots(g):
     """Find all nodes in g which have no predecessors.
     """
@@ -242,6 +310,7 @@ class Workflow(object):
         assert networkx.algorithms.dag.is_directed_acyclic_graph(self.graph)
         failures = 0
         unsatg = get_unsatisfied_subgraph(self.graph)
+        #unsatg = get_squashed_graph(unsatg) # experimental and flaky, but not really needed
         ready = find_all_roots(unsatg)
         submitted = set()
         init_sleep_time = 0.1
@@ -368,6 +437,51 @@ touch {sentinel_done_fn}
         self.name = name
         self.wdir = wdir
         self.needs = needs
+class ComboNode(NodeBase):
+    """Several Nodes to be executed in sequence.
+    Only this ComboNode will be in the DiGraph, not the sub-Nodes.
+    """
+    def generate_script(self):
+        for node in self.nodes:
+            node.generate_script()
+        wdir = self.wdir
+        mkdirs(self.wdir)
+        combo_dirs = [node.wdir for node in self.nodes]
+        task_desc = {
+                'combo_dirs': combo_dirs,
+        }
+        task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': '))
+        task_json_fn = os.path.join(wdir, 'task.json')
+        open(task_json_fn, 'w').write(task_content)
+        script_content = """#!/bin/bash
+hostname
+env | sort
+pwd
+""".format(**locals())
+        for node in self.nodes:
+            node_task_json_fn = os.path.join(node.wdir, 'task.sh')
+            script_content += 'bash {}\n'.format(node_task_json_fn)
+        script_fn = os.path.join(wdir, 'task.sh')
+        open(script_fn, 'w').write(script_content)
+        return script_fn
+    def append(self, node):
+        if isinstance(node, ComboNode):
+            for n in node.nodes:
+                self.append(n)
+            #raise Exception('Already ComboNode: {!r}'.format(node))
+        else:
+            self.nodes.append(node)
+            self.needs.update(node.needs)
+    def __repr__(self):
+        return 'ComboNode({!r})'.format(','.join(n.name for n in self.nodes))
+    def __init__(self, start):
+        name = 'Combo-' + start.name
+        wdir = start.wdir + '/combo'
+        needs = start.needs
+        super(ComboNode, self).__init__(name, wdir, needs)
+        self.nodes = list()
+        self.nodes.append(start)
+        self.pypetask = start.pypetask
 class PypeNode(NodeBase):
     """
     We will clean this up later. For now, it is pretty tightly coupled to PypeTask.
