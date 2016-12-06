@@ -489,6 +489,13 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None):
     if wdir is None:
         #wdir = parameters.get('wdir', name) # One of these must be a string!
         wdir = find_work_dir([only_path(v) for v in outputs.values()])
+        # Since we derived wdir from outputs, we need to ensure that they
+        # are not relative to wdir.
+        for k,v in outputs.items():
+            if not isinstance(v, PypeLocalFile) and not os.path.isabs(v):
+                outputs[k] = os.path.relpath(v, wdir)
+    if not os.path.isabs(wdir):
+        wdir = os.path.abspath(wdir)
     this = _PypeTask(inputs, outputs, wdir, parameters)
     #basedir = os.path.basename(wdir)
     basedir = this.name
