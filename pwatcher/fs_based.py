@@ -286,12 +286,14 @@ class MetaJobSge(object):
         #cwd = os.getcwd()
         job_name = self.get_jobname()
         sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        if '-q' not in sge_option:
+            job_queue = self.mjob.job.options['job_queue']
+            sge_option = '-q {} '.format(job_queue) + sge_option
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -330,12 +332,14 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         #cwd = os.getcwd()
         job_name = self.get_jobname()
         sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        if '-q' not in sge_option:
+            job_queue = self.mjob.job.options['job_queue']
+            sge_option = '-q {} '.format(job_queue) + sge_option
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -367,13 +371,15 @@ class MetaJobTorque(object):
         #cwd = os.getcwd()
         job_name = self.get_jobname()
         sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        if '-q' not in sge_option:
+            job_queue = self.mjob.job.options['job_queue']
+            sge_option = '-q {} '.format(job_queue) + sge_option
         cwd = os.getcwd()
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} -q {job_queue} {sge_option} {specific} -d {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
+        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -d {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
                 **locals())
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
     def kill(self, state, heartbeat):
@@ -402,9 +408,11 @@ class MetaJobSlurm(object):
         """
         job_name = self.get_jobname()
         sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
+        if '-p' not in sge_option:
+            job_queue = self.mjob.job.options['job_queue']
+            sge_option = '-p {} '.format(job_queue) + sge_option
         cwd = os.getcwd()
-        sge_cmd = 'sbatch -J {job_name} -p {job_queue} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
+        sge_cmd = 'sbatch -J {job_name} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
                 **locals())
         # "By default all environment variables are propagated."
         #  http://slurm.schedmd.com/sbatch.html
@@ -434,8 +442,10 @@ class MetaJobLsf(object):
         """
         job_name = self.get_jobname()
         sge_option = qstripped(self.mjob.job.options['sge_option'])
-        job_queue = self.mjob.job.options['job_queue']
-        sge_cmd = 'bsub -J {job_name} -q {job_queue} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
+        if '-q' not in sge_option:
+            job_queue = self.mjob.job.options['job_queue']
+            sge_option = '-q {} '.format(job_queue) + sge_option
+        sge_cmd = 'bsub -J {job_name} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
                 **locals())
         # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
         system(sge_cmd, checked=True) # TODO: Capture q-jobid
