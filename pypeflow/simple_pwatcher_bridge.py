@@ -548,7 +548,7 @@ class _PypeTask(object):
         URL = 'task://localhost/{}'.format(name)
         self.inputs = inputs
         self.outputs = outputs
-        self.parameters = parameters
+        self.parameters = dict(parameters) # Always copy this, so caller can re-use, for convenience.
         self.wdir = wdir
         self.name = name
         self.URL = URL
