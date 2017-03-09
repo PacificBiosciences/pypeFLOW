@@ -21,6 +21,13 @@ def run(script_fn):
 def mkdirs(path):
     if not os.path.isdir(path):
         os.makedirs(path)
+def rmdirs(path):
+    if os.path.isdir(path):
+        if len(path) < 20 and 'home' in path:
+            LOG.error('Refusing to rm {!r} since it might be your homedir.'.format(path))
+            return
+        cmd = 'rm -rf {}'.format(path)
+        system(cmd)
 def system(cmd):
     LOG.info(cmd)
     rc = os.system(cmd)

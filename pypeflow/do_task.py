@@ -1,7 +1,6 @@
 #!/usr/bin/env python2.7
 from . import do_support, util
 import argparse
-import contextlib
 import importlib
 import inspect
 import json
@@ -58,29 +57,6 @@ def get_parser():
         help='JSON file, as per epilog.')
     return parser
 
-@contextlib.contextmanager
-def cd(newdir):
-    prevdir = os.getcwd()
-    LOG.debug('CD: %r <- %r' %(newdir, prevdir))
-    os.chdir(os.path.expanduser(newdir))
-    try:
-        yield
-    finally:
-        LOG.debug('CD: %r -> %r' %(newdir, prevdir))
-        os.chdir(prevdir)
-
-def mkdirs(path):
-    if not os.path.isdir(path):
-        cmd = 'mkdir -p {}'.format(path)
-        util.system(cmd)
-def rmdirs(path):
-    if os.path.isdir(path):
-        if len(path) < 20 and 'home' in path:
-            LOG.error('Refusing to rm {!r} since it might be your homedir.'.format(path))
-            return
-        cmd = 'rm -rf {}'.format(path)
-        util.system(cmd)
-
 def wait_for(fn):
     global TIMEOUT
     LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, TIMEOUT))
@@ -132,7 +108,7 @@ def run(json_fn, timeout, tmpdir):
     cfg = json.loads(open(json_fn).read())
     LOG.debug(pprint.pformat(cfg))
     rundir = os.path.dirname(json_fn)
-    with cd(rundir):
+    with util.cd(rundir):
         run_cfg_in_tmpdir(cfg, tmpdir)
 def run_cfg_in_tmpdir(cfg, tmpdir):
     for fn in cfg['inputs'].values():
@@ -150,8 +126,8 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
         user = getpass.getuser()
         pid = os.getpid()
         myrundir = '{tmpdir}/{user}/pypetmp/{finaloutdir}'.format(**locals())
-        rmdirs(myrundir)
-        mkdirs(myrundir)
+        util.rmdirs(myrundir)
+        util.mkdirs(myrundir)
         # TODO(CD): Copy inputs w/ flock.
     else:
         myrundir = finaloutdir
