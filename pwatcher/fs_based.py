@@ -235,16 +235,18 @@ def background(script, exe='/bin/bash'):
     #system(checkcall, checked=True)
     return pid
 
-def qstripped(option):
+def qstripped(option, flag='-q'):
     """Given a string of options, remove any -q foo.
 
     >>> qstripped('-xy -q foo -z bar')
     '-xy -z bar'
+    >>> qstripped('-xy -p foo -z bar', '-p')
+    '-xy -z bar'
     """
     # For now, do not strip -qfoo
     vals = option.strip().split()
-    while '-q' in vals:
-        i = vals.index('-q')
+    while flag in vals:
+        i = vals.index(flag)
         vals = vals[0:i] + vals[i+2:]
     return ' '.join(vals)
 
@@ -285,10 +287,10 @@ class MetaJobSge(object):
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        if '-q' not in sge_option:
-            job_queue = self.mjob.job.options['job_queue']
-            sge_option = '-q {} '.format(job_queue) + sge_option
+        sge_option = self.mjob.job.options['sge_option']
+        job_queue = self.mjob.job.options['job_queue']
+        if job_queue:
+            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
@@ -331,10 +333,10 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        if '-q' not in sge_option:
-            job_queue = self.mjob.job.options['job_queue']
-            sge_option = '-q {} '.format(job_queue) + sge_option
+        sge_option = self.mjob.job.options['sge_option']
+        job_queue = self.mjob.job.options['job_queue']
+        if job_queue:
+            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
@@ -370,10 +372,10 @@ class MetaJobTorque(object):
         specific = self.specific
         #cwd = os.getcwd()
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        if '-q' not in sge_option:
-            job_queue = self.mjob.job.options['job_queue']
-            sge_option = '-q {} '.format(job_queue) + sge_option
+        sge_option = self.mjob.job.options['sge_option']
+        job_queue = self.mjob.job.options['job_queue']
+        if job_queue:
+            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
         cwd = os.getcwd()
         # Add shebang, in case shell_start_mode=unix_behavior.
         #   https://github.com/PacificBiosciences/FALCON/pull/348
@@ -407,10 +409,10 @@ class MetaJobSlurm(object):
         """Can raise.
         """
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        if '-p' not in sge_option:
-            job_queue = self.mjob.job.options['job_queue']
-            sge_option = '-p {} '.format(job_queue) + sge_option
+        sge_option = self.mjob.job.options['sge_option']
+        job_queue = self.mjob.job.options['job_queue']
+        if job_queue:
+            sge_option = '-p {} '.format(job_queue) + qstripped(sge_option, '-p')
         cwd = os.getcwd()
         sge_cmd = 'sbatch -J {job_name} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
                 **locals())
@@ -441,10 +443,10 @@ class MetaJobLsf(object):
         """Can raise.
         """
         job_name = self.get_jobname()
-        sge_option = qstripped(self.mjob.job.options['sge_option'])
-        if '-q' not in sge_option:
-            job_queue = self.mjob.job.options['job_queue']
-            sge_option = '-q {} '.format(job_queue) + sge_option
+        sge_option = self.mjob.job.options['sge_option']
+        job_queue = self.mjob.job.options['job_queue']
+        if job_queue:
+            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
         sge_cmd = 'bsub -J {job_name} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
                 **locals())
         # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
