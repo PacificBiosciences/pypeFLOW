@@ -128,8 +128,8 @@ class State(object):
         return {jobid: bjob.mjob for jobid, bjob in self.top['jobs'].iteritems()}
     def add_deleted_jobid(self, jobid):
         self.top['jobids_deleted'].append(jobid)
-    def serialize(state):
-        return pprint.pformat(state.top)
+    def serialize(self):
+        return pprint.pformat(self.top)
     @staticmethod
     def deserialize(directory, content):
         state = State(directory)
@@ -659,7 +659,7 @@ def delete_heartbeat(state, heartbeat, keep=False):
     try:
         bjob = state.get_bjob(jobid)
     except Exception:
-        log.exception('In delete_heartbeat(), unable to find batchjob for % (from %s)' %(jobid, heartbeat))
+        log.exception('In delete_heartbeat(), unable to find batchjob for %s (from %s)' %(jobid, heartbeat))
         log.warning('Cannot delete. You might be able to delete this yourself if you examine the content of %s.' %heartbeat_fn)
         # TODO: Maybe provide a default grid type, so we can attempt to delete anyway?
         return
