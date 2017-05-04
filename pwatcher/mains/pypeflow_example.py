@@ -1,6 +1,5 @@
-from pypeflow.pwatcher_bridge import PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase
-from pypeflow.data import PypeLocalFile, makePypeLocalFile, fn
-from pypeflow.task import PypeTask
+from pypeflow.simple_pwatcher_bridge import (PypeProcWatcherWorkflow, MyFakePypeThreadTaskBase,
+        makePypeLocalFile, fn, PypeTask)
 import json
 import logging.config
 import os
@@ -102,10 +101,9 @@ def main():
         JOB_TYPE, SLEEP_S))
     exitOnFailure=False
     concurrent_jobs=2
-    #Workflow = pypeflow.controller.PypeThreadWorkflow
     Workflow = PypeProcWatcherWorkflow
-    Workflow.setNumThreadAllowed(concurrent_jobs, concurrent_jobs)
     wf = Workflow(job_type=JOB_TYPE)
+    wf.max_jobs = concurrent_jobs
 
     par = dict(sleep_s=SLEEP_S)
     DIR ='mytmp'
@@ -113,17 +111,17 @@ def main():
     f0 = makePypeLocalFile('mytmp/f0')
     f1 = makePypeLocalFile('mytmp/f1')
     make_task = PypeTask(
-            #inputs = {'f': f},
+            inputs = {},
             outputs = {'f0': f0},
             parameters = par,
-            TaskType = MyFakePypeThreadTaskBase)
+    )
     task = make_task(taskrun0)
     wf.addTasks([task])
     make_task = PypeTask(
             inputs = {'f0': f0},
             outputs = {'f1': f1},
             parameters = par,
-            TaskType = MyFakePypeThreadTaskBase)
+    )
     task = make_task(taskrun1)
     wf.addTasks([task])
     wf.refreshTargets([task])

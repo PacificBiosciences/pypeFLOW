@@ -65,8 +65,7 @@ def find_server(args):
     if args.sf:
         i += 1
     if i > 1:
-        print('Error: may only specify server once')
-        parser.print_usage()
+        raise Exception('Error: may only specify server once. Try "--help".')
         return
     if args.sf:
         if os.path.exists(args.sf):

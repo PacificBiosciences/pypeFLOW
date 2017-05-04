@@ -241,7 +241,7 @@ def start_server(server_directories, hostname='', port=0):
     # set daemon to make sure server shuts down when main program finishes
     hb_thread.daemon = True
     hb_thread.start()
-    log.debug('server ({}, {}) alive?'.format(hostname, port, hb_thread.is_alive()))
+    log.debug('server ({}, {}) alive? {}'.format(hostname, port, hb_thread.is_alive()))
     return (hb_thread.authkey, (hostname, port))
 
 class MetaJobClass(object):
@@ -324,7 +324,7 @@ class State(object):
                     self.top['auth'], self.top['server'] = start_server(self.get_server_directories(), old_hostname, old_port)
                 except StandardError:
                     self.top['auth'], self.top['server'] = start_server(self.get_server_directories())
-                self__.changed = True
+                self.__changed = True
     # if we restarted, orphaned jobs might have left exit files
     # update the server with exit info
     def cleanup_exits(self):
@@ -335,9 +335,9 @@ class State(object):
                     rc = f.readline().strip()
                 hsocket = socket.socket()
                 hsocket.connect(self.get_heartbeat_server())
-                socket_send(hsocket, 'e {} {}'.format(jobid, rc))
+                #socket_send(hsocket, 'e {} {}'.format(jobid, rc)) #TODO: Must get jobid from somewhere
                 hsocket.close()
-                os.remove(fn)
+                os.remove(exit_fn)
         else:
             makedirs(self.get_directory_exits())
     def restore_from_save(self, state_fn):
@@ -488,11 +488,11 @@ class MetaJobLocal(object):
         hsocket = socket.socket()
         try:
             hsocket.connect(state.get_heartbeat_server())
-            socket_send(hsocket, 'P {}'.format(self.mj.job.jobid))
+            socket_send(hsocket, 'P {}'.format(self.mjob.job.jobid))
             line = socket_read(hsocket)
             hsocket.close()
         except IOError as e:
-            log.exception('Failed to get pig/pgid for {}: {!r}'.format(self.mj.job.jobid, e))
+            log.exception('Failed to get pig/pgid for {}: {!r}'.format(self.mjob.job.jobid, e))
             return
         args = line.split(None, 2)
         pid = int(args[0])
@@ -502,7 +502,7 @@ class MetaJobLocal(object):
         try:
             os.kill(-pgid, sig)
         except Exception:
-            log.exception('Failed to kill(%s) pgid=-%s for %r. Trying pid=%s' %(sig, pgid, self.mj.job.jobid, pid))
+            log.exception('Failed to kill(%s) pgid=-%s for %r. Trying pid=%s' %(sig, pgid, self.mjob.job.jobid, pid))
             os.kill(pid, sig)
     def __repr__(self):
         return 'MetaJobLocal(%s)' %repr(self.mjob)
@@ -617,6 +617,7 @@ class MetaJobTorque(object):
     def __init__(self, mjob):
         super(MetaJobTorque, self).__init__(mjob)
         self.specific = '-V' # pass enV; '-j oe' => combine out/err
+        self.mjob = mjob
 class MetaJobSlurm(object):
     def submit(self, state, exe, script_fn):
         """Can raise.
@@ -831,7 +832,7 @@ def delete_jobid(state, jobid, keep=False):
     try:
         bjob = state.get_bjob(jobid)
     except Exception:
-        log.exception('In delete_jobid(), unable to find batchjob for %' %(jobid))
+        log.exception('In delete_jobid(), unable to find batchjob for %s' %(jobid))
         # TODO: Maybe provide a default grid type, so we can attempt to delete anyway?
         return
     try:
