@@ -21,3 +21,5 @@ export PYTHONUSERBASE=$(pwd)/LOCAL
 
 #pip -v install --upgrade --user pip
 pip -v install --user .
+
+make pylint
