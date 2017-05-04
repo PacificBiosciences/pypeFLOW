@@ -23,3 +23,7 @@ export PYTHONUSERBASE=$(pwd)/LOCAL
 pip -v install --user .
 
 make pylint
+
+#python setup.py bdist_wheel
+
+nosetests -v --with-xunit --xunit-file=nose.doctest.xml --with-doctest pypeflow/ pwatcher/fs_based.py
