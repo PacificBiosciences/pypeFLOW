@@ -97,8 +97,8 @@ class State(object):
             jobid2status[jobid] = status
     def get_running_jobids(self):
         return list(self.jobids_submitted)
-    def serialize(state):
-        return pprint.pformat(state.top)
+    def serialize(self):
+        return pprint.pformat(self.top)
     @staticmethod
     def deserialize(directory, content):
         state = State(directory)
