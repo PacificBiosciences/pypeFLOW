@@ -115,7 +115,7 @@ class PwatcherTaskQueue(object):
                 continue
                 # For now, consider it as "submitted" and finished.
                 # (It would throw exception on error.)
-            jobid = generate_jobid(node, generated_script_fn)
+            jobid = self.__generate_jobid(node, generated_script_fn)
             self.__known[jobid] = node
 
             rundir, basename = os.path.split(os.path.abspath(generated_script_fn))
