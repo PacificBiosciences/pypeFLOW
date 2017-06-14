@@ -28,15 +28,18 @@ def generate_jobid(node, script_fn):
 
 def generate_jobid_alt_given_checksum(script_fn, checksum):
     """
+    Note: Unable to run job: denied: "0_raw_fofn_abs_" is not a valid object name (cannot start with a digit).
+    So we need a prefix.
+
     >>> generate_jobid_alt_given_checksum('4-quiver/000000F_002/run.sh', '123')
-    '4_000000F_002_123'
+    'P4_000000F_002_123'
     >>> generate_jobid_alt_given_checksum('4-quiver/quiver_scatter/000000F_002/run.sh', '456')
-    '4_000000F_002_456'
+    'P4_000000F_002_456'
     """
     # TODO: Consider intermediate directories.
     stage = get_stage_char(script_fn)
     basedirname = os.path.basename(os.path.dirname(script_fn))
-    return alphanum(stage + '_' + basedirname + '_' + checksum) # without length limit
+    return alphanum('P' + stage + '_' + basedirname + '_' + checksum) # without length limit
 
 def generate_jobid_alt(node, script_fn):
     # dgordon suggests this as a preferable alternative.
