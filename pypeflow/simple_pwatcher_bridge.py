@@ -21,6 +21,7 @@ LOG = logging.getLogger(__name__)
 
 def generate_jobid(node, script_fn):
     # For now, we keep it simple. Just the task.json.
+    # We truncate the job_name to 15 chars for the sake of some job systems.
     script_content = open(script_fn).read()
     checksum = hashlib.md5(script_content).hexdigest()
     return 'P' + checksum[0:14]
