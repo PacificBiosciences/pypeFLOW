@@ -309,10 +309,10 @@ class MetaJobSge(object):
                 job_name)
         system(sge_cmd, checked=False)
     def get_jobname(self):
-        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
         TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
         """
-        return self.mjob.job.jobid[:15]
+        return self.mjob.job.jobid
     def __repr__(self):
         return 'MetaJobSge(%s)' %repr(self.mjob)
     def __init__(self, mjob):
@@ -355,10 +355,10 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
                 job_name)
         system(sge_cmd, checked=False)
     def get_jobname(self):
-        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
         TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
         """
-        return self.mjob.job.jobid[:15]
+        return self.mjob.job.jobid
     def __repr__(self):
         return 'MetaJobPbs(%s)' %repr(self.mjob)
     def __init__(self, mjob):
@@ -395,10 +395,10 @@ class MetaJobTorque(object):
                 job_name)
         system(sge_cmd, checked=False)
     def get_jobname(self):
-        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
         TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
         """
-        return self.mjob.job.jobid[:15]
+        return self.mjob.job.jobid
     def __repr__(self):
         return 'MetaJobTorque(%s)' %repr(self.mjob)
     def __init__(self, mjob):
@@ -430,10 +430,10 @@ class MetaJobSlurm(object):
                 job_name)
         system(sge_cmd, checked=False)
     def get_jobname(self):
-        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
         TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
         """
-        return self.mjob.job.jobid[:15]
+        return self.mjob.job.jobid
     def __repr__(self):
         return 'MetaJobSlurm(%s)' %repr(self.mjob)
     def __init__(self, mjob):
@@ -462,10 +462,10 @@ class MetaJobLsf(object):
                 job_name)
         system(sge_cmd, checked=False)
     def get_jobname(self):
-        """Some systems are limited to 15 characters, so for now we simply truncate the jobid.
+        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
         TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
         """
-        return self.mjob.job.jobid[:15]
+        return self.mjob.job.jobid
     def __repr__(self):
         return 'MetaJobLsf(%s)' %repr(self.mjob)
     def __init__(self, mjob):

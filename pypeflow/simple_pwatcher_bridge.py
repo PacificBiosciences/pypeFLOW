@@ -11,6 +11,7 @@ import logging
 import os
 import pprint
 import random
+import re
 import sys
 import tempfile
 import time
@@ -20,9 +21,54 @@ LOG = logging.getLogger(__name__)
 
 def generate_jobid(node, script_fn):
     # For now, we keep it simple. Just the task.json.
+    # We truncate the job_name to 15 chars for the sake of some job systems.
     script_content = open(script_fn).read()
     checksum = hashlib.md5(script_content).hexdigest()
     return 'P' + checksum[0:14]
+
+def generate_jobid_alt_given_checksum(script_fn, checksum):
+    """
+    Note: Unable to run job: denied: "0_raw_fofn_abs_" is not a valid object name (cannot start with a digit).
+    So we need a prefix.
+
+    >>> generate_jobid_alt_given_checksum('4-quiver/000000F_002/run.sh', '123')
+    'P4_000000F_002_123'
+    >>> generate_jobid_alt_given_checksum('4-quiver/quiver_scatter/000000F_002/run.sh', '456')
+    'P4_000000F_002_456'
+    """
+    # TODO: Consider intermediate directories.
+    stage = get_stage_char(script_fn)
+    basedirname = os.path.basename(os.path.dirname(script_fn))
+    return alphanum('P' + stage + '_' + basedirname + '_' + checksum) # without length limit
+
+def generate_jobid_alt(node, script_fn):
+    # dgordon suggests this as a preferable alternative.
+    script_content = open(script_fn).read()
+    checksum = hashlib.md5(script_content).hexdigest()
+    return generate_jobid_alt_given_checksum(script_fn, checksum)
+
+JOBID_GENERATORS = [generate_jobid, generate_jobid_alt]
+
+def alphanum(foo):
+    """
+    >>> alphanum('/foo-bar/')
+    '_foo_bar_'
+    """
+    return foo.replace('/', '_').replace('-', '_')
+
+re_stage_char = re.compile(r'\b(\d)-\w+/')
+
+def get_stage_char(fn):
+    """
+    >>> get_stage_char('0-hi/x/y')
+    '0'
+    >>> get_stage_char('x/y')
+    'P'
+    """
+    mo = re_stage_char.search(fn)
+    if mo:
+        return mo.group(1)
+    return 'P'
 
 def endrun(thisnode, status):
     """By convention for now, status is one of:
@@ -73,7 +119,7 @@ class PwatcherTaskQueue(object):
                 continue
                 # For now, consider it as "submitted" and finished.
                 # (It would throw exception on error.)
-            jobid = generate_jobid(node, generated_script_fn)
+            jobid = self.__generate_jobid(node, generated_script_fn)
             self.__known[jobid] = node
 
             rundir, basename = os.path.split(os.path.abspath(generated_script_fn))
@@ -140,7 +186,7 @@ class PwatcherTaskQueue(object):
         q = self.watcher.delete(**watcher_args)
         LOG.debug('In notifyTerminate(), result of delete:%s' %repr(q))
 
-    def __init__(self, watcher, job_type='local', job_queue=None, sge_option=None):
+    def __init__(self, watcher, job_type='local', job_queue=None, sge_option=None, jobid_generator=0):
         self.watcher = watcher
         self.__job_type = job_type
         self.__job_queue = job_queue
@@ -148,6 +194,7 @@ class PwatcherTaskQueue(object):
         self.__running = set() # jobids
         self.__known = dict() # jobid -> Node
         self.__to_report = list() # Nodes
+        self.__generate_jobid = JOBID_GENERATORS[jobid_generator]
 
 def get_unsatisfied_subgraph(g):
     unsatg = networkx.DiGraph(g)
@@ -296,9 +343,13 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
-    def __init__(self, watcher, job_type, job_queue, max_jobs, use_tmpdir, squash, sge_option=''):
+    def __init__(self, watcher, job_type, job_queue, max_jobs, use_tmpdir, squash, jobid_generator, sge_option='',
+        ):
         self.graph = networkx.DiGraph()
-        self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue, sge_option=sge_option) # TODO: Inject this.
+        # TODO: Inject PwatcherTaskQueue
+        self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue, sge_option=sge_option,
+                jobid_generator=jobid_generator,
+                )
         assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
         self.max_jobs = max_jobs
         self.sentinels = dict() # sentinel_done_fn -> Node
@@ -578,6 +629,7 @@ def PypeProcWatcherWorkflow(
         sge_option = None,
         use_tmpdir = None,
         squash = False,
+        job_name_style='',
         **attributes):
     """Factory for the workflow.
     """
@@ -596,12 +648,15 @@ def PypeProcWatcherWorkflow(
                 use_tmpdir = os.path.abspath(use_tmpdir)
         except (TypeError, AttributeError):
             use_tmpdir = tempfile.gettempdir()
-    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}, use_tmpdir={!r}, squash={!r}'.format(
-        job_type, job_queue, sge_option, use_tmpdir, squash,
+    if not job_name_style:
+        job_name_style = 0
+    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}, use_tmpdir={!r}, squash={!r}, job_name_style={!r}'.format(
+        job_type, job_queue, sge_option, use_tmpdir, squash, job_name_style,
     ))
+    jobid_generator = int(job_name_style)
     return Workflow(watcher,
             job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option, use_tmpdir=use_tmpdir,
-            squash=squash,
+            squash=squash, jobid_generator=jobid_generator,
     )
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)
     #mq = MyMessageQueue()
