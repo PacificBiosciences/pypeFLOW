@@ -113,10 +113,10 @@ class PwatcherTaskQueue(object):
             generated_script_fn = node.execute() # misnomer; this only dumps task.json now
             if not generated_script_fn:
                 raise Exception('Missing generated_script_fn for Node {}'.format(node))
-                # This task is done.
-                endrun(node, 'EXIT 0')
-                self.__to_report.append(node)
-                continue
+                ## This task is done.
+                #endrun(node, 'EXIT 0')
+                #self.__to_report.append(node)
+                #continue
                 # For now, consider it as "submitted" and finished.
                 # (It would throw exception on error.)
             jobid = self.__generate_jobid(node, generated_script_fn)

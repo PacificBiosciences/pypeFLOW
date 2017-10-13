@@ -1029,4 +1029,4 @@ main()
 if __name__ == "__main__":
     import pdb
     pdb.set_trace()
-    main(*sys.argv)
+    main(*sys.argv) # pylint: disable=no-value-for-parameter
