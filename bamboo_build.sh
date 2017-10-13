@@ -1,29 +1,27 @@
-#!/bin/bash
+#!/bin/bash -e
 
-#type module >& /dev/null || . /mnt/software/Modules/current/init/bash
-#module unload git gcc ccache
-#module load git/2.8.3
-#module load gcc/4.9.2
-#module load ccache/3.2.3
-##module load make
+type module >& /dev/null || . /mnt/software/Modules/current/init/bash
+module load python/2.7.13-UCS4
 
-set -vx
-#git --version
-#which gcc
-#which g++
-#gcc --version
-## We cannot use /bin/python without /bin/gcc.
-export PATH=/mnt/software/a/anaconda2/4.2.0/bin:$PATH
+set -vex
 which python
+which pip
 
 mkdir -p LOCAL
 export PYTHONUSERBASE=$(pwd)/LOCAL
+export PATH=${PYTHONUSERBASE}/bin:${PATH}
 
-#pip -v install --upgrade --user pip
-pip -v install --user .
+pip -v install --user --edit .
+
+pip install --user pytest pytest-cov pylint
+
+export MY_TEST_FLAGS="-v -s --durations=0 --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml --cov-branch"
+make pytest
+#sed -i -e 's@filename="@filename="./pypeflow/@g' coverage.xml
+#sed -i -e 's@filename="@filename="./pwatcher/@g' coverage.xml
 
 make pylint
 
-#python setup.py bdist_wheel
-
-nosetests -v --with-xunit --xunit-file=nose.doctest.xml --with-doctest pypeflow/ pwatcher/fs_based.py
+pwd
+ls -larth
+find . -name '*.pyc' | xargs rm

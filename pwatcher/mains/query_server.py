@@ -66,7 +66,6 @@ def find_server(args):
         i += 1
     if i > 1:
         raise Exception('Error: may only specify server once. Try "--help".')
-        return
     if args.sf:
         if os.path.exists(args.sf):
             args.file = args.sf
@@ -97,28 +96,32 @@ def find_server(args):
             return use_state(os.path.join(args.file, STATE_DIR, STATE_FN))
     print('Error: could not find state file: {}'.format(args.file))
 
-args = parse_args()
-server = find_server(args)
-if not server:
-    sys.exit(1)
-s = socket.socket()
-s.connect(server)
+def main():
+    args = parse_args()
+    server = find_server(args)
+    if not server:
+        sys.exit(1)
+    s = socket.socket()
+    s.connect(server)
 
-if args.debug:
-    socket_send(s, 'D')
-    server_state = socket_read(s)
-    s.close()
-    state = eval(server_state)
-    for jobid, val in state.iteritems():
-        print('{}: {} {} {} {}'.format(jobid, val[0], val[1], val[2], val[3]))
-else:
-    socket_send(s, 'L')
-    jobids = socket_read(s)
-    s.close()
-    for jobid in jobids.split():
-        s = socket.socket()
-        s.connect(server)
-        socket_send(s, 'Q {}'.format(jobid))
-        m = socket_read(s)
+    if args.debug:
+        socket_send(s, 'D')
+        server_state = socket_read(s)
         s.close()
-        print('{} {}'.format(jobid, m))
+        state = eval(server_state)
+        for jobid, val in state.iteritems():
+            print('{}: {} {} {} {}'.format(jobid, val[0], val[1], val[2], val[3]))
+    else:
+        socket_send(s, 'L')
+        jobids = socket_read(s)
+        s.close()
+        for jobid in jobids.split():
+            s = socket.socket()
+            s.connect(server)
+            socket_send(s, 'Q {}'.format(jobid))
+            m = socket_read(s)
+            s.close()
+            print('{} {}'.format(jobid, m))
+
+if __name__ == "__main__":
+    main()
