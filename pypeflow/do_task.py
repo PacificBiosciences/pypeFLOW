@@ -61,6 +61,10 @@ def get_parser():
 def wait_for(fn):
     global TIMEOUT
     LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, TIMEOUT))
+    dirname = os.path.dirname(fn)
+    if os.path.exists(dirname):
+        if not os.access(dirname, os.X_OK):
+            raise Exception('Cannot x into dir {!r}'.format(dirname))
     while not os.path.exists(fn):
         if TIMEOUT > 0:
             time.sleep(1)
