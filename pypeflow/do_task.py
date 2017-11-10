@@ -99,17 +99,6 @@ def run_python_func(func, inputs, outputs, parameters):
         script_fn = getattr(self, 'generated_script_fn', None)
         if script_fn is not None:
             do_support.run_bash(script_fn)
-def run(json_fn, timeout, tmpdir):
-    if isinstance(timeout, int):
-        global TIMEOUT
-        TIMEOUT = timeout
-    wait_for(json_fn)
-    LOG.debug('Loading JSON from {!r}'.format(json_fn))
-    cfg = json.loads(open(json_fn).read())
-    LOG.debug(pprint.pformat(cfg))
-    rundir = os.path.dirname(json_fn)
-    with util.cd(rundir):
-        run_cfg_in_tmpdir(cfg, tmpdir)
 def run_cfg_in_tmpdir(cfg, tmpdir):
     for fn in cfg['inputs'].values():
         wait_for(fn)
@@ -150,6 +139,18 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
         util.system(cmd)
     for fn in cfg['outputs'].values():
         wait_for(fn)
+
+def run(json_fn, timeout, tmpdir):
+    if isinstance(timeout, int):
+        global TIMEOUT
+        TIMEOUT = timeout
+    wait_for(json_fn)
+    LOG.debug('Loading JSON from {!r}'.format(json_fn))
+    cfg = json.loads(open(json_fn).read())
+    LOG.debug(pprint.pformat(cfg))
+    rundir = os.path.dirname(json_fn)
+    with util.cd(rundir):
+        run_cfg_in_tmpdir(cfg, tmpdir)
 
 def main():
     parser = get_parser()
