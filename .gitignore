@@ -4,3 +4,4 @@
 /src/tests/__pycache__/
 /wheelhouse/
 /artifacts/
+/*.xml
