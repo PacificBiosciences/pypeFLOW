@@ -7,7 +7,7 @@ pylint:
 	pylint --errors-only pypeflow/ pwatcher/
 pytest:
 	python -c 'import pypeflow; print pypeflow'
-	py.test ${MY_TEST_FLAGS} --junit-xml=test.xml --doctest-modules pypeflow/ pwatcher/
+	py.test ${MY_TEST_FLAGS} --junit-xml=nosetests.xml --doctest-modules pypeflow/ pwatcher/ test/
 autopep8:
 	autopep8 --max-line-length=120 -ir -j0 pypeflow/ pwatcher/
 wheel:
