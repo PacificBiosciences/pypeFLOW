@@ -1,6 +1,7 @@
 #!/usr/bin/env python2.7
 from . import do_support, util
 import argparse
+import collections
 import importlib
 import inspect
 import json
@@ -99,14 +100,57 @@ def run_python_func(func, inputs, outputs, parameters):
         script_fn = getattr(self, 'generated_script_fn', None)
         if script_fn is not None:
             do_support.run_bash(script_fn)
+
+def run_python(python_function_name, myinputs, myoutputs, parameters):
+    func = get_func(python_function_name)
+    try:
+        run_python_func(func, myinputs, myoutputs, parameters)
+    except TypeError:
+        # Report the actual function spec.
+        LOG.error('For function "{}", {}'.format(python_function_name, inspect.getargspec(func)))
+        raise
+
+def run_bash(bash_template, myinputs, myoutputs, parameters):
+    # Set substitution dict
+    var_dict = dict()
+    var_dict.update(parameters)
+    var_dict.update(myinputs) # for now
+    var_dict.update(myoutputs) # for now
+    assert 'input' not in parameters
+    assert 'output' not in parameters
+    Attrs = collections.namedtuple('input', myinputs.keys())
+    var_dict['input'] = Attrs(**myinputs)
+    Attrs = collections.namedtuple('output', myoutputs.keys())
+    var_dict['output'] = Attrs(**myoutputs)
+    # Like snakemake, we use bash "strict mode", but we add -vx.
+    # http://redsymbol.net/articles/unofficial-bash-strict-mode/
+    prefix = """
+set -vxeuo pipefail
+IFS=$'\n\t'
+"""
+    # Substitute
+    bash_content = prefix + bash_template.format(**var_dict)
+    # Write user_script.sh
+    bash_fn = 'user_script.sh'
+    with open(bash_fn, 'w') as ofs:
+        ofs.write(bash_content)
+    cmd = 'bash {}'.format(bash_fn)
+    util.system(cmd)
+
 def run_cfg_in_tmpdir(cfg, tmpdir):
+    """
+    Except 'inputs', 'outputs', 'parameters' in cfg.
+    If 'python_function' in cfg, then use it. (Deprecated.)
+    If 'bash_template_fn' in cfg, then substitute and use it.
+    """
     for fn in cfg['inputs'].values():
         wait_for(fn)
     inputs = cfg['inputs']
     outputs = cfg['outputs']
     parameters = cfg['parameters']
-    python_function_name = cfg['python_function']
-    func = get_func(python_function_name)
+    python_function_name = cfg.get('python_function')
+    bash_template_fn = cfg.get('bash_template_fn')
+    assert python_function_name or bash_template_fn
     myinputs = dict(inputs)
     myoutputs = dict(outputs)
     finaloutdir = os.getcwd()
@@ -120,13 +164,15 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
         # TODO(CD): Copy inputs w/ flock.
     else:
         myrundir = finaloutdir
-    with util.cd(myrundir):
-        try:
-            run_python_func(func, myinputs, myoutputs, parameters)
-        except TypeError:
-            # Report the actual function spec.
-            LOG.error('For function "{}", {}'.format(python_function_name, inspect.getargspec(func)))
-            raise
+    if python_function_name:
+        with util.cd(myrundir):
+            run_python(python_function_name, myinputs, myoutputs, parameters)
+    elif bash_template_fn:
+        wait_for(bash_template_fn)
+        bash_template = open(bash_template_fn).read()
+        with util.cd(myrundir):
+            # TODO(CD): Write a script in wdir even when running in tmpdir.
+            run_bash(bash_template, myinputs, myoutputs, parameters)
     if tmpdir:
         """
         for k,v in outputs.iteritems():
