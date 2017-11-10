@@ -435,14 +435,11 @@ class PypeNode(NodeBase):
         # Get bash_template
         bash_template = pt.parameters.get('_bash_')
         if bash_template:
-            # Write bash_template.
-            # It might be better to store the template in the JSON file,
-            # but then it would be difficult for a human to read.
-            # Writing it next to the JSON file itself should be fine, as long
-            # as we remember to 'wait' for it on the run-node.
+            # Write bash_template, for debugging.
             bash_script_fn = os.path.join(wdir, 'template.sh')
             with open(bash_script_fn, 'w') as ofs:
-                ofs.write(bash_template)
+                message = '# Same as _bash_ in task.json\n'
+                ofs.write(message + bash_template)
             task_desc = {
                     'inputs': inputs,
                     'outputs': outputs,

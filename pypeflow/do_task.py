@@ -149,8 +149,9 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
     outputs = cfg['outputs']
     parameters = cfg['parameters']
     python_function_name = cfg.get('python_function')
-    bash_template_fn = cfg.get('bash_template_fn')
-    assert python_function_name or bash_template_fn
+    #bash_template_fn = cfg.get('bash_template_fn') # redundant, for debugging only
+    bash_template = parameters.get('_bash_')
+    assert python_function_name or bash_template
     myinputs = dict(inputs)
     myoutputs = dict(outputs)
     finaloutdir = os.getcwd()
@@ -164,13 +165,10 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
         # TODO(CD): Copy inputs w/ flock.
     else:
         myrundir = finaloutdir
-    if python_function_name:
-        with util.cd(myrundir):
+    with util.cd(myrundir):
+        if python_function_name:
             run_python(python_function_name, myinputs, myoutputs, parameters)
-    elif bash_template_fn:
-        wait_for(bash_template_fn)
-        bash_template = open(bash_template_fn).read()
-        with util.cd(myrundir):
+        elif bash_template:
             # TODO(CD): Write a script in wdir even when running in tmpdir.
             run_bash(bash_template, myinputs, myoutputs, parameters)
     if tmpdir:
