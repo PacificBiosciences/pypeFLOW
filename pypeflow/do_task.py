@@ -125,11 +125,17 @@ def run_bash(bash_template, myinputs, myoutputs, parameters):
     # Like snakemake, we use bash "strict mode", but we add -vx.
     # http://redsymbol.net/articles/unofficial-bash-strict-mode/
     prefix = """
-set -vxeuo pipefail
 IFS=$'\n\t'
+set -vxeuo pipefail
+hostname
+pwd
+date
+"""
+    postfix = """
+date
 """
     # Substitute
-    bash_content = prefix + bash_template.format(**var_dict)
+    bash_content = prefix + bash_template.format(**var_dict) + postfix
     # Write user_script.sh
     bash_fn = 'user_script.sh'
     with open(bash_fn, 'w') as ofs:

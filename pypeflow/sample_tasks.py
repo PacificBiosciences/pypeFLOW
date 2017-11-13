@@ -26,6 +26,7 @@ def task_generic_bash_script(self):
 
 
 def gen_task(script, inputs, outputs, parameters={}):
+    parameters = dict(parameters) # copy
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
         try:
