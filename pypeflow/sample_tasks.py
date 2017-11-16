@@ -10,7 +10,7 @@ LOG = logging.getLogger(__name__)
 def task_generic_bash_script(self):
     """Generic script task.
     The script template should be in
-    self.parameters['_bash_'].
+      self.bash_template
     The template will be substituted by
     the content of "self" and of "self.parameters".
     (That is a little messy, but good enough for now.)
@@ -18,7 +18,7 @@ def task_generic_bash_script(self):
     self_dict = dict()
     self_dict.update(self.__dict__)
     self_dict.update(self.parameters)
-    script_unsub = self.parameters['_bash_']
+    script_unsub = self.bash_template
     script = script_unsub.format(**self_dict)
     script_fn = 'script.sh'
     with open(script_fn, 'w') as ofs:
@@ -27,6 +27,7 @@ def task_generic_bash_script(self):
 
 
 def gen_task(script, inputs, outputs, parameters={}):
+    # For now, we need abspath, to link file with its producer.
     parameters = dict(parameters) # copy
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
@@ -38,13 +39,14 @@ def gen_task(script, inputs, outputs, parameters={}):
     validate_dict(inputs)
     validate_dict(outputs)
     validate_dict(parameters)
-    parameters['_bash_'] = script
     make_task = PypeTask(
-            inputs={k: makePypeLocalFile(v) for k,v in inputs.iteritems()},
-            outputs={k: makePypeLocalFile(v) for k,v in outputs.iteritems()},
+            inputs={k: os.path.abspath(v) for k,v in inputs.iteritems()},
+            outputs={k: os.path.abspath(v) for k,v in outputs.iteritems()},
             parameters=parameters,
+            bash_template=script,
             )
     return make_task(task_generic_bash_script)
+
 
 def create_task_new(i1, o1):
     script = """
