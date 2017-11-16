@@ -1,5 +1,6 @@
 import collections
 import logging
+import os
 from .simple_pwatcher_bridge import (
     PypeLocalFile, makePypeLocalFile, fn,
     PypeTask,

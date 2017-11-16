@@ -432,13 +432,12 @@ class PypeNode(NodeBase):
         outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
         for v in outputs.values():
             assert not os.path.isabs(v), '{!r} is not relative'.format(v)
-        # Get bash_template
-        bash_template = pt.parameters.get('_bash_')
-        if bash_template:
-            # Write bash_template, for debugging.
+        bash_template = pt.bash_template
+        if bash_template is not None:
+            # Write bash_template.
             bash_script_fn = os.path.join(wdir, 'template.sh')
             with open(bash_script_fn, 'w') as ofs:
-                message = '# Same as _bash_ in task.json\n'
+                message = '# Substitution will be similar to snakemake "shell".\n'
                 ofs.write(message + bash_template)
             task_desc = {
                     'inputs': inputs,
@@ -447,6 +446,7 @@ class PypeNode(NodeBase):
                     'bash_template_fn' : 'template.sh',
             }
         else:
+            # TODO: Stop supporting python_function
             task_desc = {
                     'inputs': inputs,
                     'outputs': outputs,
@@ -548,7 +548,7 @@ def only_path(p):
         return p.path
     else:
         return p
-def PypeTask(inputs, outputs, parameters=None, wdir=None):
+def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
@@ -562,7 +562,7 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None):
                 outputs[k] = os.path.relpath(v, wdir)
     if not os.path.isabs(wdir):
         wdir = os.path.abspath(wdir)
-    this = _PypeTask(inputs, outputs, wdir, parameters)
+    this = _PypeTask(inputs, outputs, wdir, parameters, bash_template)
     #basedir = os.path.basename(wdir)
     basedir = this.name
     if basedir in PRODUCERS:
@@ -607,7 +607,7 @@ class _PypeTask(object):
         return self
     def __repr__(self):
         return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))
-    def __init__(self, inputs, outputs, wdir, parameters=None):
+    def __init__(self, inputs, outputs, wdir, parameters, bash_template):
         if parameters is None:
             parameters = {}
         name = os.path.relpath(wdir)
@@ -615,6 +615,7 @@ class _PypeTask(object):
         self.inputs = inputs
         self.outputs = outputs
         self.parameters = dict(parameters) # Always copy this, so caller can re-use, for convenience.
+        self.bash_template = bash_template
         self.wdir = wdir
         self.name = name
         self.URL = URL
@@ -625,11 +626,6 @@ class _PypeTask(object):
         assert self.wdir, 'No wdir for {!r} {!r}'.format(self.name, self.URL)
         LOG.debug('Created {!r}'.format(self))
 
-class DummyPypeTask(_PypeTask):
-    def __init__(self):
-        super(DummyPypeTask, self).__init__({}, {}, {}, wdir='/')
-
-#ROOT_PYPE_TASK = DummyPypeTask()
 
 MyFakePypeThreadTaskBase = None  # just a symbol, not really used
 
