@@ -1,7 +1,6 @@
 #!/usr/bin/env python2.7
 from . import do_support, util
 import argparse
-import collections
 import importlib
 import inspect
 import json
@@ -110,6 +109,16 @@ def run_python(python_function_name, myinputs, myoutputs, parameters):
         LOG.error('For function "{}", {}'.format(python_function_name, inspect.getargspec(func)))
         raise
 
+class Attrs(object):
+    """This facilitates substitution of values in string.
+    """
+    def __str__(self):
+        return ' '.join(self.kwds.values())
+    def __getattr__(self, name):
+        return self.kwds[name]
+    def __init__(self, **kwds):
+        self.kwds = kwds
+
 def run_bash(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
     var_dict = dict()
@@ -119,11 +128,10 @@ def run_bash(bash_template, myinputs, myoutputs, parameters):
     valid_parameters = {k:v for k,v in parameters.iteritems() if not k.startswith('_')}
     assert 'input' not in parameters
     assert 'output' not in parameters
-    Attrs = collections.namedtuple('input', myinputs.keys())
+    # input/output/params are the main values substituted in the subset of
+    # snakemake which we support.
     var_dict['input'] = Attrs(**myinputs)
-    Attrs = collections.namedtuple('output', myoutputs.keys())
     var_dict['output'] = Attrs(**myoutputs)
-    Attrs = collections.namedtuple('params', valid_parameters.keys())
     var_dict['params'] = Attrs(**valid_parameters)
     # Like snakemake, we use bash "strict mode", but we add -vx.
     # http://redsymbol.net/articles/unofficial-bash-strict-mode/
