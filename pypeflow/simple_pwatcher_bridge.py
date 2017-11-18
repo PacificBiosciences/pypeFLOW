@@ -552,14 +552,21 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
+    LOG.debug('New PypeTask(wdir={!r},\n\tinputs={!r},\n\toutputs={!r})'.format(
+        wdir, inputs, outputs))
     if wdir is None:
         #wdir = parameters.get('wdir', name) # One of these must be a string!
         wdir = find_work_dir([only_path(v) for v in outputs.values()])
-        # Since we derived wdir from outputs, we need to ensure that they
-        # are not relative to wdir.
+        # Since we derived wdir from outputs, any relative paths should become absolute.
         for k,v in outputs.items():
             if not isinstance(v, PypeLocalFile) and not os.path.isabs(v):
-                outputs[k] = os.path.relpath(v, wdir)
+                outputs[k] = os.path.abspath(v)
+        for k,v in inputs.items():
+            if not isinstance(v, PypeLocalFile) and not os.path.isabs(v):
+                inputs[k] = os.path.abspath(v)
+    else:
+        # relpaths are relative to the provided wdir,
+        pass
     if not os.path.isabs(wdir):
         wdir = os.path.abspath(wdir)
     this = _PypeTask(inputs, outputs, wdir, parameters, bash_template)
@@ -570,7 +577,7 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None):
             basedir, PRODUCERS[basedir], this))
     LOG.debug('Added PRODUCERS[{!r}] = {!r}'.format(basedir, this))
     PRODUCERS[basedir] = this
-    this.canonicalize()
+    this.canonicalize() # Already abs, but make everything a PLF.
     this.assert_canonical()
     LOG.debug('Built {!r}'.format(this))
     return this

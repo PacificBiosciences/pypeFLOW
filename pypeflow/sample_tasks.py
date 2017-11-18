@@ -1,6 +1,5 @@
 import collections
 import logging
-import os
 from .simple_pwatcher_bridge import (
     PypeLocalFile, makePypeLocalFile, fn,
     PypeTask,
@@ -27,7 +26,6 @@ def task_generic_bash_script(self):
 
 
 def gen_task(script, inputs, outputs, parameters={}):
-    # For now, we need abspath, to link file with its producer.
     parameters = dict(parameters) # copy
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
@@ -40,8 +38,8 @@ def gen_task(script, inputs, outputs, parameters={}):
     validate_dict(outputs)
     validate_dict(parameters)
     make_task = PypeTask(
-            inputs={k: os.path.abspath(v) for k,v in inputs.iteritems()},
-            outputs={k: os.path.abspath(v) for k,v in outputs.iteritems()},
+            inputs={k: v for k,v in inputs.iteritems()},
+            outputs={k: v for k,v in outputs.iteritems()},
             parameters=parameters,
             bash_template=script,
             )
