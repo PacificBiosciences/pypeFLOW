@@ -9,6 +9,7 @@ import os
 import pprint
 import sys
 import time
+from pipes import quote # shlex in python3.3+
 DONE = 'done'
 STATUS = 'status'
 TIMEOUT = 30
@@ -113,9 +114,11 @@ class Attrs(object):
     """This facilitates substitution of values in string.
     """
     def __str__(self):
-        return ' '.join(self.kwds.values())
+        # For this, all values must be strings.
+        return ' '.join(quote(f) for f in self.kwds.values())
     def __getattr__(self, name):
-        return self.kwds[name]
+        # For this, values can be string, int, float, etc.
+        return quote(str(self.kwds[name]))
     def __init__(self, **kwds):
         self.kwds = kwds
 
