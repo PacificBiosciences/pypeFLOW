@@ -333,7 +333,7 @@ class Workflow(object):
             if recently_done:
                 msg = 'Some tasks are recently_done but not satisfied: {!r}'.format(recently_done)
                 LOG.error(msg)
-                LOG.error('ready: {!r}\nsubmitted: {!r}'.format(ready, submitted))
+                LOG.error('ready: {!r}\n\tsubmitted: {!r}'.format(ready, submitted))
                 failures += len(recently_done)
                 if exitOnFailure:
                     raise Exception(msg)
@@ -432,12 +432,27 @@ class PypeNode(NodeBase):
         outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
         for v in outputs.values():
             assert not os.path.isabs(v), '{!r} is not relative'.format(v)
-        task_desc = {
-                'inputs': inputs,
-                'outputs': outputs,
-                'parameters': pt.parameters,
-                'python_function': pt.func_name,
-        }
+        # Get bash_template
+        bash_template = pt.parameters.get('_bash_')
+        if bash_template:
+            # Write bash_template, for debugging.
+            bash_script_fn = os.path.join(wdir, 'template.sh')
+            with open(bash_script_fn, 'w') as ofs:
+                message = '# Same as _bash_ in task.json\n'
+                ofs.write(message + bash_template)
+            task_desc = {
+                    'inputs': inputs,
+                    'outputs': outputs,
+                    'parameters': pt.parameters,
+                    'bash_template_fn' : 'template.sh',
+            }
+        else:
+            task_desc = {
+                    'inputs': inputs,
+                    'outputs': outputs,
+                    'parameters': pt.parameters,
+                    'python_function': pt.func_name,
+            }
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': '))
         task_json_fn = os.path.join(wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
