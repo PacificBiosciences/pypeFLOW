@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 type module >& /dev/null || . /mnt/software/Modules/current/init/bash
-module load python/2.7.13-UCS4
+module load python/2-UCS4
 
 set -vex
 which python
