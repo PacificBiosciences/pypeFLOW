@@ -13,8 +13,6 @@ export PATH=${PYTHONUSERBASE}/bin:${PATH}
 
 pip -v install --user --edit .
 
-pip install --user pytest pytest-cov pylint
-
 export MY_TEST_FLAGS="-v -s --durations=0 --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml --cov-branch"
 make pytest
 #sed -i -e 's@filename="@filename="./pypeflow/@g' coverage.xml
