@@ -149,7 +149,14 @@ date
 date
 """
     # Substitute
-    bash_content = prefix + bash_template.format(**var_dict) + postfix
+    try:
+        bash_content = prefix + bash_template.format(**var_dict) + postfix
+    except KeyError:
+        msg = """Failed to substitute var_dict into bash script:
+{}
+""".format(bash_template)
+        LOG.error(msg)
+        raise
     # Write user_script.sh
     bash_fn = 'user_script.sh'
     with open(bash_fn, 'w') as ofs:

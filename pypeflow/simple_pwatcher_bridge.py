@@ -607,7 +607,7 @@ class _PypeTask(object):
         for k,v in self.outputs.iteritems():
             assert os.path.isabs(v.path), 'For {!r}, output {!r} is not absolute'.format(self.wdir, v)
         common = set(self.inputs.keys()) & set(self.outputs.keys())
-        assert (not common), 'Keys in both inputs and outputs of PypeTask({}): {!r}'.format(self.wdir, common)
+        assert (not common), 'A key is used for both inputs and outputs of PypeTask({}), which could be ok, but only if we refer to them as input.foo and output.foo in the bash script: {!r}'.format(self.wdir, common)
     def __call__(self, func):
         self.func = func
         self.func_name = '{}.{}'.format(func.__module__, func.__name__)
