@@ -26,6 +26,8 @@ def task_generic_bash_script(self):
 
 
 def gen_task(script, inputs, outputs, parameters={}):
+    LOG.info('gen_task({}\n\tinputs={!r},\n\toutputs={!r})'.format(
+        script, inputs, outputs))
     parameters = dict(parameters) # copy
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
