@@ -1,7 +1,6 @@
 #!/usr/bin/env python2.7
 from . import do_support, util
 import argparse
-import collections
 import importlib
 import inspect
 import json
@@ -10,6 +9,7 @@ import os
 import pprint
 import sys
 import time
+from pipes import quote # shlex in python3.3+
 DONE = 'done'
 STATUS = 'status'
 TIMEOUT = 30
@@ -110,18 +110,32 @@ def run_python(python_function_name, myinputs, myoutputs, parameters):
         LOG.error('For function "{}", {}'.format(python_function_name, inspect.getargspec(func)))
         raise
 
+class Attrs(object):
+    """This facilitates substitution of values in string.
+    """
+    def __str__(self):
+        # For this, all values must be strings.
+        return ' '.join(quote(f) for f in self.kwds.values())
+    def __getattr__(self, name):
+        # For this, values can be string, int, float, etc.
+        return quote(str(self.kwds[name]))
+    def __init__(self, **kwds):
+        self.kwds = kwds
+
 def run_bash(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
     var_dict = dict()
-    var_dict.update(parameters)
-    var_dict.update(myinputs) # for now
-    var_dict.update(myoutputs) # for now
+    #var_dict.update(parameters)
+    #var_dict.update(myinputs) # for now
+    #var_dict.update(myoutputs) # for now
+    valid_parameters = {k:v for k,v in parameters.iteritems() if not k.startswith('_')}
     assert 'input' not in parameters
     assert 'output' not in parameters
-    Attrs = collections.namedtuple('input', myinputs.keys())
+    # input/output/params are the main values substituted in the subset of
+    # snakemake which we support.
     var_dict['input'] = Attrs(**myinputs)
-    Attrs = collections.namedtuple('output', myoutputs.keys())
     var_dict['output'] = Attrs(**myoutputs)
+    var_dict['params'] = Attrs(**valid_parameters)
     # Like snakemake, we use bash "strict mode", but we add -vx.
     # http://redsymbol.net/articles/unofficial-bash-strict-mode/
     prefix = """
@@ -135,7 +149,14 @@ date
 date
 """
     # Substitute
-    bash_content = prefix + bash_template.format(**var_dict) + postfix
+    try:
+        bash_content = prefix + bash_template.format(**var_dict) + postfix
+    except KeyError:
+        msg = """Failed to substitute var_dict into bash script:
+{}
+""".format(bash_template)
+        LOG.error(msg)
+        raise
     # Write user_script.sh
     bash_fn = 'user_script.sh'
     with open(bash_fn, 'w') as ofs:
@@ -155,9 +176,13 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
     outputs = cfg['outputs']
     parameters = cfg['parameters']
     python_function_name = cfg.get('python_function')
-    #bash_template_fn = cfg.get('bash_template_fn') # redundant, for debugging only
-    bash_template = parameters.get('_bash_')
-    assert python_function_name or bash_template
+    bash_template_fn = cfg.get('bash_template_fn')
+    if bash_template_fn:
+        wait_for(bash_template_fn)
+        bash_template = open(bash_template_fn).read()
+    else:
+        bash_template = None
+    assert python_function_name or bash_template_fn
     myinputs = dict(inputs)
     myoutputs = dict(outputs)
     finaloutdir = os.getcwd()
