@@ -6,11 +6,7 @@ setup(
     author='J. Chin',
     author_email='cschin@infoecho.net',
     license='LICENSE.txt',
-    packages = [
-        'pypeflow',
-        'pwatcher', # a separate package here for convenience, for now
-        'pwatcher.mains',
-    ],
+    packages=find_packages(),
     package_dir = {'':'.'},
     zip_safe = False,
     install_requires=[
