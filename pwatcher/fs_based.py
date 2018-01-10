@@ -23,6 +23,7 @@ Caching/timestamp-checking would be done in the Definer, flexibly specific to ea
 
 Eventually, the Watcher could be in a different programming language. Maybe perl. (In bash, a background heartbeat gets is own process group, so it can be hard to clean up.)
 """
+from __future__ import print_function
 try:
     from shlex import quote
 except ImportError:
@@ -759,7 +760,7 @@ def main(prog, cmd, state_dir='mainpwatcher', argsfile=None):
     with process_watcher(state_dir) as watcher:
         result = getattr(watcher, cmd)(**argsdict)
         if result is not None:
-            print pprint.pformat(result)
+            print(pprint.pformat(result))
 
 
 # With bash, we would need to set the session, rather than

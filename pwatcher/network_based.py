@@ -35,6 +35,7 @@ Eventually, the Watcher could be in a different programming language. Maybe
 perl. (In bash, a background heartbeat gets is own process group, so it can be
 hard to clean up.)
 """
+from __future__ import print_function
 try:
     from shlex import quote
 except ImportError:
@@ -317,12 +318,12 @@ class State(object):
             try:	# first we try restarting at same location
                 old_hostname, old_port = self.get_heartbeat_server()
                 self.top['auth'], self.top['server'] = start_server(self.get_server_directories(), old_hostname, old_port)
-            except StandardError:
+            except Exception:
                 log.exception('Failed to restore previous watcher server settings')
                 try:	# next we try restarting with original arguments
                     old_hostname, old_port = self.top['server_args']
                     self.top['auth'], self.top['server'] = start_server(self.get_server_directories(), old_hostname, old_port)
-                except StandardError:
+                except Exception:
                     self.top['auth'], self.top['server'] = start_server(self.get_server_directories())
                 self.__changed = True
     # if we restarted, orphaned jobs might have left exit files
@@ -353,7 +354,7 @@ class State(object):
             try:			# try to restore state from last save
                 if self.restore_from_save(state_fn):
                     return
-            except StandardError:
+            except Exception:
                 log.exception('Failed to use saved state "%s". Ignoring (and soon over-writing) current state.'%state_fn)
         makedirs(self.get_directory_wrappers())
         makedirs(self.get_directory_exits())
@@ -932,7 +933,7 @@ def main(prog, cmd, state_dir='mainpwatcher', argsfile=None):
     with process_watcher(state_dir) as watcher:
         result = getattr(watcher, cmd)(**argsdict)
         if result is not None:
-            print pprint.pformat(result)
+            print(pprint.pformat(result))
 
 
 # With bash, we would need to set the session, rather than
