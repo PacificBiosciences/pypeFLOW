@@ -451,7 +451,7 @@ class PypeNode(NodeBase):
                     'inputs': inputs,
                     'outputs': outputs,
                     'parameters': pt.parameters,
-                    'python_function': pt.func_name,
+                    'python_function': pt.__name__,
             }
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': ')) + '\n'
         task_json_fn = os.path.join(wdir, 'task.json')
@@ -610,7 +610,7 @@ class _PypeTask(object):
         assert (not common), 'A key is used for both inputs and outputs of PypeTask({}), which could be ok, but only if we refer to them as input.foo and output.foo in the bash script: {!r}'.format(self.wdir, common)
     def __call__(self, func):
         self.func = func
-        self.func_name = '{}.{}'.format(func.__module__, func.__name__)
+        self.__name__ = '{}.{}'.format(func.__module__, func.__name__)
         return self
     def __repr__(self):
         return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))

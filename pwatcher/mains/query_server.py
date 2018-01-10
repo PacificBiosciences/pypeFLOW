@@ -5,6 +5,7 @@ Query the heartbeat server from the command line.
 As an argument, takes either server:port or the falcon run directory
 (if not argument is given, uses the current directory).
 """
+from __future__ import print_function
 
 import argparse
 import collections

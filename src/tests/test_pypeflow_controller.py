@@ -1,3 +1,4 @@
+from __future__ import print_function
 from nose import SkipTest
 from nose.tools import assert_equal
 import pypeflow.task
@@ -233,7 +234,7 @@ class TestPypeWorkflow:
 
         wf = pypeflow.controller.PypeWorkflow()
         wf.addTasks( [test_fun_4, test_fun_5] )
-        print wf.graphvizDot
+        print(wf.graphvizDot)
         wf.refreshTargets( [outfileObj4, outfileObj5] )
     
 class TestPypeThreadWorkflow:
@@ -290,9 +291,9 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task1(task):
             with open(task.out.localFileName, "a") as f:
-                print >>f, "written by task1"
+                print("written by task1", file=f)
             with open(task.out1.localFileName, "w") as f:
-                print >>f, "written by task1"
+                print("written by task1", file=f)
 
         @PypeTask(mutableDataObjs={"out":outfileObj},
                   outputDataObjs={"out2":out2},
@@ -300,9 +301,9 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task2(task):
             with open(task.out.localFileName, "a") as f:
-                print >>f, "written by task2"
+                print("written by task2", file=f)
             with open(task.out2.localFileName, "w") as f:
-                print >>f, "written by task2"
+                print("written by task2", file=f)
 
         @PypeTask(mutableDataObjs={"out":outfileObj},
                   outputDataObjs={"out3":out3},
@@ -310,9 +311,9 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task3(task):
             with open(task.out.localFileName, "a") as f:
-                print >>f, "written by task3"
+                print("written by task3", file=f)
             with open(task.out3.localFileName, "w") as f:
-                print >>f, "written by task3"
+                print("written by task3", file=f)
 
         wf = PypeThreadWorkflow()
         wf.addTasks([task1, task2, task3])
@@ -377,11 +378,11 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task1(task):
             with open(task.out.localFileName, "a") as f:
-                print >>f, "written by task1"
+                print("written by task1", file=f)
             with open(task.s1.localFileName, "w") as f:
-                print >>f, "state set"
+                print("state set", file=f)
             with open(task.out1.localFileName, "w") as f:
-                print >>f, "written by task1"
+                print("written by task1", file=f)
 
         @PypeTask(mutableDataObjs = {"out":outfileObj},
                   outputDataObjs = {"out2":out2, "s2":s2},
@@ -389,11 +390,11 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task2(task):
             with open(task.out.localFileName, "a") as f:
-                print >>f, "written by task2"
+                print("written by task2", file=f)
             with open(task.s2.localFileName, "w") as f:
-                print >>f, "state set"
+                print("state set", file=f)
             with open(task.out2.localFileName, "w") as f:
-                print >>f, "written by task2"
+                print("written by task2", file=f)
 
         @PypeTask(mutableDataObjs = {"out":outfileObj},
                   outputDataObjs = {"out3":out3, "s3":s3},
@@ -401,11 +402,11 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task3(task):
             with open(task.out.localFileName, "a") as f:
-                print >>f, "written by task3"
+                print("written by task3", file=f)
             with open(task.s3.localFileName, "w") as f:
-                print >>f, "state set"
+                print("state set", file=f)
             with open(task.out3.localFileName, "w") as f:
-                print >>f, "written by task3"
+                print("written by task3", file=f)
 
         wf = PypeThreadWorkflow()
         wf.addTasks([task1, task2, task3])
@@ -464,27 +465,27 @@ class TestPypeThreadWorkflow:
                   TaskType=PypeThreadTaskBase)
         def task1(task):
             with open(task.s1.localFileName, "w") as f:
-                print >>f, "state set"
+                print("state set", file=f)
             with open(task.out1.localFileName, "w") as f:
-                print >>f, "written by task1"
+                print("written by task1", file=f)
 
         @PypeTask(outputDataObjs = {"out2":out2, "s2":s2},
                   inputDataObjs = {"in":infileObj, "s1":s1},
                   TaskType=PypeThreadTaskBase)
         def task2(task):
             with open(task.s2.localFileName, "w") as f:
-                print >>f, "state set"
+                print("state set", file=f)
             with open(task.out2.localFileName, "w") as f:
-                print >>f, "written by task2"
+                print("written by task2", file=f)
 
         @PypeTask(outputDataObjs = {"out3":out3, "s3":s3},
                   inputDataObjs = {"in":infileObj, "s2":s2},
                   TaskType=PypeThreadTaskBase)
         def task3(task):
             with open(task.s3.localFileName, "w") as f:
-                print >>f, "state set"
+                print("state set", file=f)
             with open(task.out3.localFileName, "w") as f:
-                print >>f, "written by task3"
+                print("written by task3", file=f)
 
         wf = PypeThreadWorkflow()
         wf.addTasks([task1, task2, task3])
