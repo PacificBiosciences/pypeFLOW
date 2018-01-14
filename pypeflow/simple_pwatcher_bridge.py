@@ -510,7 +510,7 @@ def findPypeLocalFile(path):
         sibling_basename = os.path.basename(plf.path)
         if sibling_basename == basename:
             return plf
-    raise Exception('Failed to find a PypeLocalFile for {!r} among outputs of {!r}'.format(
+    raise Exception('Failed to find a PypeLocalFile for {!r} among outputs of {!r}\n\t(Note that pure inputs must not be in task directories.)'.format(
         path, producer))
 def find_work_dir(paths):
     """Return absolute path to directory of all these paths.
