@@ -115,12 +115,15 @@ class Attrs(object):
     """
     def __str__(self):
         # For this, all values must be strings.
-        return ' '.join(quote(f) for f in self.kwds.values())
+        return ' '.join(f for f in self.kwds.values())
     def __getattr__(self, name):
         # For this, values can be string, int, float, etc.
-        return quote(str(self.kwds[name]))
+        return str(self.kwds[name])
     def __init__(self, **kwds):
         self.kwds = kwds
+
+def value_quoted(kvs):
+    return {k:quote(v) for k,v in kvs.items()}
 
 def run_bash(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
@@ -133,8 +136,8 @@ def run_bash(bash_template, myinputs, myoutputs, parameters):
     assert 'output' not in parameters
     # input/output/params are the main values substituted in the subset of
     # snakemake which we support.
-    var_dict['input'] = Attrs(**myinputs)
-    var_dict['output'] = Attrs(**myoutputs)
+    var_dict['input'] = Attrs(**value_quoted(myinputs))
+    var_dict['output'] = Attrs(**value_quoted(myoutputs))
     var_dict['params'] = Attrs(**valid_parameters)
     # Like snakemake, we use bash "strict mode", but we add -vx.
     # http://redsymbol.net/articles/unofficial-bash-strict-mode/
@@ -151,9 +154,10 @@ date
     # Substitute
     try:
         bash_content = prefix + bash_template.format(**var_dict) + postfix
-    except KeyError:
+    except Exception:
         msg = """Failed to substitute var_dict into bash script:
 {}
+Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your script?
 """.format(bash_template)
         LOG.error(msg)
         raise
