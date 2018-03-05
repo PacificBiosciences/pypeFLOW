@@ -32,7 +32,7 @@ def system(cmd):
     LOG.info(cmd)
     rc = os.system(cmd)
     if rc:
-        raise Exception('{} <- {!r}'.format(rc, cmd))
+        raise Exception('cwd: {}\nrc: {} <- {!r}'.format(os.getcwd(), rc, cmd))
 def touch(myfn):
     cmd = 'touch {}'.format(myfn)
     system(cmd)

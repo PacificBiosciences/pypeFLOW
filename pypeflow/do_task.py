@@ -50,7 +50,7 @@ def get_parser():
         formatter_class=_Formatter,
     )
     parser.add_argument('--timeout',
-        type=int, default=60,
+        type=int, default=TIMEOUT,
         help='How many seconds to wait for input files (and JSON) to exist. (default: %(default)s')
     parser.add_argument('--tmpdir',
         help='Root directory to run in. (Sub-dir name will be based on CWD.)')
@@ -61,6 +61,10 @@ def get_parser():
 def wait_for(fn):
     global TIMEOUT
     LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, TIMEOUT))
+    dirname = os.path.dirname(fn)
+    if os.path.exists(dirname):
+        if not os.access(dirname, os.X_OK):
+            raise Exception('Cannot x into dir {!r}'.format(dirname))
     while not os.path.exists(fn):
         if TIMEOUT > 0:
             time.sleep(1)
@@ -165,7 +169,7 @@ Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your 
     bash_fn = 'user_script.sh'
     with open(bash_fn, 'w') as ofs:
         ofs.write(bash_content)
-    cmd = 'bash {}'.format(bash_fn)
+    cmd = '/bin/bash {}'.format(bash_fn)
     util.system(cmd)
 
 def run_cfg_in_tmpdir(cfg, tmpdir):
