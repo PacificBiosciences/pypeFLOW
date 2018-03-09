@@ -401,6 +401,7 @@ class NodeBase(object):
         rel_actual_script_fn = os.path.relpath(actual_script_fn, wdir)
         wrapper = """#!/bin/sh
 set -vex
+export PATH=$PATH:/bin
 cd {wdir}
 /bin/bash {rel_actual_script_fn}
 touch {sentinel_done_fn}
