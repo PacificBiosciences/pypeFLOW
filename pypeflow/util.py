@@ -17,7 +17,7 @@ def cd(newdir):
 def run(script_fn):
     cwd, basename = os.path.split(script_fn)
     with cd(cwd):
-        system('bash {}'.format(basename))
+        system('/bin/bash {}'.format(basename))
 def mkdirs(path):
     if not os.path.isdir(path):
         os.makedirs(path)

@@ -402,7 +402,7 @@ class NodeBase(object):
         wrapper = """#!/bin/sh
 set -vex
 cd {wdir}
-bash {rel_actual_script_fn}
+/bin/bash {rel_actual_script_fn}
 touch {sentinel_done_fn}
 """.format(**locals())
         wrapper_fn = self.script_fn()
