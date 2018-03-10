@@ -568,9 +568,10 @@ def get_status(state, elistdir, reference_s, sentinel, heartbeat):
     # We take listdir so we can avoid extra system calls.
     if sentinel in elistdir:
         try:
-            os.remove(heartbeat_path)
+            pass
+            #os.remove(heartbeat_path) # Note: We no longer use the heartbeats.
         except Exception:
-            log.debug('Unable to remove heartbeat {} when sentinal was found in exit-sentinels listdir.\n{}'.format(
+            log.debug('Unable to remove heartbeat {} when sentinel was found in exit-sentinels listdir.\n{}'.format(
                 repr(heartbeat_path), traceback.format_exc()))
         sentinel_path = os.path.join(state.get_directory_exits(), sentinel)
         with open(sentinel_path) as ifs:
