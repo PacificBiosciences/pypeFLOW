@@ -251,7 +251,9 @@ class Workflow(object):
         record them as 'node.needs', and update the global pypetask2node table.
         """
         needs = set()
-        use_tmpdir = self.use_tmpdir # TODO(CD): Let pypetask.use_tmpdir override this.
+        use_tmpdir = self.use_tmpdir
+        if pypetask.dist.use_tmpdir is not None:
+            use_tmpdir = pypetask.dist.use_tmpdir
         node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs, use_tmpdir) #, pypetask.generated_script_fn)
         self.pypetask2node[pypetask] = node
         for key, plf in pypetask.inputs.iteritems():
@@ -559,11 +561,16 @@ def only_path(p):
     else:
         return p
 class Dist(object):
-    def __init__(self, NPROC=1, MB=4000, local=False, sge_option=None):
+    def __init__(self, NPROC=1, MB=4000, local=False, sge_option=None, use_tmpdir=None):
+        if local:
+            # Keep it simple. If we run local-only, then do not even bother with tmpdir.
+            # This helps with simpler scatter/gather tasks, which copy paths.
+            use_tmpdir = False
         self.NPROC = NPROC
         self.MB = MB
         self.local = local
         self.sge_option = sge_option # not needed for block mode
+        self.use_tmpdir = use_tmpdir
 def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, dist=Dist()):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
