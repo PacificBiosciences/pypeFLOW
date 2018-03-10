@@ -549,7 +549,13 @@ def only_path(p):
         return p.path
     else:
         return p
-def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None):
+class Dist(object):
+    def __init__(self, NPROC=1, MB=4000, local=False, sge_option=None):
+        self.NPROC = NPROC
+        self.MB = MB
+        self.local = local
+        self.sge_option = sge_option # not needed for block mode
+def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, dist=Dist()):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
