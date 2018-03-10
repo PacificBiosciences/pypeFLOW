@@ -32,8 +32,6 @@ def gen_task(script, inputs, outputs, parameters={}, dist=Dist()):
     LOG.info('gen_task({}\n\tinputs={!r},\n\toutputs={!r})'.format(
         script, inputs, outputs))
     parameters = dict(parameters) # copy
-    if dist.local:
-        parameters['job_type'] = 'local'
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
         try:
@@ -49,5 +47,6 @@ def gen_task(script, inputs, outputs, parameters={}, dist=Dist()):
             outputs={k: v for k,v in outputs.iteritems()},
             parameters=parameters,
             bash_template=script,
+            dist=dist,
             )
     return make_task(task_generic_bash_script)

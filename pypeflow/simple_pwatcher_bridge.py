@@ -127,17 +127,26 @@ class PwatcherTaskQueue(object):
             LOG.debug('In rundir={!r}, sge_option={!r}, __sge_option={!r}'.format(
                 rundir,
                 node.pypetask.parameters.get('sge_option'), self.__sge_option))
-            sge_option = node.pypetask.parameters.get('sge_option', self.__sge_option)
             job_type = node.pypetask.parameters.get('job_type', None)
             job_queue = node.pypetask.parameters.get('job_queue', None)
             job_nprocs = node.pypetask.parameters.get('job_nprocs', None)
+            assert not job_nprocs
+            dist = node.pypetask.dist # must always exist now
+            sge_option = dist.sge_option
+            if sge_option is None:
+                sge_option = self.__sge_option
+            job_nproc = dist.NPROC # string or int
+            job_mb = dist.MB # string or int, megabytes
+            job_local = int(dist.local) # bool->1/0, easily serialized
             jobids[jobid] = {
                 'cmd': cmd,
                 'rundir': rundir,
                 # These are optional:
                 'job_type': job_type,
                 'job_queue': job_queue,
-                'job_nprocs': job_nprocs,
+                'job_nproc': job_nproc,
+                'job_mb': job_mb,
+                'job_local': job_local,
                 'sge_option': sge_option,
             }
         # Also send the default type and queue-name.
@@ -576,7 +585,7 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, di
         pass
     if not os.path.isabs(wdir):
         wdir = os.path.abspath(wdir)
-    this = _PypeTask(inputs, outputs, wdir, parameters, bash_template)
+    this = _PypeTask(inputs, outputs, wdir, parameters, bash_template, dist)
     #basedir = os.path.basename(wdir)
     basedir = this.name
     if basedir in PRODUCERS:
@@ -621,7 +630,7 @@ class _PypeTask(object):
         return self
     def __repr__(self):
         return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))
-    def __init__(self, inputs, outputs, wdir, parameters, bash_template):
+    def __init__(self, inputs, outputs, wdir, parameters, bash_template, dist):
         if parameters is None:
             parameters = {}
         name = os.path.relpath(wdir)
@@ -633,6 +642,7 @@ class _PypeTask(object):
         self.wdir = wdir
         self.name = name
         self.URL = URL
+        self.dist = dist
         #for key, bn in inputs.iteritems():
         #    setattr(self, key, os.path.abspath(bn))
         #for key, bn in outputs.iteritems():

@@ -6,7 +6,7 @@ the main program needs to wait for threads to finish somehow.
 
 Typical submission_string:
 
-    qsub -S /bin/bash -sync y -V -q production -N ${JOB_ID} \\\n -o "${STDOUT_FILE}" \\\n -e "${STDERR_FILE}" \\\n -pe smp ${NPROC} \\\n "${CMD}"
+    qsub -S /bin/bash -sync y -V -q production -N ${JOB_ID} \\\n -o "${STDOUT_FILE}" \\\n -e "${STDERR_FILE}" \\\n -pe smp ${NPROC} -l h_vmem=${MB}M \\\n "${CMD}"
 """
 try:
     from shlex import quote
@@ -30,6 +30,7 @@ import traceback
 
 log = logging.getLogger(__name__)
 
+LOCAL_SUBMISSION_STRING = '/bin/bash -C ${CMD} >| ${STDOUT_FILE} 2>| ${STDERR_FILE}' # for job_local override
 STATE_FN = 'state.py'
 Job = collections.namedtuple('Job', ['jobid', 'cmd', 'rundir', 'options'])
 MetaJob = collections.namedtuple('MetaJob', ['job', 'lang_exe'])
@@ -245,16 +246,18 @@ class StringJobSubmitter(object):
         """
         state.set_job(jobname, mjob)
         jobname = mjob.job.jobid
+        nproc = mjob.job.options['NPROC']
+        mb = mjob.job.options['MB']
         mji = MetaJobClass(mjob)
         #script_fn = os.path.join(state.get_directory_wrappers(), mji.get_wrapper())
         script_fn = mji.get_wrapper()
         exe = mjob.lang_exe
 
         state.notify_threaded(jobname)
-        self.start(jobname, state, exe, script_fn) # Can raise
-    def get_cmd(self, jobname, script_fn, nproc):
+        self.start(jobname, state, exe, script_fn, nproc, mb) # Can raise
+    def get_cmd(self, jobname, script_fn, nproc, mb):
         """Vars:
-        JOB_ID, STDOUT_FILE, STDERR_FILE, NPROC, CMD
+        JOB_ID, STDOUT_FILE, STDERR_FILE, NPROC, MB, CMD
         """
         # We wrap in a program that waits for the executable to exist, so
         # the filesystem has time to catch up on the remote machine.
@@ -267,17 +270,17 @@ class StringJobSubmitter(object):
         mapping['STDOUT_FILE'] = script_fn + '.stdout'
         mapping['STDERR_FILE'] = script_fn + '.stderr'
         mapping['NPROC'] = str(nproc)
+        mapping['MB'] = str(mb)
         log.debug('mapping, submission_string: {}, {}'.format(repr(mapping), self.submission_string))
         t = string.Template(self.submission_string)
         return t.substitute(mapping)
-    def start(self, jobname, state, exe, script_fn):
+    def start(self, jobname, state, exe, script_fn, nproc, mb):
         """Run job in thread.
         Thread will notify state.
         Can raise.
         """
-        nproc = 4
         #cmd = script_fn
-        cmd = self.get_cmd(jobname, script_fn, nproc)
+        cmd = self.get_cmd(jobname, script_fn, nproc, mb)
         # job_start.sh relies on PYPEFLOW_*
         env_extra = {
             "PYPEFLOW_JOB_START_SCRIPT": script_fn,
@@ -317,19 +320,28 @@ def cmd_run(state, jobids, job_type, job_queue):
             rundir = desc['rundir']
         else:
             rundir = os.path.dirname(cmd)
-        options = {}
+        # These are all required now.
+        nproc = desc['job_nproc']
+        mb = desc['job_mb']
+        local = int(desc['job_local'])
+        options = dict(NPROC=nproc, MB=mb, local=local)
         jobs[jobid] = Job(jobid, cmd, rundir, options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     submission_string = job_queue
-    submitter = StringJobSubmitter(submission_string)
-    log.debug('submitter: {!r}'.format(submitter))
+    basic_submitter = StringJobSubmitter(submission_string)
+    local_submitter = StringJobSubmitter(LOCAL_SUBMISSION_STRING)
+    log.debug('Basic submitter: {!r}'.format(basic_submitter))
     for jobid, job in jobs.iteritems():
-        desc = jobids[jobid]
-        log.debug('starting job %s' %pprint.pformat(job))
+        #desc = jobids[jobid]
+        log.debug(' starting job %s' %pprint.pformat(job))
         mjob = Job_get_MetaJob(job)
         MetaJob_wrap(mjob, state)
         try:
             #link_rundir(state.get_directory_job(jobid), desc.get('rundir'))
+            if job.options['local']:
+                submitter = local_submitter
+            else:
+                submitter = basic_submitter
             submitter.submit(jobid, mjob, state)
             submitted.append(jobid)
         except Exception:
