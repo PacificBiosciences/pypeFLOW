@@ -711,6 +711,11 @@ def cmd_run(state, jobids, job_type, job_queue):
         if my_job_type is None:
             my_job_type = job_type
         my_job_type = my_job_type.upper()
+        if my_job_type != 'LOCAL':
+            if ' ' in job_queue:
+                msg = 'For pwatcher=network_based, job_queue cannot contain spaces:\n job_queue={!r}\n job_type={!r}'.format(
+                    job_queue, my_job_type)
+                raise Exception(msg)
         if my_job_type == 'LOCAL':
             bjob = MetaJobLocal(mjob)
         elif my_job_type == 'SGE':
