@@ -37,6 +37,7 @@ import os
 import pprint
 import re
 import signal
+import string
 import subprocess
 import sys
 import time
@@ -498,22 +499,35 @@ def cmd_run(state, jobids, job_type, job_queue):
         if options.get('sge_option', None) is None:
             # This way we can always safely include it.
             options['sge_option'] = ''
+        else:
+            options['sge_option'] = string.Template(options['sge_option']).substitute(
+                NPROC=desc['job_nproc'], MB=desc['job_mb'])
         if not options.get('job_queue'):
             options['job_queue'] = job_queue
         if not options.get('job_type'):
             options['job_type'] = job_type
+        # These are all required now.
+        #options['NPROC'] = desc['job_nproc']
+        #options['MB'] = desc['job_mb']
+        if int(desc['job_local']):
+            options['job_type'] = 'local'
         jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
     for jobid, job in jobs.iteritems():
         desc = jobids[jobid]
-        log.info('starting job %s' %pprint.pformat(job))
         mjob = Job_get_MetaJob(job)
         MetaJob_wrap(mjob, state)
         options = job.options
-        my_job_type = desc.get('job_type')
+        my_job_type = job.options['job_type']
         if my_job_type is None:
             my_job_type = job_type
         my_job_type = my_job_type.upper()
+        log.info(' starting job {} w/ job_type={}'.format(pprint.pformat(job), my_job_type))
+        if my_job_type != 'LOCAL':
+            if ' ' in job_queue:
+                msg = 'For pwatcher=fs_based, job_queue cannot contain spaces:\n job_queue={!r}\n job_type={!r}'.format(
+                    job_queue, my_job_type)
+                raise Exception(msg)
         if my_job_type == 'LOCAL':
             bjob = MetaJobLocal(mjob)
         elif my_job_type == 'SGE':
@@ -563,9 +577,10 @@ def get_status(state, elistdir, reference_s, sentinel, heartbeat):
     # We take listdir so we can avoid extra system calls.
     if sentinel in elistdir:
         try:
-            os.remove(heartbeat_path)
+            pass
+            #os.remove(heartbeat_path) # Note: We no longer use the heartbeats.
         except Exception:
-            log.debug('Unable to remove heartbeat {} when sentinal was found in exit-sentinels listdir.\n{}'.format(
+            log.debug('Unable to remove heartbeat {} when sentinel was found in exit-sentinels listdir.\n{}'.format(
                 repr(heartbeat_path), traceback.format_exc()))
         sentinel_path = os.path.join(state.get_directory_exits(), sentinel)
         with open(sentinel_path) as ifs:

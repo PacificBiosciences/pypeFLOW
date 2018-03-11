@@ -127,17 +127,26 @@ class PwatcherTaskQueue(object):
             LOG.debug('In rundir={!r}, sge_option={!r}, __sge_option={!r}'.format(
                 rundir,
                 node.pypetask.parameters.get('sge_option'), self.__sge_option))
-            sge_option = node.pypetask.parameters.get('sge_option', self.__sge_option)
             job_type = node.pypetask.parameters.get('job_type', None)
             job_queue = node.pypetask.parameters.get('job_queue', None)
             job_nprocs = node.pypetask.parameters.get('job_nprocs', None)
+            assert not job_nprocs
+            dist = node.pypetask.dist # must always exist now
+            sge_option = dist.sge_option
+            if sge_option is None:
+                sge_option = self.__sge_option
+            job_nproc = dist.NPROC # string or int
+            job_mb = dist.MB # string or int, megabytes
+            job_local = int(dist.local) # bool->1/0, easily serialized
             jobids[jobid] = {
                 'cmd': cmd,
                 'rundir': rundir,
                 # These are optional:
                 'job_type': job_type,
                 'job_queue': job_queue,
-                'job_nprocs': job_nprocs,
+                'job_nproc': job_nproc,
+                'job_mb': job_mb,
+                'job_local': job_local,
                 'sge_option': sge_option,
             }
         # Also send the default type and queue-name.
@@ -242,7 +251,9 @@ class Workflow(object):
         record them as 'node.needs', and update the global pypetask2node table.
         """
         needs = set()
-        use_tmpdir = self.use_tmpdir # TODO(CD): Let pypetask.use_tmpdir override this.
+        use_tmpdir = self.use_tmpdir
+        if pypetask.dist.use_tmpdir is not None:
+            use_tmpdir = pypetask.dist.use_tmpdir
         node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs, use_tmpdir) #, pypetask.generated_script_fn)
         self.pypetask2node[pypetask] = node
         for key, plf in pypetask.inputs.iteritems():
@@ -401,8 +412,9 @@ class NodeBase(object):
         rel_actual_script_fn = os.path.relpath(actual_script_fn, wdir)
         wrapper = """#!/bin/sh
 set -vex
+export PATH=$PATH:/bin
 cd {wdir}
-bash {rel_actual_script_fn}
+/bin/bash {rel_actual_script_fn}
 touch {sentinel_done_fn}
 """.format(**locals())
         wrapper_fn = self.script_fn()
@@ -548,7 +560,18 @@ def only_path(p):
         return p.path
     else:
         return p
-def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None):
+class Dist(object):
+    def __init__(self, NPROC=1, MB=4000, local=False, sge_option=None, use_tmpdir=None):
+        if local:
+            # Keep it simple. If we run local-only, then do not even bother with tmpdir.
+            # This helps with simpler scatter/gather tasks, which copy paths.
+            use_tmpdir = False
+        self.NPROC = NPROC
+        self.MB = MB
+        self.local = local
+        self.sge_option = sge_option # not needed for block mode
+        self.use_tmpdir = use_tmpdir
+def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, dist=Dist()):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
@@ -569,7 +592,7 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None):
         pass
     if not os.path.isabs(wdir):
         wdir = os.path.abspath(wdir)
-    this = _PypeTask(inputs, outputs, wdir, parameters, bash_template)
+    this = _PypeTask(inputs, outputs, wdir, parameters, bash_template, dist)
     #basedir = os.path.basename(wdir)
     basedir = this.name
     if basedir in PRODUCERS:
@@ -614,7 +637,7 @@ class _PypeTask(object):
         return self
     def __repr__(self):
         return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))
-    def __init__(self, inputs, outputs, wdir, parameters, bash_template):
+    def __init__(self, inputs, outputs, wdir, parameters, bash_template, dist):
         if parameters is None:
             parameters = {}
         name = os.path.relpath(wdir)
@@ -626,6 +649,7 @@ class _PypeTask(object):
         self.wdir = wdir
         self.name = name
         self.URL = URL
+        self.dist = dist
         #for key, bn in inputs.iteritems():
         #    setattr(self, key, os.path.abspath(bn))
         #for key, bn in outputs.iteritems():
