@@ -127,17 +127,26 @@ class PwatcherTaskQueue(object):
             LOG.debug('In rundir={!r}, sge_option={!r}, __sge_option={!r}'.format(
                 rundir,
                 node.pypetask.parameters.get('sge_option'), self.__sge_option))
-            sge_option = node.pypetask.parameters.get('sge_option', self.__sge_option)
             job_type = node.pypetask.parameters.get('job_type', None)
             job_queue = node.pypetask.parameters.get('job_queue', None)
             job_nprocs = node.pypetask.parameters.get('job_nprocs', None)
+            assert not job_nprocs
+            dist = node.pypetask.dist # must always exist now
+            sge_option = dist.sge_option
+            if sge_option is None:
+                sge_option = self.__sge_option
+            job_nproc = dist.NPROC # string or int
+            job_mb = dist.MB # string or int, megabytes
+            job_local = int(dist.local) # bool->1/0, easily serialized
             jobids[jobid] = {
                 'cmd': cmd,
                 'rundir': rundir,
                 # These are optional:
                 'job_type': job_type,
                 'job_queue': job_queue,
-                'job_nprocs': job_nprocs,
+                'job_nproc': job_nproc,
+                'job_mb': job_mb,
+                'job_local': job_local,
                 'sge_option': sge_option,
             }
         # Also send the default type and queue-name.
@@ -242,7 +251,9 @@ class Workflow(object):
         record them as 'node.needs', and update the global pypetask2node table.
         """
         needs = set()
-        use_tmpdir = self.use_tmpdir # TODO(CD): Let pypetask.use_tmpdir override this.
+        use_tmpdir = self.use_tmpdir
+        if pypetask.dist.use_tmpdir is not None:
+            use_tmpdir = pypetask.dist.use_tmpdir
         node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs, use_tmpdir) #, pypetask.generated_script_fn)
         self.pypetask2node[pypetask] = node
         for key, plf in pypetask.inputs.iteritems():
@@ -401,8 +412,9 @@ class NodeBase(object):
         rel_actual_script_fn = os.path.relpath(actual_script_fn, wdir)
         wrapper = """#!/bin/sh
 set -vex
+export PATH=$PATH:/bin
 cd {wdir}
-bash {rel_actual_script_fn}
+/bin/bash {rel_actual_script_fn}
 touch {sentinel_done_fn}
 """.format(**locals())
         wrapper_fn = self.script_fn()
@@ -432,13 +444,12 @@ class PypeNode(NodeBase):
         outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
         for v in outputs.values():
             assert not os.path.isabs(v), '{!r} is not relative'.format(v)
-        # Get bash_template
-        bash_template = pt.parameters.get('_bash_')
-        if bash_template:
-            # Write bash_template, for debugging.
+        bash_template = pt.bash_template
+        if bash_template is not None:
+            # Write bash_template.
             bash_script_fn = os.path.join(wdir, 'template.sh')
             with open(bash_script_fn, 'w') as ofs:
-                message = '# Same as _bash_ in task.json\n'
+                message = '# Substitution will be similar to snakemake "shell".\n'
                 ofs.write(message + bash_template)
             task_desc = {
                     'inputs': inputs,
@@ -447,13 +458,14 @@ class PypeNode(NodeBase):
                     'bash_template_fn' : 'template.sh',
             }
         else:
+            # TODO: Stop supporting python_function
             task_desc = {
                     'inputs': inputs,
                     'outputs': outputs,
                     'parameters': pt.parameters,
-                    'python_function': pt.func_name,
+                    'python_function': pt.__name__,
             }
-        task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': '))
+        task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': ')) + '\n'
         task_json_fn = os.path.join(wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
         python = 'python2.7' # sys.executable fails sometimes because of binwrapper: SE-152
@@ -510,7 +522,7 @@ def findPypeLocalFile(path):
         sibling_basename = os.path.basename(plf.path)
         if sibling_basename == basename:
             return plf
-    raise Exception('Failed to find a PypeLocalFile for {!r} among outputs of {!r}'.format(
+    raise Exception('Failed to find a PypeLocalFile for {!r} among outputs of {!r}\n\t(Note that pure inputs must not be in task directories.)'.format(
         path, producer))
 def find_work_dir(paths):
     """Return absolute path to directory of all these paths.
@@ -548,21 +560,39 @@ def only_path(p):
         return p.path
     else:
         return p
-def PypeTask(inputs, outputs, parameters=None, wdir=None):
+class Dist(object):
+    def __init__(self, NPROC=1, MB=4000, local=False, sge_option=None, use_tmpdir=None):
+        if local:
+            # Keep it simple. If we run local-only, then do not even bother with tmpdir.
+            # This helps with simpler scatter/gather tasks, which copy paths.
+            use_tmpdir = False
+        self.NPROC = NPROC
+        self.MB = MB
+        self.local = local
+        self.sge_option = sge_option # not needed for block mode
+        self.use_tmpdir = use_tmpdir
+def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, dist=Dist()):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
+    LOG.debug('New PypeTask(wdir={!r},\n\tinputs={!r},\n\toutputs={!r})'.format(
+        wdir, inputs, outputs))
     if wdir is None:
         #wdir = parameters.get('wdir', name) # One of these must be a string!
         wdir = find_work_dir([only_path(v) for v in outputs.values()])
-        # Since we derived wdir from outputs, we need to ensure that they
-        # are not relative to wdir.
+        # Since we derived wdir from outputs, any relative paths should become absolute.
         for k,v in outputs.items():
             if not isinstance(v, PypeLocalFile) and not os.path.isabs(v):
-                outputs[k] = os.path.relpath(v, wdir)
+                outputs[k] = os.path.abspath(v)
+        for k,v in inputs.items():
+            if not isinstance(v, PypeLocalFile) and not os.path.isabs(v):
+                inputs[k] = os.path.abspath(v)
+    else:
+        # relpaths are relative to the provided wdir,
+        pass
     if not os.path.isabs(wdir):
         wdir = os.path.abspath(wdir)
-    this = _PypeTask(inputs, outputs, wdir, parameters)
+    this = _PypeTask(inputs, outputs, wdir, parameters, bash_template, dist)
     #basedir = os.path.basename(wdir)
     basedir = this.name
     if basedir in PRODUCERS:
@@ -570,7 +600,7 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None):
             basedir, PRODUCERS[basedir], this))
     LOG.debug('Added PRODUCERS[{!r}] = {!r}'.format(basedir, this))
     PRODUCERS[basedir] = this
-    this.canonicalize()
+    this.canonicalize() # Already abs, but make everything a PLF.
     this.assert_canonical()
     LOG.debug('Built {!r}'.format(this))
     return this
@@ -600,14 +630,14 @@ class _PypeTask(object):
         for k,v in self.outputs.iteritems():
             assert os.path.isabs(v.path), 'For {!r}, output {!r} is not absolute'.format(self.wdir, v)
         common = set(self.inputs.keys()) & set(self.outputs.keys())
-        assert (not common), 'Keys in both inputs and outputs of PypeTask({}): {!r}'.format(self.wdir, common)
+        assert (not common), 'A key is used for both inputs and outputs of PypeTask({}), which could be ok, but only if we refer to them as input.foo and output.foo in the bash script: {!r}'.format(self.wdir, common)
     def __call__(self, func):
         self.func = func
-        self.func_name = '{}.{}'.format(func.__module__, func.__name__)
+        self.__name__ = '{}.{}'.format(func.__module__, func.__name__)
         return self
     def __repr__(self):
         return 'PypeTask({!r}, {!r}, {!r}, {!r})'.format(self.name, self.wdir, pprint.pformat(self.outputs), pprint.pformat(self.inputs))
-    def __init__(self, inputs, outputs, wdir, parameters=None):
+    def __init__(self, inputs, outputs, wdir, parameters, bash_template, dist):
         if parameters is None:
             parameters = {}
         name = os.path.relpath(wdir)
@@ -615,9 +645,11 @@ class _PypeTask(object):
         self.inputs = inputs
         self.outputs = outputs
         self.parameters = dict(parameters) # Always copy this, so caller can re-use, for convenience.
+        self.bash_template = bash_template
         self.wdir = wdir
         self.name = name
         self.URL = URL
+        self.dist = dist
         #for key, bn in inputs.iteritems():
         #    setattr(self, key, os.path.abspath(bn))
         #for key, bn in outputs.iteritems():
@@ -625,11 +657,6 @@ class _PypeTask(object):
         assert self.wdir, 'No wdir for {!r} {!r}'.format(self.name, self.URL)
         LOG.debug('Created {!r}'.format(self))
 
-class DummyPypeTask(_PypeTask):
-    def __init__(self):
-        super(DummyPypeTask, self).__init__({}, {}, {}, wdir='/')
-
-#ROOT_PYPE_TASK = DummyPypeTask()
 
 MyFakePypeThreadTaskBase = None  # just a symbol, not really used
 

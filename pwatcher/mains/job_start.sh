@@ -33,4 +33,4 @@ while [[ ! -x "${executable}" ]]; do
     timeout=$((timeout-1))
 done
 
-bash ${executable}
+/bin/bash ${executable}

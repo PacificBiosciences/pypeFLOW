@@ -1,3 +1,4 @@
+from __future__ import print_function
 
 # @author Jason Chin
 #
@@ -192,7 +193,7 @@ def testDistributed(runmode, cleanup):
             shellCmd += "sleep 1\n" + "\n".join([ "echo %d %d ...  >> %s" % (layer, w, of.localFileName) for of in mutableDataObjs.values() ]) + "\nsleep 10"
             shellFileName = baseDir + "/testdata/task_l%d_w%d.sh" % (layer, w)
             shfile = open(shellFileName, 'w')
-            print >> shfile, shellCmd
+            print(shellCmd, file=shfile)
             shfile.close()
 
             if runmode == "internal":
@@ -245,24 +246,24 @@ def testDistributed(runmode, cleanup):
     wf.refreshTargets(allTasks)
     dotFile = open("test.dot","w")
     #print >>dotFile, wf.graphvizShortNameDot
-    print >>dotFile, wf.graphvizDot
+    print(wf.graphvizDot, file=dotFile)
     dotFile.close()
     dotFile = open("test_short_name.dot","w")
-    print >>dotFile, wf.graphvizShortNameDot
+    print(wf.graphvizShortNameDot, file=dotFile)
     dotFile.close()
     rdfFile = open("test.rdf","w")
-    print >>rdfFile, wf.RDFXML
+    print(wf.RDFXML, file=rdfFile)
     rdfFile.close()
     if runmode != "internal":
         mkFile = open("test.mk","w")
-        print >>mkFile, wf.makeFileStr
+        print(wf.makeFileStr, file=mkFile)
         mkFile.close()
 
 if __name__ == "__main__":
     try:
         testDistributed(sys.argv[1], sys.argv[2])
     except IndexError:
-        print "try: python PypeTest.py localshell 1"
-        print "running simpleTest()"
+        print("try: python PypeTest.py localshell 1")
+        print("running simpleTest()")
         simpleTest()
 

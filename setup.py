@@ -2,19 +2,16 @@ from setuptools import setup, Extension, find_packages
 
 setup(
     name = 'pypeflow',
-    version='1.0.0',
+    version='1.1.0',
     author='J. Chin',
     author_email='cschin@infoecho.net',
     license='LICENSE.txt',
-    packages = [
-        'pypeflow',
-        'pwatcher', # a separate package here for convenience, for now
-        'pwatcher.mains',
-    ],
+    packages=find_packages(),
     package_dir = {'':'.'},
     zip_safe = False,
     install_requires=[
         'networkx >=1.7, <=1.11',
+        'future >= 0.16.0',
     ],
     entry_points = {'console_scripts': [
             'pwatcher-main=pwatcher.mains.pwatcher:main',

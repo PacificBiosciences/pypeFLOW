@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 type module >& /dev/null || . /mnt/software/Modules/current/init/bash
-module load python/2.7.13-UCS4
+module load python/2-UCS4
 
 set -vex
 which python
@@ -12,8 +12,6 @@ export PYTHONUSERBASE=$(pwd)/LOCAL
 export PATH=${PYTHONUSERBASE}/bin:${PATH}
 
 pip -v install --user --edit .
-
-pip install --user pytest pytest-cov pylint
 
 export MY_TEST_FLAGS="-v -s --durations=0 --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml --cov-branch"
 make pytest
