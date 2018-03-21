@@ -29,9 +29,18 @@ def task_generic_bash_script(self):
 
 
 def gen_task(script, inputs, outputs, parameters={}, dist=Dist()):
+    """
+    dist is used in two ways:
+    1) in the pwatcher, to control job-distribution
+    2) as additional parameters:
+      - params.pypeflow_nproc
+      - params.pypeflow_mb
+    """
     LOG.info('gen_task({}\n\tinputs={!r},\n\toutputs={!r})'.format(
         script, inputs, outputs))
     parameters = dict(parameters) # copy
+    parameters['pypeflow_nproc'] = dist.NPROC
+    parameters['pypeflow_mb'] = dist.MB
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
         try:
