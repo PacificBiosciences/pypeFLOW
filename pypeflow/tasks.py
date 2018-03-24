@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import collections
 import logging
 import os
+import pprint
 from .simple_pwatcher_bridge import (PypeTask, Dist)
 from . import io
 
@@ -28,7 +29,7 @@ def task_generic_bash_script(self):
     self.generated_script_fn = script_fn
 
 
-def gen_task(script, inputs, outputs, parameters={}, dist=Dist()):
+def gen_task(script, inputs, outputs, parameters=None, dist=None):
     """
     dist is used in two ways:
     1) in the pwatcher, to control job-distribution
@@ -36,11 +37,19 @@ def gen_task(script, inputs, outputs, parameters={}, dist=Dist()):
       - params.pypeflow_nproc
       - params.pypeflow_mb
     """
+    if parameters is None:
+        parameters = dict()
+    if dist is None:
+        dist = Dist()
     LOG.info('gen_task({}\n\tinputs={!r},\n\toutputs={!r})'.format(
         script, inputs, outputs))
     parameters = dict(parameters) # copy
-    parameters['pypeflow_nproc'] = dist.NPROC
-    parameters['pypeflow_mb'] = dist.MB
+    parameters['pypeflow_nproc'] = dist.pypeflow_nproc
+    parameters['pypeflow_mb'] = dist.pypeflow_mb
+    LOG.info(' parameters={}'.format(
+        pprint.pformat(parameters)))
+    LOG.debug(' dist.job_dict={}'.format(
+        pprint.pformat(dist.job_dict)))
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
         try:

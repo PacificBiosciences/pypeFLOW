@@ -14,6 +14,7 @@ except ImportError:
     from pipes import quote
 import collections
 import contextlib
+import copy
 import glob
 import json
 import logging
@@ -246,41 +247,63 @@ class StringJobSubmitter(object):
         """
         state.set_job(jobname, mjob)
         jobname = mjob.job.jobid
-        nproc = mjob.job.options['NPROC']
-        mb = mjob.job.options['MB']
+        job_dict = mjob.job.options
+        #nproc = mjob.job.options['NPROC']
+        #mb = mjob.job.options['MB']
         mji = MetaJobClass(mjob)
         #script_fn = os.path.join(state.get_directory_wrappers(), mji.get_wrapper())
         script_fn = mji.get_wrapper()
         exe = mjob.lang_exe
 
         state.notify_threaded(jobname)
-        self.start(jobname, state, exe, script_fn, nproc, mb) # Can raise
-    def get_cmd(self, jobname, script_fn, nproc, mb):
+        self.start(jobname, state, exe, script_fn, job_dict) # Can raise
+    def get_cmd(self, job_name, script_fn, job_dict):
         """Vars:
-        JOB_ID, STDOUT_FILE, STDERR_FILE, NPROC, MB, CMD
+        (The old ones.) JOB_ID, STDOUT_FILE, STDERR_FILE, NPROC, MB, CMD
         """
         # We wrap in a program that waits for the executable to exist, so
         # the filesystem has time to catch up on the remote machine.
         # Hopefully, this will allow dependencies to become ready as well.
         job_start_fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mains/job_start.sh')
-        CMD = job_start_fn
         mapping = dict()
-        mapping['CMD'] = CMD
-        mapping['JOB_ID'] = jobname
-        mapping['STDOUT_FILE'] = script_fn + '.stdout'
-        mapping['STDERR_FILE'] = script_fn + '.stderr'
-        mapping['NPROC'] = str(nproc)
-        mapping['MB'] = str(mb)
-        log.debug('mapping, submission_string: {}, {}'.format(repr(mapping), self.submission_string))
-        t = string.Template(self.submission_string)
-        return t.substitute(mapping)
-    def start(self, jobname, state, exe, script_fn, nproc, mb):
+        stdout = script_fn + '.stdout'
+        stderr = script_fn + '.stderr'
+        run_dir = os.getcwd()
+        mapping = dict(
+                JOB_EXE='/bin/bash',
+                JOB_NAME=job_name, JOB_ID=job_name,
+                #JOB_OPTS=JOB_OPTS,
+                #JOB_QUEUE=job_queue,
+                JOB_SCRIPT=job_start_fn, CMD=job_start_fn,
+                JOB_DIR=run_dir, DIR=run_dir,
+                JOB_STDOUT=stdout, STDOUT_FILE=stdout,
+                JOB_STDERR=stderr, STDERR_FILE=stderr,
+                #MB=pypeflow_mb,
+                #NPROC=pypeflow_nproc,
+        )
+        mapping.update(job_dict)
+        if 'JOB_OPTS' in mapping:
+            # a special two-level mapping: ${JOB_OPTS} is substituted first
+            mapping['JOB_OPTS'] = self.sub(mapping['JOB_OPTS'], mapping)
+        return self.sub(self.submission_string, mapping)
+    @staticmethod
+    def sub(template, mapping):
+        t = string.Template(template)
+        try:
+            return t.substitute(mapping)
+        except KeyError:
+            print(repr(mapping))
+            msg = 'Template substitution failed:\n template={!r}\n mapping={}'.format(
+                    template, pprint.pformat(mapping))
+            log.exception(msg)
+            raise
+    def start(self, jobname, state, exe, script_fn, job_dict):
         """Run job in thread.
         Thread will notify state.
         Can raise.
         """
         #cmd = script_fn
-        cmd = self.get_cmd(jobname, script_fn, nproc, mb)
+        cmd = self.get_cmd(jobname, script_fn, job_dict)
         # job_start.sh relies on PYPEFLOW_*
         env_extra = {
             "PYPEFLOW_JOB_START_SCRIPT": script_fn,
@@ -304,7 +327,7 @@ def link_rundir(state_rundir, user_rundir):
             os.unlink(link_fn)
         os.symlink(os.path.abspath(state_rundir), link_fn)
 
-def cmd_run(state, jobids, job_type, job_queue):
+def cmd_run(state, jobids, job_type, job_dict):
     """
     Wrap them and run them locally, each in the foreground of a thread.
     """
@@ -321,13 +344,14 @@ def cmd_run(state, jobids, job_type, job_queue):
         else:
             rundir = os.path.dirname(cmd)
         # These are all required now.
-        nproc = desc['job_nproc']
-        mb = desc['job_mb']
+        #nproc = desc['job_nproc']
+        #mb = desc['job_mb']
         local = int(desc['job_local'])
-        options = dict(NPROC=nproc, MB=mb, local=local)
+        options = copy.deepcopy(desc['job_dict']) #dict(NPROC=nproc, MB=mb, local=local)
+        options['local'] = local
         jobs[jobid] = Job(jobid, cmd, rundir, options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
-    submission_string = job_queue
+    submission_string = job_dict['submit']
     basic_submitter = StringJobSubmitter(submission_string)
     local_submitter = StringJobSubmitter(LOCAL_SUBMISSION_STRING)
     log.debug('Basic submitter: {!r}'.format(basic_submitter))
@@ -345,6 +369,7 @@ def cmd_run(state, jobids, job_type, job_queue):
             submitter.submit(jobid, mjob, state)
             submitted.append(jobid)
         except Exception:
+            raise
             log.exception('Failed to submit background-job:\n{!r}'.format(
                 submitter))
     return result
@@ -416,11 +441,11 @@ def readjson(ifs):
     return jsonval
 
 class ProcessWatcher(object):
-    def run(self, jobids, job_type, job_queue):
+    def run(self, jobids, job_type, job_defaults_dict):
         #import traceback; log.debug(''.join(traceback.format_stack()))
-        log.debug('run(jobids={}, job_type={}, job_queue={})'.format(
-            '<%s>'%len(jobids), job_type, job_queue))
-        return cmd_run(self.state, jobids, job_type, job_queue)
+        log.debug('run(jobids={}, job_type={}, job_defaults_dict={})'.format(
+            '<%s>'%len(jobids), job_type, job_defaults_dict))
+        return cmd_run(self.state, jobids, job_type, job_defaults_dict)
     def query(self, which='list', jobids=[]):
         log.debug('query(which={!r}, jobids={})'.format(
             which, '<%s>'%len(jobids)))
