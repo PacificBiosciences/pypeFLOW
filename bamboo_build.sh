@@ -7,6 +7,7 @@ set -vex
 which python
 which pip
 
+rm -rf LOCAL
 mkdir -p LOCAL
 export PYTHONUSERBASE=$(pwd)/LOCAL
 export PATH=${PYTHONUSERBASE}/bin:${PATH}
