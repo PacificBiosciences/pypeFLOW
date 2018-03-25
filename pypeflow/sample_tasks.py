@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-from __future__ import unicode_literals
+
 import logging
 from .tasks import gen_task
 from .simple_pwatcher_bridge import (
