@@ -30,6 +30,7 @@ except ImportError:
     from pipes import quote
 import collections
 import contextlib
+import copy
 import glob
 import json
 import logging
@@ -228,10 +229,10 @@ def background(script, exe='/bin/bash'):
     sout = open('stdout', 'w')
     serr = open('stderr', 'w')
     pseudo_call = '{exe} {script} 1>|stdout 2>|stderr & '.format(exe=exe, script=script)
-    log.debug('dir: {!r}\ncall: {!r}'.format(os.getcwd(), pseudo_call))
+    log.info('dir: {!r}\nCALL:\n {!r}'.format(os.getcwd(), pseudo_call))
     proc = subprocess.Popen([exe, script], stdin=sin, stdout=sout, stderr=serr)
     pid = proc.pid
-    log.debug('pid=%s pgid=%s sub-pid=%s' %(os.getpid(), os.getpgid(0), proc.pid))
+    log.info('pid=%s pgid=%s sub-pid=%s' %(os.getpid(), os.getpgid(0), proc.pid))
     #checkcall = 'ls -l /proc/{}/cwd'.format(
     #        proc.pid)
     #system(checkcall, checked=True)
@@ -239,6 +240,7 @@ def background(script, exe='/bin/bash'):
 
 def qstripped(option, flag='-q'):
     """Given a string of options, remove any -q foo.
+    (No longer used.)
 
     >>> qstripped('-xy -q foo -z bar')
     '-xy -z bar'
@@ -253,11 +255,13 @@ def qstripped(option, flag='-q'):
     return ' '.join(vals)
 
 class MetaJobLocal(object):
+    """For jobs on the local machine, with process-watching.
+    We cannot simply run with '&' because then we would not know how
+    to kill the new background job.
+    """
     def submit(self, state, exe, script_fn):
         """Can raise.
         """
-        #sge_option = self.mjob.job.options['sge_option']
-        #assert sge_option is None, sge_option # might be set anyway
         pid = background(script_fn, exe=self.mjob.lang_exe)
     def kill(self, state, heartbeat):
         """Can raise.
@@ -282,44 +286,90 @@ class MetaJobLocal(object):
         return 'MetaJobLocal(%s)' %repr(self.mjob)
     def __init__(self, mjob):
         self.mjob = mjob # PUBLIC
-class MetaJobSge(object):
+class MetaJobSubmit(object):
+    """Generic job-submission, non-blocking.
+    Add shebang to script.
+    If running locally, then caller must append '&' onto job_submit to put job in background.
+    """
     def submit(self, state, exe, script_fn):
-        """Can raise.
+        """Run in cwd, in background.
+        Can raise.
         """
-        specific = self.specific
-        #cwd = os.getcwd()
-        job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
-        job_queue = self.mjob.job.options['job_queue']
-        if job_queue:
-            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
-        # Add shebang, in case shell_start_mode=unix_behavior.
+        run_dir = os.getcwd()
+        job_name = self.get_job_name()
+        #job_nproc = self.job_nproc
+        #job_mb = self.job_mb
+        #job_queue = self.job_queue
+        # Add shebang, in case shell_start_mode=unix_behavior (for SGE).
         #   https://github.com/PacificBiosciences/FALCON/pull/348
         with open(script_fn, 'r') as original: data = original.read()
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -cwd -o stdout -e stderr -S {exe} {script_fn}'.format(
-                **locals())
-        system(sge_cmd, checked=True) # TODO: Capture q-jobid
-    def kill(self, state, heartbeat):
+        mapping = dict(
+                JOB_EXE='/bin/bash',
+                JOB_NAME=job_name, JOB_ID=job_name,
+                #JOB_OPTS=JOB_OPTS,
+                #JOB_QUEUE=job_queue,
+                JOB_SCRIPT=script_fn, CMD=script_fn,
+                JOB_DIR=run_dir, DIR=run_dir,
+                JOB_STDOUT='stdout', STDOUT_FILE='stdout',
+                JOB_STDERR='stderr', STDERR_FILE='stderr',
+                #MB=pypeflow_mb,
+                #NPROC=pypeflow_nproc,
+        )
+        mapping.update(self.job_dict)
+        if 'JOB_OPTS' in mapping:
+            # a special two-level mapping: ${JOB_OPTS} is substituted first
+            mapping['JOB_OPTS'] = self.sub(mapping['JOB_OPTS'], mapping)
+        sge_cmd = self.sub(self.submit_template, mapping)
+        system(sge_cmd, checked=True) # TODO: Capture job-num
+    def kill(self, state, heartbeat=None):
         """Can raise.
         """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
-        job_name = self.get_jobname()
-        sge_cmd = 'qdel -k {}'.format(
-                job_name)
+        #hdir = state.get_directory_heartbeats()
+        #heartbeat_fn = os.path.join(hdir, heartbeat)
+        #jobid = self.mjob.job.jobid
+        job_name = self.get_job_name()
+        mapping = dict(
+                JOB_NUM=job_name)
+        mapping.update(self.job_dict)
+        sge_cmd = self.sub(self.kill_template, mapping)
         system(sge_cmd, checked=False)
-    def get_jobname(self):
+    def sub(self, unsub, mapping):
+        return string.Template(unsub).substitute(mapping)
+    def get_job_name(self):
         """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
         TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
         """
+        # jobid is an overloaded term in the pbsmrtpipe world, so we use job_name here.
+        return self.mjob.job.jobid
+    def get_job_num(self):
+        """For now, just the jobname.
+        """
         return self.mjob.job.jobid
     def __repr__(self):
-        return 'MetaJobSge(%s)' %repr(self.mjob)
+        return '{}({!r})'.format(self.__class__.__name__, self.mjob)
     def __init__(self, mjob):
         self.mjob = mjob
-        self.specific = '-V' # pass enV; '-j y' => combine out/err
+        if not hasattr(self, 'JOB_OPTS'):
+            self.JOB_OPTS = None # unreachable, since this is an abstract class
+        self.job_dict = copy.deepcopy(self.mjob.job.options)
+        jd = self.job_dict
+        if 'submit' in jd:
+            self.submit_template = jd['submit']
+        if 'kill' in jd:
+            self.kill_template = jd['kill']
+        if 'JOB_OPTS' not in jd and hasattr(self, 'JOB_OPTS'):
+            jd['JOB_OPTS'] = self.JOB_OPTS
+        assert self.submit_template
+        assert self.kill_template
+        assert self.JOB_OPTS
+class MetaJobSge(MetaJobSubmit):
+    def __init__(self, mjob):
+        # '-V' => pass enV; '-j y' => combine out/err
+        self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -cwd -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
+        self.JOB_OPTS = '-q ${JOB_QUEUE} -pe smp ${NPROC} -l h_vmem=${MB}M'
+        self.kill_template = 'qdel ${JOB_NAME}'
+        super(MetaJobSge, self).__init__(mjob)
 class MetaJobPbs(object):
     """
 usage: qsub [-a date_time] [-A account_string] [-c interval]
@@ -329,149 +379,31 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         [-S path] [-u user_list] [-W otherattributes=value...]
         [-v variable_list] [-V ] [-z] [script | -- command [arg1 ...]]
     """
-    def submit(self, state, exe, script_fn):
-        """Can raise.
-        """
-        specific = self.specific
-        #cwd = os.getcwd()
-        job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
-        job_queue = self.mjob.job.options['job_queue']
-        if job_queue:
-            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
-        # Add shebang, in case shell_start_mode=unix_behavior.
-        #   https://github.com/PacificBiosciences/FALCON/pull/348
-        with open(script_fn, 'r') as original: data = original.read()
-        with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -o stdout -e stderr -S {exe} {script_fn}'.format(
-                **locals())
-        system(sge_cmd, checked=True) # TODO: Capture q-jobid
-    def kill(self, state, heartbeat):
-        """Can raise.
-        """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
-        job_name = self.get_jobname()
-        sge_cmd = 'qdel {}'.format(
-                job_name)
-        system(sge_cmd, checked=False)
-    def get_jobname(self):
-        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
-        TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
-        """
-        return self.mjob.job.jobid
-    def __repr__(self):
-        return 'MetaJobPbs(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        self.mjob = mjob
-        self.specific = '-V' # pass enV; '-j y' => combine out/err
+        super(MetaJobPbs, self).__init__(mjob)
+        self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
+        self.JOB_OPTS = '-q ${JOB_QUEUE} --cpus-per-task=${NPROC} --mem-per-cpu=${MB}M'
+        self.kill_template = 'qdel ${JOB_NAME}'
 class MetaJobTorque(object):
     # http://docs.adaptivecomputing.com/torque/4-0-2/help.htm#topics/commands/qsub.htm
-    def submit(self, state, exe, script_fn):
-        """Can raise.
-        """
-        specific = self.specific
-        #cwd = os.getcwd()
-        job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
-        job_queue = self.mjob.job.options['job_queue']
-        if job_queue:
-            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
-        cwd = os.getcwd()
-        # Add shebang, in case shell_start_mode=unix_behavior.
-        #   https://github.com/PacificBiosciences/FALCON/pull/348
-        with open(script_fn, 'r') as original: data = original.read()
-        with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
-        sge_cmd = 'qsub -N {job_name} {sge_option} {specific} -d {cwd} -o stdout -e stderr -S {exe} {script_fn}'.format(
-                **locals())
-        system(sge_cmd, checked=True) # TODO: Capture q-jobid
-    def kill(self, state, heartbeat):
-        """Can raise.
-        """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
-        job_name = self.get_jobname()
-        sge_cmd = 'qdel {}'.format(
-                job_name)
-        system(sge_cmd, checked=False)
-    def get_jobname(self):
-        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
-        TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
-        """
-        return self.mjob.job.jobid
-    def __repr__(self):
-        return 'MetaJobTorque(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        self.mjob = mjob
-        self.specific = '-V' # pass enV; '-j oe' => combine out/err
+        super(MetaJobTorque, self).__init__(mjob)
+        self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -d ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
+        self.JOB_OPTS = '-q ${JOB_QUEUE} -l procs=${NPROC}'
+        self.kill_template = 'qdel ${JOB_NUM}'
 class MetaJobSlurm(object):
-    def submit(self, state, exe, script_fn):
-        """Can raise.
-        """
-        job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
-        job_queue = self.mjob.job.options['job_queue']
-        if job_queue:
-            sge_option = '-p {} '.format(job_queue) + qstripped(sge_option, '-p')
-        cwd = os.getcwd()
-        sge_cmd = 'sbatch -J {job_name} {sge_option} -D {cwd} -o stdout -e stderr --wrap="{exe} {script_fn}"'.format(
-                **locals())
-        # "By default all environment variables are propagated."
-        #  http://slurm.schedmd.com/sbatch.html
-        system(sge_cmd, checked=True) # TODO: Capture sbatch-jobid
-    def kill(self, state, heartbeat):
-        """Can raise.
-        """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
-        job_name = self.get_jobname()
-        sge_cmd = 'scancel -n {}'.format(
-                job_name)
-        system(sge_cmd, checked=False)
-    def get_jobname(self):
-        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
-        TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
-        """
-        return self.mjob.job.jobid
-    def __repr__(self):
-        return 'MetaJobSlurm(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        self.mjob = mjob
+        super(MetaJobSlurm, self).__init__(mjob)
+        self.submit_template = 'sbatch -J ${JOB_NAME} ${JOB_OPTS} -D ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} --wrap="/bin/bash ${JOB_SCRIPT}"'
+        self.JOB_OPTS = '-p ${JOB_QUEUE} --mincpus=${NPROC} --mem-per-cpu=${MB}'
+        self.kill_template = 'scancel -n ${JOB_NUM}'
 class MetaJobLsf(object):
-    def submit(self, state, exe, script_fn):
-        """Can raise.
-        """
-        job_name = self.get_jobname()
-        sge_option = self.mjob.job.options['sge_option']
-        job_queue = self.mjob.job.options['job_queue']
-        if job_queue:
-            sge_option = '-q {} '.format(job_queue) + qstripped(sge_option)
-        sge_cmd = 'bsub -J {job_name} {sge_option} -o stdout -e stderr "{exe} {script_fn}"'.format(
-                **locals())
-        # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
-        system(sge_cmd, checked=True) # TODO: Capture q-jobid
-    def kill(self, state, heartbeat):
-        """Can raise.
-        """
-        hdir = state.get_directory_heartbeats()
-        heartbeat_fn = os.path.join(hdir, heartbeat)
-        jobid = self.mjob.job.jobid
-        job_name = self.get_jobname()
-        sge_cmd = 'bkill -J {}'.format(
-                job_name)
-        system(sge_cmd, checked=False)
-    def get_jobname(self):
-        """Some systems are limited to 15 characters, but we expect that to be truncated by the caller.
-        TODO: Choose a sequential jobname and record it. Priority: low, since collisions are very unlikely.
-        """
-        return self.mjob.job.jobid
-    def __repr__(self):
-        return 'MetaJobLsf(%s)' %repr(self.mjob)
     def __init__(self, mjob):
-        self.mjob = mjob
+        super(MetaJobLsf, self).__init__(mjob)
+        self.submit_template = 'bsub -J ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} "/bin/bash ${JOB_SCRIPT}"'
+        # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
+        self.JOB_OPTS = '-q ${JOB_QUEUE} -n ${NPROC}'
+        self.kill_template = 'bkill -J ${JOB_NUM}'
 
 def link_rundir(state_rundir, user_rundir):
     if user_rundir:
@@ -480,39 +412,23 @@ def link_rundir(state_rundir, user_rundir):
             os.unlink(link_fn)
         os.symlink(os.path.abspath(state_rundir), link_fn)
 
-def cmd_run(state, jobids, job_type, job_queue):
+def cmd_run(state, jobids, job_type, job_defaults_dict):
     """On stdin, each line is a unique job-id, followed by run-dir, followed by command+args.
     Wrap them and run them locally, in the background.
     """
+    # We don't really need job_defaults_dict as they were already
+    # added to job_dict for each job.
     jobs = dict()
     submitted = list()
     result = {'submitted': submitted}
     for jobid, desc in jobids.iteritems():
-        assert 'cmd' in desc
-        options = {}
-        if 'job_queue' not in desc:
-            raise Exception(pprint.pformat(desc))
-        for k in ('sge_option', 'job_type', 'job_queue'): # extras to be stored
-            if k in desc:
-                if desc[k]:
-                    options[k] = desc[k]
-        if options.get('sge_option', None) is None:
-            # This way we can always safely include it.
-            options['sge_option'] = ''
-        else:
-            options['sge_option'] = string.Template(options['sge_option']).substitute(
-                NPROC=desc['job_nproc'], MB=desc['job_mb'])
-        if not options.get('job_queue'):
-            options['job_queue'] = job_queue
+        options = copy.deepcopy(desc['job_dict']) # defaults were already applied here
         if not options.get('job_type'):
             options['job_type'] = job_type
-        # These are all required now.
-        #options['NPROC'] = desc['job_nproc']
-        #options['MB'] = desc['job_mb']
         if int(desc['job_local']):
             options['job_type'] = 'local'
         jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
-    log.debug('jobs:\n%s' %pprint.pformat(jobs))
+    log.debug('jobs:\n{}'.format(pprint.pformat(jobs)))
     for jobid, job in jobs.iteritems():
         desc = jobids[jobid]
         mjob = Job_get_MetaJob(job)
@@ -523,11 +439,6 @@ def cmd_run(state, jobids, job_type, job_queue):
             my_job_type = job_type
         my_job_type = my_job_type.upper()
         log.info(' starting job {} w/ job_type={}'.format(pprint.pformat(job), my_job_type))
-        if my_job_type != 'LOCAL':
-            if ' ' in job_queue:
-                msg = 'For pwatcher=fs_based, job_queue cannot contain spaces:\n job_queue={!r}\n job_type={!r}'.format(
-                    job_queue, my_job_type)
-                raise Exception(msg)
         if my_job_type == 'LOCAL':
             bjob = MetaJobLocal(mjob)
         elif my_job_type == 'SGE':
@@ -549,6 +460,7 @@ def cmd_run(state, jobids, job_type, job_queue):
         except Exception:
             log.exception('In pwatcher.fs_based.cmd_run(), failed to submit background-job:\n{!r}'.format(
                 bjob))
+            #raise
     return result
     # The caller is responsible for deciding what to do about job-submission failures. Re-try, maybe?
 
@@ -560,7 +472,7 @@ def get_jobid_for_heartbeat(heartbeat):
     jobid = mo.group(1)
     return jobid
 def system(call, checked=False):
-    log.info('!{}'.format(call))
+    log.info('CALL:\n {}'.format(call))
     rc = os.system(call)
     if checked and rc:
         raise Exception('{} <- {!r}'.format(rc, call))
@@ -729,11 +641,11 @@ def readjson(ifs):
     return jsonval
 
 class ProcessWatcher(object):
-    def run(self, jobids, job_type, job_queue):
+    def run(self, jobids, job_type, job_defaults_dict):
         #import traceback; log.debug(''.join(traceback.format_stack()))
-        log.debug('run(jobids={}, job_type={}, job_queue={})'.format(
-            '<%s>'%len(jobids), job_type, job_queue))
-        return cmd_run(self.state, jobids, job_type, job_queue)
+        log.debug('run(jobids={}, job_type={}, job_defaults_dict={})'.format(
+            '<%s>'%len(jobids), job_type, job_defaults_dict))
+        return cmd_run(self.state, jobids, job_type, job_defaults_dict)
     def query(self, which='list', jobids=[]):
         log.debug('query(which={!r}, jobids={})'.format(
             which, '<%s>'%len(jobids)))
