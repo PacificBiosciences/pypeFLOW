@@ -367,7 +367,7 @@ class MetaJobSge(MetaJobSubmit):
     def __init__(self, mjob):
         # '-V' => pass enV; '-j y' => combine out/err
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -cwd -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
-        self.JOB_OPTS = '-q ${JOB_QUEUE} -pe smp ${NPROC} -l h_vmem=${MB}M'
+        self.JOB_OPTS = '-q ${JOB_QUEUE} -pe smp ${NPROC}' # -l h_vmem=${MB}M does not work within PacBio
         self.kill_template = 'qdel ${JOB_NAME}'
         super(MetaJobSge, self).__init__(mjob)
 class MetaJobPbs(object):
