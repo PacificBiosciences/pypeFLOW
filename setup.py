@@ -1,8 +1,15 @@
 from setuptools import setup, Extension, find_packages
+import subprocess
+
+try:
+    local_version = '+git.{}'.format(
+        subprocess.check_output('git rev-parse HEAD', shell=True))
+except Exception:
+    local_version = ''
 
 setup(
     name = 'pypeflow',
-    version='2.0.0',
+    version='2.0.1' + local_version,
     author='J. Chin',
     author_email='cschin@infoecho.net',
     license='LICENSE.txt',
