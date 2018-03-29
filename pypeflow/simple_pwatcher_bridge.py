@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 from .util import (mkdirs, system, touch, run, cd)
 import pwatcher.blocking
 import pwatcher.fs_based
@@ -107,7 +108,6 @@ class PwatcherTaskQueue(object):
         # call to pwatcher with 'if ready'.
         LOG.debug('enque nodes:\n%s' %pprint.pformat(nodes))
         jobids = dict()
-        #sge_option='-pe smp 8 -q default'
         for node in nodes:
             #node.satisfy() # This would do the job without a process-watcher.
             generated_script_fn = node.execute() # misnomer; this only dumps task.json now
@@ -124,42 +124,35 @@ class PwatcherTaskQueue(object):
 
             rundir, basename = os.path.split(os.path.abspath(generated_script_fn))
             cmd = '/bin/bash {}'.format(basename)
-            LOG.debug('In rundir={!r}, sge_option={!r}, __sge_option={!r}'.format(
-                rundir,
-                node.pypetask.parameters.get('sge_option'), self.__sge_option))
             job_type = node.pypetask.parameters.get('job_type', None)
-            job_queue = node.pypetask.parameters.get('job_queue', None)
-            job_nprocs = node.pypetask.parameters.get('job_nprocs', None)
-            assert not job_nprocs
             dist = node.pypetask.dist # must always exist now
-            sge_option = dist.sge_option
-            if sge_option is None:
-                sge_option = self.__sge_option
-            job_nproc = dist.NPROC # string or int
-            job_mb = dist.MB # string or int, megabytes
+            job_dict = dict(self.__job_defaults_dict)
+            job_dict.update(dist.job_dict)
+            LOG.debug('In rundir={!r}, job_dict={!r}'.format(
+                rundir, job_dict))
+            #job_nproc = dist.NPROC # string or int
+            #job_mb = dist.MB # string or int, megabytes
             job_local = int(dist.local) # bool->1/0, easily serialized
             jobids[jobid] = {
                 'cmd': cmd,
                 'rundir': rundir,
                 # These are optional:
                 'job_type': job_type,
-                'job_queue': job_queue,
-                'job_nproc': job_nproc,
-                'job_mb': job_mb,
+                'job_dict': job_dict,
+                #'job_nproc': job_nproc,
+                #'job_mb': job_mb,
                 'job_local': job_local,
-                'sge_option': sge_option,
             }
         # Also send the default type and queue-name.
         watcher_args = {
                 'jobids': jobids,
                 'job_type': self.__job_type,
-                'job_queue': self.__job_queue,
+                'job_defaults_dict': self.__job_defaults_dict,
         }
         result = self.watcher.run(**watcher_args)
         LOG.debug('Result of watcher.run()={}'.format(repr(result)))
         submitted = result['submitted']
         self.__running.update(submitted)
-        #log.info("QQQ ADDED: {}".format(jobid))
         for jobid in (set(jobids.keys()) - set(submitted)):
             yield self.__known[jobid] # TODO: What should be the status for these submission failures?
 
@@ -195,11 +188,11 @@ class PwatcherTaskQueue(object):
         q = self.watcher.delete(**watcher_args)
         LOG.debug('In notifyTerminate(), result of delete:%s' %repr(q))
 
-    def __init__(self, watcher, job_type='local', job_queue=None, sge_option=None, jobid_generator=0):
+    def __init__(self, watcher, section_job=None, job_type='local', job_defaults_dict=None, jobid_generator=0):
         self.watcher = watcher
+        self.__section_job = section_job if section_job else {}
         self.__job_type = job_type
-        self.__job_queue = job_queue
-        self.__sge_option = sge_option
+        self.__job_defaults_dict = job_defaults_dict
         self.__running = set() # jobids
         self.__known = dict() # jobid -> Node
         self.__to_report = list() # Nodes
@@ -315,9 +308,11 @@ class Workflow(object):
             if to_submit:
                 unsubmitted = set(self.tq.enque(to_submit)) # In theory, this traps exceptions.
                 if unsubmitted:
-                    LOG.error('Failed to enqueue {} of {} jobs: {!r}'.format(
-                        len(unsubmitted), len(to_submit), unsubmitted))
+                    msg = 'Failed to enqueue {} of {} jobs: {!r}'.format(
+                        len(unsubmitted), len(to_submit), unsubmitted)
+                    LOG.error(msg)
                     #ready.update(unsubmitted) # Resubmit only in pwatcher, if at all.
+                    raise Exception(msg)
                 submitted.update(to_submit - unsubmitted)
             LOG.debug('N in queue: {} (max_jobs={})'.format(len(submitted), self.max_jobs))
             recently_done = set(self.tq.check_done())
@@ -354,11 +349,11 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
-    def __init__(self, watcher, job_type, job_queue, max_jobs, use_tmpdir, squash, jobid_generator, sge_option='',
+    def __init__(self, watcher, job_type, job_defaults_dict, max_jobs, use_tmpdir, squash, jobid_generator,
         ):
         self.graph = networkx.DiGraph()
         # TODO: Inject PwatcherTaskQueue
-        self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_queue=job_queue, sge_option=sge_option,
+        self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_defaults_dict=job_defaults_dict,
                 jobid_generator=jobid_generator,
                 )
         assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
@@ -561,20 +556,31 @@ def only_path(p):
     else:
         return p
 class Dist(object):
-    def __init__(self, NPROC=1, MB=4000, local=False, sge_option=None, use_tmpdir=None):
+    @property
+    def pypeflow_nproc(self):
+        return self.job_dict['NPROC']
+    @property
+    def pypeflow_mb(self):
+        """per processor"""
+        return self.job_dict['MB']
+    def __init__(self, NPROC=1, MB=4000, local=False, job_dict={}, use_tmpdir=None):
+        my_job_dict = {}
         if local:
             # Keep it simple. If we run local-only, then do not even bother with tmpdir.
             # This helps with simpler scatter/gather tasks, which copy paths.
             use_tmpdir = False
-        self.NPROC = NPROC
-        self.MB = MB
+        my_job_dict['NPROC'] = NPROC
+        my_job_dict['MB'] = MB
+        my_job_dict.update(job_dict) # user overrides everything
+        self.job_dict = my_job_dict
         self.local = local
-        self.sge_option = sge_option # not needed for block mode
         self.use_tmpdir = use_tmpdir
-def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, dist=Dist()):
+def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, dist=None):
     """A slightly messy factory because we want to support both strings and PypeLocalFiles, for now.
     This can alter dict values in inputs/outputs if they were not already PypeLocalFiles.
     """
+    if dist is None:
+        dist = Dist()
     LOG.debug('New PypeTask(wdir={!r},\n\tinputs={!r},\n\toutputs={!r})'.format(
         wdir, inputs, outputs))
     if wdir is None:
@@ -663,18 +669,17 @@ MyFakePypeThreadTaskBase = None  # just a symbol, not really used
 # Here is the main factory.
 def PypeProcWatcherWorkflow(
         URL = None,
-        job_type='local',
-        job_queue='UNSPECIFIED_QUEUE',
-        watcher_type='fs_based',
-        watcher_directory='mypwatcher',
-        max_jobs = 24, # must be > 0, but not too high
-        sge_option = None,
-        use_tmpdir = None,
+        job_defaults=dict(),
         squash = False,
-        job_name_style='',
         **attributes):
     """Factory for the workflow.
     """
+    job_type = job_defaults.get('job_type', 'local')
+    job_name_style = job_defaults.get('job_name_style', '')
+    watcher_type = job_defaults.get('pwatcher_type', 'fs_based')
+    watcher_directory = job_defaults.get('pwatcher_directory', 'mypwatcher')
+    use_tmpdir = job_defaults.get('use_tmpdir', None)
+    max_jobs = int(job_defaults.get('njobs', 24)) # must be > 0, but not too high
     if watcher_type == 'blocking':
         pwatcher_impl = pwatcher.blocking
     elif watcher_type == 'network_based':
@@ -692,12 +697,12 @@ def PypeProcWatcherWorkflow(
             use_tmpdir = tempfile.gettempdir()
     if not job_name_style:
         job_name_style = 0
-    LOG.info('job_type={!r}, job_queue={!r}, sge_option={!r}, use_tmpdir={!r}, squash={!r}, job_name_style={!r}'.format(
-        job_type, job_queue, sge_option, use_tmpdir, squash, job_name_style,
+    LOG.info('job_type={!r}, (default)job_defaults={!r}, use_tmpdir={!r}, squash={!r}, job_name_style={!r}'.format(
+        job_type, job_defaults, use_tmpdir, squash, job_name_style,
     ))
     jobid_generator = int(job_name_style)
     return Workflow(watcher,
-            job_type=job_type, job_queue=job_queue, max_jobs=max_jobs, sge_option=sge_option, use_tmpdir=use_tmpdir,
+            job_type=job_type, job_defaults_dict=job_defaults, max_jobs=max_jobs, use_tmpdir=use_tmpdir,
             squash=squash, jobid_generator=jobid_generator,
     )
     #th = MyPypeFakeThreadsHandler('mypwatcher', job_type, job_queue)

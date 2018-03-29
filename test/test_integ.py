@@ -9,23 +9,18 @@ import os
 def setup_workflow():
     PRODUCERS.clear() # Forget any PypeTasks already defined.
 
-    config = {
+    job_defaults = {
         'job_type': 'string',
-        #'job_queue': 'bash -C ${CMD} >| ${STDOUT_FILE} 2>| ${STDERR_FILE}',
-        'job_queue': 'bash -C ${CMD}',
-        #'sge_option': '-pe smp 8 -q bigmem',
+        #'submit': 'bash -C ${CMD} >| ${STDOUT_FILE} 2>| ${STDERR_FILE}',
+        'submit': 'bash -C ${CMD}',
+        #'JOB_OPTS': '-pe smp 8 -q bigmem',
         'pwatcher_type': 'blocking',
-        #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
+        #'pwatcher_directory': config.get('pwatcher_directory', 'mypwatcher'),
         #'use_tmpdir': '/scratch',
+        'njobs': 4,
     }
     wf = PypeProcWatcherWorkflow(
-        max_jobs=4,
-        job_type=config['job_type'],
-        job_queue=config.get('job_queue'),
-        sge_option=config.get('sge_option'),
-        watcher_type=config.get('pwatcher_type'),
-        #watcher_directory=config.get('pwatcher_directory', 'mypwatcher'),
-        #use_tmpdir=config.get('use_tmpdir'),
+        job_defaults=job_defaults,
     )
     return wf
 

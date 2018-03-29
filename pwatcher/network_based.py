@@ -892,11 +892,11 @@ def readjson(ifs):
     return jsonval
 
 class ProcessWatcher(object):
-    def run(self, jobids, job_type, job_queue):
+    def run(self, jobids, job_type, job_defaults_dict):
         #import traceback; log.debug(''.join(traceback.format_stack()))
-        log.debug('run(jobids={}, job_type={}, job_queue={})'.format(
-            '<%s>'%len(jobids), job_type, job_queue))
-        return cmd_run(self.state, jobids, job_type, job_queue)
+        log.debug('run(jobids={}, job_type={}, job_defaults_dict={})'.format(
+            '<%s>'%len(jobids), job_type, job_defaults_dict))
+        return cmd_run(self.state, jobids, job_type, job_defaults_dict)
     def query(self, which='list', jobids=[]):
         log.debug('query(which={!r}, jobids={})'.format(
             which, '<%s>'%len(jobids)))
@@ -906,6 +906,7 @@ class ProcessWatcher(object):
             which, '<%s>'%len(jobids)))
         return cmd_delete(self.state, which, jobids)
     def __init__(self, state):
+        raise Exception('network_based pwatcher is currently broken.')
         self.state = state
 
 def get_process_watcher(directory):
