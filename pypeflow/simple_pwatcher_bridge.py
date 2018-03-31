@@ -467,9 +467,22 @@ class PypeNode(NodeBase):
         tmpdir_flag = '--tmpdir {}'.format(self.use_tmpdir) if self.use_tmpdir else ''
         cmd = '{} -m pypeflow.do_task {} {}'.format(python, tmpdir_flag, task_json_fn)
         script_content = """#!/bin/bash
-hostname
+onerror () {{
+  set -vx
+  echo "FAILURE. Running top in $(pwd) (If you see -terminal database is inaccessible- you are using the python bin-wrapper, so you will not get diagnostic info. No big deal. This process is crashing anyway.)"
+  rm -f top.txt
+  which python
+  which top
+  env -u LD_LIBRARY_PATH top -b -n 1 >| top.txt &
+  env -u LD_LIBRARY_PATH top -b -n 1 2>&1
+  pstree -gpl
+}}
+trap onerror ERR
 env | sort
-pwd
+
+echo "HOSTNAME=$(hostname)"
+echo "PWD=$(pwd)"
+
 time {cmd}
 """.format(**locals())
         script_fn = os.path.join(wdir, 'task.sh')
