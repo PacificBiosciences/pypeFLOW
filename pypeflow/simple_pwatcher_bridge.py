@@ -475,7 +475,7 @@ onerror () {{
   which top
   env -u LD_LIBRARY_PATH top -b -n 1 >| top.txt &
   env -u LD_LIBRARY_PATH top -b -n 1 2>&1
-  pstree -gpl
+  pstree -apl
 }}
 trap onerror ERR
 env | sort
