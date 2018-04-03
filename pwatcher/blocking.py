@@ -219,7 +219,7 @@ class JobThread(threading.Thread):
         log.debug('hello! started Thread {}'.format(threading.current_thread()))
         myenv = dict(os.environ)
         myenv.update(self.env_extra)
-        log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
+        #log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
         log.info("Popen: '{}'".format(self.cmd))
         p = subprocess.Popen(self.cmd, env=myenv, shell=True)
         log.debug("pid: {}".format(p.pid))

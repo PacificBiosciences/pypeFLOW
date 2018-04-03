@@ -291,6 +291,7 @@ class Workflow(object):
         # then we would send large queries for no reason, but that is not really a big deal.
         # The Python 'blocking' pwatcher is the real reason to limit jobs, for now.
         assert networkx.algorithms.dag.is_directed_acyclic_graph(self.graph)
+        assert isinstance(self.max_jobs, int)
         failures = 0
         unsatg = get_unsatisfied_subgraph(self.graph)
         ready = find_all_roots(unsatg)
@@ -349,6 +350,14 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
+    @property
+    def max_jobs(self):
+        return self.__max_njobs
+    @max_jobs.setter
+    def max_jobs(self, val):
+        pre = self.__max_njobs
+        self.__max_njobs = int(val)
+        LOG.info('Setting max_jobs to {}; was {}'.format(self.__max_njobs, pre))
     def __init__(self, watcher, job_type, job_defaults_dict, max_jobs, use_tmpdir, squash, jobid_generator,
         ):
         self.graph = networkx.DiGraph()
@@ -356,7 +365,9 @@ class Workflow(object):
         self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_defaults_dict=job_defaults_dict,
                 jobid_generator=jobid_generator,
                 )
+        assert isinstance(max_jobs, int)
         assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
+        self.__max_njobs = None
         self.max_jobs = max_jobs
         self.sentinels = dict() # sentinel_done_fn -> Node
         self.pypetask2node = dict()
