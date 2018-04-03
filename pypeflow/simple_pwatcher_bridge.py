@@ -296,8 +296,11 @@ class Workflow(object):
         unsatg = get_unsatisfied_subgraph(self.graph)
         ready = find_all_roots(unsatg)
         submitted = set()
-        init_sleep_time = 0.1
+        init_sleep_time = 0.01
         sleep_time = init_sleep_time
+        slept_seconds_since_last_ping = 0.0
+        num_iterations_since_last_ping = 0
+        num_iterations_since_last_ping_max = 1
         LOG.info('Num unsatisfied: {}, graph: {}'.format(len(unsatg), len(self.graph)))
         while ready or submitted:
             # Nodes cannot be in ready or submitted unless they are also in unsatg.
@@ -317,13 +320,21 @@ class Workflow(object):
                 submitted.update(to_submit - unsubmitted)
             LOG.debug('N in queue: {} (max_jobs={})'.format(len(submitted), self.max_jobs))
             recently_done = set(self.tq.check_done())
+            num_iterations_since_last_ping += 1
             if not recently_done:
                 if not submitted:
                     LOG.warning('Nothing is happening, and we had {} failures. Should we quit? Instead, we will just sleep.'.format(failures))
                     #break
-                LOG.info('sleep {}s'.format(sleep_time))
+                if num_iterations_since_last_ping_max <= num_iterations_since_last_ping:
+                    # Ping!
+                    LOG.info('(slept for another {}s -- another {} loop iterations)'.format(
+                        slept_seconds_since_last_ping, num_iterations_since_last_ping))
+                    slept_seconds_since_last_ping = 0.0
+                    num_iterations_since_last_ping = 0
+                    num_iterations_since_last_ping_max += 1
+                slept_seconds_since_last_ping += sleep_time
                 time.sleep(sleep_time)
-                sleep_time = sleep_time + 0.1 if (sleep_time < updateFreq) else updateFreq
+                sleep_time = sleep_time + 0.01 if (sleep_time < updateFreq) else updateFreq
                 continue
             LOG.debug('recently_done: {!r}'.format([(rd, rd.satisfied()) for rd in recently_done]))
             LOG.debug('Num done in this iteration: {}'.format(len(recently_done)))
@@ -332,11 +343,12 @@ class Workflow(object):
             recently_satisfied = set(n for n in recently_done if n.satisfied())
             recently_done -= recently_satisfied
             #LOG.debug('Now N recently_done: {}'.format(len(recently_done)))
-            LOG.info('recently_satisfied: {!r}'.format(recently_satisfied))
-            LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
             for node in recently_satisfied:
                 ready.update(find_next_ready_and_remove(unsatg, node))
-            LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
+            if recently_satisfied:
+                LOG.info('recently_satisfied:\n{}'.format(pprint.pformat(recently_satisfied)))
+                LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
+                LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
             if recently_done:
                 msg = 'Some tasks are recently_done but not satisfied: {!r}'.format(recently_done)
                 LOG.error(msg)

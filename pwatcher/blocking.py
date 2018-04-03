@@ -209,7 +209,8 @@ eval "$cmd"
     )
     log.debug('Writing wrapper "%s"' %wrapper_fn)
     open(wrapper_fn, 'w').write(wrapped)
-    system('chmod +x {}'.format(wrapper_fn))
+    st = os.stat(wrapper_fn)
+    os.chmod(wrapper_fn, st.st_mode | 0111)
 
 class JobThread(threading.Thread):
     def run(self):
@@ -335,7 +336,7 @@ def cmd_run(state, jobids, job_type, job_dict):
     submitted = list()
     result = {'submitted': submitted}
     if job_type != 'string':
-        log.warning("In blocking pwatcher, job_type={!r}, should be 'string'".format(job_type))
+        log.debug("NOTE: In blocking pwatcher, job_type={!r}, should be 'string'".format(job_type))
     for jobid, desc in jobids.iteritems():
         assert 'cmd' in desc
         cmd = desc['cmd']
