@@ -14,7 +14,7 @@ def mkdirs(*dirnames):
         if not os.path.isdir(dirname):
             os.makedirs(dirname)
             if len(dirnames) == 1:
-                LOG.info('mkdir -p "{}"'.format(dirnames[0]))
+                LOG.debug('mkdir -p "{}"'.format(dirnames[0]))
 
 
 def syscall(call, nocheck=False):

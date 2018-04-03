@@ -343,11 +343,12 @@ class Workflow(object):
             recently_satisfied = set(n for n in recently_done if n.satisfied())
             recently_done -= recently_satisfied
             #LOG.debug('Now N recently_done: {}'.format(len(recently_done)))
-            LOG.info('recently_satisfied: {!r}'.format(recently_satisfied))
-            LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
             for node in recently_satisfied:
                 ready.update(find_next_ready_and_remove(unsatg, node))
-            LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
+            if recently_satisfied:
+                LOG.info('recently_satisfied:\n{}'.format(pprint.pformat(recently_satisfied)))
+                LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
+                LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
             if recently_done:
                 msg = 'Some tasks are recently_done but not satisfied: {!r}'.format(recently_done)
                 LOG.error(msg)
