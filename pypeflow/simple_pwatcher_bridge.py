@@ -296,7 +296,7 @@ class Workflow(object):
         unsatg = get_unsatisfied_subgraph(self.graph)
         ready = find_all_roots(unsatg)
         submitted = set()
-        init_sleep_time = 0.01
+        init_sleep_time = 0.1
         sleep_time = init_sleep_time
         slept_seconds_since_last_ping = 0.0
         num_iterations_since_last_ping = 0
@@ -334,7 +334,7 @@ class Workflow(object):
                     num_iterations_since_last_ping_max += 1
                 slept_seconds_since_last_ping += sleep_time
                 time.sleep(sleep_time)
-                sleep_time = sleep_time + 0.01 if (sleep_time < updateFreq) else updateFreq
+                sleep_time = sleep_time + 0.1 if (sleep_time < updateFreq) else updateFreq
                 continue
             LOG.debug('recently_done: {!r}'.format([(rd, rd.satisfied()) for rd in recently_done]))
             LOG.debug('Num done in this iteration: {}'.format(len(recently_done)))
