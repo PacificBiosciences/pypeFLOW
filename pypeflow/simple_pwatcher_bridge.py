@@ -722,7 +722,6 @@ def PypeProcWatcherWorkflow(
         pwatcher_impl = pwatcher.network_based
     else:
         pwatcher_impl = pwatcher.fs_based
-    LOG.warning('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     LOG.info('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     watcher = pwatcher_impl.get_process_watcher(watcher_directory)
     if use_tmpdir:
