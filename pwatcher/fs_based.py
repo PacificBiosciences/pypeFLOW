@@ -596,7 +596,7 @@ def delete_heartbeat(state, heartbeat, keep=False):
     try:
         bjob.kill(state, heartbeat)
     except Exception as exc:
-        log.exception('Failed to kill job for heartbeat {!r}: {!r}'.format(
+        log.exception('Failed to kill job for heartbeat {!r} (which might mean it was already gone): {!r}'.format(
             heartbeat, exc))
     state.add_deleted_jobid(jobid)
     # For now, keep it in the 'jobs' table.
