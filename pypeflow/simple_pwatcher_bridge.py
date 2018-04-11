@@ -291,12 +291,16 @@ class Workflow(object):
         # then we would send large queries for no reason, but that is not really a big deal.
         # The Python 'blocking' pwatcher is the real reason to limit jobs, for now.
         assert networkx.algorithms.dag.is_directed_acyclic_graph(self.graph)
+        assert isinstance(self.max_jobs, int)
         failures = 0
         unsatg = get_unsatisfied_subgraph(self.graph)
         ready = find_all_roots(unsatg)
         submitted = set()
         init_sleep_time = 0.1
         sleep_time = init_sleep_time
+        slept_seconds_since_last_ping = 0.0
+        num_iterations_since_last_ping = 0
+        num_iterations_since_last_ping_max = 1
         LOG.info('Num unsatisfied: {}, graph: {}'.format(len(unsatg), len(self.graph)))
         while ready or submitted:
             # Nodes cannot be in ready or submitted unless they are also in unsatg.
@@ -316,11 +320,19 @@ class Workflow(object):
                 submitted.update(to_submit - unsubmitted)
             LOG.debug('N in queue: {} (max_jobs={})'.format(len(submitted), self.max_jobs))
             recently_done = set(self.tq.check_done())
+            num_iterations_since_last_ping += 1
             if not recently_done:
                 if not submitted:
                     LOG.warning('Nothing is happening, and we had {} failures. Should we quit? Instead, we will just sleep.'.format(failures))
                     #break
-                LOG.info('sleep {}s'.format(sleep_time))
+                if num_iterations_since_last_ping_max <= num_iterations_since_last_ping:
+                    # Ping!
+                    LOG.info('(slept for another {}s -- another {} loop iterations)'.format(
+                        slept_seconds_since_last_ping, num_iterations_since_last_ping))
+                    slept_seconds_since_last_ping = 0.0
+                    num_iterations_since_last_ping = 0
+                    num_iterations_since_last_ping_max += 1
+                slept_seconds_since_last_ping += sleep_time
                 time.sleep(sleep_time)
                 sleep_time = sleep_time + 0.1 if (sleep_time < updateFreq) else updateFreq
                 continue
@@ -331,11 +343,12 @@ class Workflow(object):
             recently_satisfied = set(n for n in recently_done if n.satisfied())
             recently_done -= recently_satisfied
             #LOG.debug('Now N recently_done: {}'.format(len(recently_done)))
-            LOG.info('recently_satisfied: {!r}'.format(recently_satisfied))
-            LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
             for node in recently_satisfied:
                 ready.update(find_next_ready_and_remove(unsatg, node))
-            LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
+            if recently_satisfied:
+                LOG.info('recently_satisfied:\n{}'.format(pprint.pformat(recently_satisfied)))
+                LOG.info('Num satisfied in this iteration: {}'.format(len(recently_satisfied)))
+                LOG.info('Num still unsatisfied: {}'.format(len(unsatg)))
             if recently_done:
                 msg = 'Some tasks are recently_done but not satisfied: {!r}'.format(recently_done)
                 LOG.error(msg)
@@ -349,6 +362,14 @@ class Workflow(object):
             raise Exception('We had {} failures. {} tasks remain unsatisfied.'.format(
                 failures, len(unsatg)))
 
+    @property
+    def max_jobs(self):
+        return self.__max_njobs
+    @max_jobs.setter
+    def max_jobs(self, val):
+        pre = self.__max_njobs
+        self.__max_njobs = int(val)
+        LOG.info('Setting max_jobs to {}; was {}'.format(self.__max_njobs, pre))
     def __init__(self, watcher, job_type, job_defaults_dict, max_jobs, use_tmpdir, squash, jobid_generator,
         ):
         self.graph = networkx.DiGraph()
@@ -356,7 +377,9 @@ class Workflow(object):
         self.tq = PwatcherTaskQueue(watcher=watcher, job_type=job_type, job_defaults_dict=job_defaults_dict,
                 jobid_generator=jobid_generator,
                 )
+        assert isinstance(max_jobs, int)
         assert max_jobs > 0, 'max_jobs needs to be set. If you use the "blocking" process-watcher, it is also the number of threads.'
+        self.__max_njobs = None
         self.max_jobs = max_jobs
         self.sentinels = dict() # sentinel_done_fn -> Node
         self.pypetask2node = dict()
@@ -475,7 +498,7 @@ onerror () {{
   which top
   env -u LD_LIBRARY_PATH top -b -n 1 >| top.txt &
   env -u LD_LIBRARY_PATH top -b -n 1 2>&1
-  pstree -gpl
+  pstree -apl
 }}
 trap onerror ERR
 env | sort
@@ -699,7 +722,6 @@ def PypeProcWatcherWorkflow(
         pwatcher_impl = pwatcher.network_based
     else:
         pwatcher_impl = pwatcher.fs_based
-    LOG.warning('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     LOG.info('In simple_pwatcher_bridge, pwatcher_impl={!r}'.format(pwatcher_impl))
     watcher = pwatcher_impl.get_process_watcher(watcher_directory)
     if use_tmpdir:

@@ -209,7 +209,8 @@ eval "$cmd"
     )
     log.debug('Writing wrapper "%s"' %wrapper_fn)
     open(wrapper_fn, 'w').write(wrapped)
-    system('chmod +x {}'.format(wrapper_fn))
+    st = os.stat(wrapper_fn)
+    os.chmod(wrapper_fn, st.st_mode | 0111)
 
 class JobThread(threading.Thread):
     def run(self):
@@ -219,7 +220,7 @@ class JobThread(threading.Thread):
         log.debug('hello! started Thread {}'.format(threading.current_thread()))
         myenv = dict(os.environ)
         myenv.update(self.env_extra)
-        log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
+        #log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
         log.info("Popen: '{}'".format(self.cmd))
         p = subprocess.Popen(self.cmd, env=myenv, shell=True)
         log.debug("pid: {}".format(p.pid))
@@ -335,7 +336,7 @@ def cmd_run(state, jobids, job_type, job_dict):
     submitted = list()
     result = {'submitted': submitted}
     if job_type != 'string':
-        log.warning("In blocking pwatcher, job_type={!r}, should be 'string'".format(job_type))
+        log.debug("NOTE: In blocking pwatcher, job_type={!r}, should be 'string'".format(job_type))
     for jobid, desc in jobids.iteritems():
         assert 'cmd' in desc
         cmd = desc['cmd']

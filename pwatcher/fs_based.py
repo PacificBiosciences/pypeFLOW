@@ -330,7 +330,9 @@ class MetaJobSubmit(object):
         #jobid = self.mjob.job.jobid
         job_name = self.get_job_name()
         mapping = dict(
-                JOB_NUM=job_name)
+                JOB_NAME=job_name,
+                JOB_NUM=job_name,
+        )
         mapping.update(self.job_dict)
         sge_cmd = self.sub(self.kill_template, mapping)
         system(sge_cmd, checked=False)
@@ -594,7 +596,7 @@ def delete_heartbeat(state, heartbeat, keep=False):
     try:
         bjob.kill(state, heartbeat)
     except Exception as exc:
-        log.debug('Failed to kill job for heartbeat {!r}: {!r}'.format(
+        log.exception('Failed to kill job for heartbeat {!r}: {!r}'.format(
             heartbeat, exc))
     state.add_deleted_jobid(jobid)
     # For now, keep it in the 'jobs' table.
@@ -602,7 +604,7 @@ def delete_heartbeat(state, heartbeat, keep=False):
         os.remove(heartbeat_fn)
         log.debug('Removed heartbeat=%s' %repr(heartbeat))
     except OSError as exc:
-        log.debug('Cannot remove heartbeat: {!r}'.format(exc))
+        log.debug('Cannot remove heartbeat {!r}: {!r}'.format(heartbeat_fn, exc))
     # Note: If sentinel suddenly appeared, that means the job exited. The pwatcher might wrongly think
     # it was deleted, but its output might be available anyway.
 def cmd_delete(state, which, jobids):

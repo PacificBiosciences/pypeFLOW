@@ -41,12 +41,12 @@ def gen_task(script, inputs, outputs, parameters=None, dist=None):
         parameters = dict()
     if dist is None:
         dist = Dist()
-    LOG.info('gen_task({}\n\tinputs={!r},\n\toutputs={!r})'.format(
+    LOG.debug('gen_task({}\n\tinputs={!r},\n\toutputs={!r})'.format(
         script, inputs, outputs))
     parameters = dict(parameters) # copy
     parameters['pypeflow_nproc'] = dist.pypeflow_nproc
     parameters['pypeflow_mb'] = dist.pypeflow_mb
-    LOG.info(' parameters={}'.format(
+    LOG.debug(' parameters={}'.format(
         pprint.pformat(parameters)))
     LOG.debug(' dist.job_dict={}'.format(
         pprint.pformat(dist.job_dict)))
