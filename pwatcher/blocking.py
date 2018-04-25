@@ -79,10 +79,12 @@ class State(object):
         #state.top['jobids_submitted'].append(jobid)
         self.jobids_submitted.add(jobid)
         self.jobids_threaded.remove(jobid)
+        log.debug('Thread notify_started({}).'.format(jobid))
     def notify_exited(self, jobid, rc):
         #self.top['jobid2exit'][jobid] = rc
         self.jobid2exit[jobid] = rc
         self.jobids_submitted.remove(jobid)
+        log.debug('Thread notify_exited({}->{}).'.format(jobid, rc))
     def set_job(self, jobid, mjob):
         # Is this needed? For now, we are not actually saving state, so no.
         self.top['jobs'][jobid] = mjob
@@ -216,18 +218,25 @@ class JobThread(threading.Thread):
     def run(self):
         """Propagate environment, plus env_extra.
         """
-        self.notify_start(self.jobname)
-        log.debug('hello! started Thread {}'.format(threading.current_thread()))
-        myenv = dict(os.environ)
-        myenv.update(self.env_extra)
-        #log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
-        log.info("Popen: '{}'".format(self.cmd))
-        p = subprocess.Popen(self.cmd, env=myenv, shell=True)
-        log.debug("pid: {}".format(p.pid))
-        p.wait()
-        rc = p.returncode
-        log.debug("rc: {}".format(rc))
-        self.notify_exit(self.jobname, rc)
+        try:
+            self.notify_start(self.jobname)
+            log.debug('hello! started Thread {}'.format(threading.current_thread()))
+            myenv = dict(os.environ)
+            myenv.update(self.env_extra)
+            #log.debug('myenv:\n{}'.format(pprint.pformat(myenv)))
+            log.info("Popen: '{}'".format(self.cmd))
+            if not self.cmd:
+                msg = 'Why is self.cmd empty? {} {} {!r}'.format(self, self.jobname, self.cmd)
+                raise Exception(msg)
+            p = subprocess.Popen(self.cmd, env=myenv, shell=True)
+            log.debug("pid: {}".format(p.pid))
+            p.wait()
+            rc = p.returncode
+            log.debug("rc: {}".format(rc))
+            self.notify_exit(self.jobname, rc)
+        except:
+            log.exception('Failed to submit {}: {!r} Setting rc=42.'.format(self.jobname, self.cmd))
+            self.notify_exit(self.jobname, 42)
     def __init__(self, jobname, cmd, notify_start, notify_exit, env_extra):
         super(JobThread, self).__init__()
         self.jobname = jobname
@@ -367,6 +376,8 @@ def cmd_run(state, jobids, job_type, job_dict):
                 submitter = local_submitter
             else:
                 submitter = basic_submitter
+                if not submission_string:
+                    raise Exception('No "submit" key in job_dict:{!r}.'.format(job_dict))
             submitter.submit(jobid, mjob, state)
             submitted.append(jobid)
         except Exception:
