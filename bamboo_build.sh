@@ -11,8 +11,11 @@ rm -rf LOCAL
 mkdir -p LOCAL
 export PYTHONUSERBASE=$(pwd)/LOCAL
 export PATH=${PYTHONUSERBASE}/bin:${PATH}
+WHEELHOUSE="/mnt/software/p/python/wheelhouse/develop/"
 
-pip -v install --user --edit .
+which pip
+pip --version
+pip -v install --user --find-links=${WHEELHOUSE} --edit .
 
 export MY_TEST_FLAGS="-v -s --durations=0 --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml --cov-branch"
 make pytest
