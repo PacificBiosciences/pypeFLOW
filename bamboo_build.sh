@@ -27,3 +27,6 @@ make pylint
 pwd
 ls -larth
 find . -name '*.pyc' | xargs rm
+
+# After testing, we can build and export the wheel.
+bash bamboo_wheel.sh
