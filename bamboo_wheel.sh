@@ -11,7 +11,7 @@ pwd
 export WHEELHOUSE=./wheelhouse
 
 # Give everybody read/write access.
-umask 0001
+umask 0000
 
 
 module load python/2-UCS2
