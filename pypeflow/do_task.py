@@ -159,10 +159,13 @@ date
     try:
         bash_content = prefix + bash_template.format(**var_dict) + postfix
     except Exception:
-        msg = """Failed to substitute var_dict into bash script:
+        msg = """\
+Failed to substitute var_dict
+{}
+into bash script:
 {}
 Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your script?
-""".format(bash_template)
+""".format(var_dict, bash_template)
         LOG.error(msg)
         raise
     # Write user_script.sh
