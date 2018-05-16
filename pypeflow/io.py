@@ -32,15 +32,26 @@ def syscall(call, nocheck=False):
     return rc
 
 
-def capture(cmd):
-    """Return stdout, fully captured.
+def capture(cmd, nocheck=False):
+    """Capture output, maybe checking return-code.
+    Return stdout, fully captured.
     Wait for subproc to finish.
-    Raise if empty.
-    Raise on non-zero exit-code.
+    Warn if empty.
+    Raise on non-zero exit-code, unless nocheck.
     """
     import subprocess
     LOG.info('$ {} >'.format(cmd))
-    output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdout, stderr = proc.communicate()
+    rc = proc.returncode
+    if rc:
+        msg = '{} <- {!r}:\n{}'.format(rc, cmd, stdout)
+        if nocheck:
+            LOG.debug(msg)
+        else:
+            raise Exception(msg)
+    assert stderr is None, '{!r} != None'.format(stderr)
+    output = stdout
     if not output:
         msg = '{!r} failed to produce any output.'.format(cmd)
         LOG.warning(msg)
