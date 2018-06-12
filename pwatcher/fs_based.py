@@ -372,6 +372,14 @@ class MetaJobSge(MetaJobSubmit):
         self.JOB_OPTS = '-q ${JOB_QUEUE} -pe smp ${NPROC}' # -l h_vmem=${MB}M does not work within PacBio
         self.kill_template = 'qdel ${JOB_NAME}'
         super(MetaJobSge, self).__init__(mjob)
+
+class MetaJobHermit(MetaJobSubmit):
+    def __init__(self, mjob):
+        # '-V' => pass enV; '-j y' => combine out/err
+        self.submit_template = 'hermit qsub -N ${JOB_NAME} -v ${env} ${JOB_OPTS} ${JOB_SCRIPT}'
+        self.JOB_OPTS = '-l nprocs=${NPROC}:mem=${MB}'  # -l h_vmem=${MB}M does not work within PacBio
+        self.kill_template = 'hermit qdel -N ${JOB_NAME}'
+        super(MetaJobHermit, self).__init__(mjob)
 class MetaJobPbs(object):
     """
 usage: qsub [-a date_time] [-A account_string] [-c interval]
@@ -453,6 +461,8 @@ def cmd_run(state, jobids, job_type, job_defaults_dict):
             bjob = MetaJobSlurm(mjob)
         elif my_job_type == 'LSF':
             bjob = MetaJobLsf(mjob)
+        elif my_job_type == 'HERMIT':
+            bjob = MetaJobHermit(mjob)
         else:
             raise Exception('Unknown my_job_type=%s' %repr(my_job_type))
         try:
