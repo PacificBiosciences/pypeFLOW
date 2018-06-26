@@ -368,8 +368,9 @@ class Workflow(object):
     @max_jobs.setter
     def max_jobs(self, val):
         pre = self.__max_njobs
-        self.__max_njobs = int(val)
-        LOG.info('Setting max_jobs to {}; was {}'.format(self.__max_njobs, pre))
+        if pre != int(val):
+            self.__max_njobs = int(val)
+            LOG.info('Setting max_jobs to {}; was {}'.format(self.__max_njobs, pre))
     def __init__(self, watcher, job_type, job_defaults_dict, max_jobs, use_tmpdir, squash, jobid_generator,
         ):
         self.graph = networkx.DiGraph()
