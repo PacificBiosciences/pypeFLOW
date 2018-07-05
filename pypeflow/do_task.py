@@ -1,6 +1,7 @@
 #!/usr/bin/env python2.7
 from . import do_support, util
 import argparse
+import copy
 import importlib
 import inspect
 import json
@@ -60,15 +61,16 @@ def get_parser():
 
 def wait_for(fn):
     global TIMEOUT
-    LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, TIMEOUT))
+    timeout = copy.copy(TIMEOUT) # just to be clear
+    LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, timeout))
     dirname = os.path.dirname(fn)
     if os.path.exists(dirname):
         if not os.access(dirname, os.X_OK):
             raise Exception('Cannot x into dir {!r}'.format(dirname))
     while not os.path.exists(fn):
-        if TIMEOUT > 0:
+        if timeout > 0:
             time.sleep(1)
-            TIMEOUT -= 1
+            timeout -= 1
         else:
             raise Exception('Timed out waiting for {!r}'.format(fn))
     assert os.access(fn, os.R_OK), '{!r} not readable'.format(fn)
