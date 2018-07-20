@@ -223,7 +223,7 @@ def find_next_ready_and_remove(g, node):
     Then remove node from g immediately.
     """
     ready = set()
-    for n in g.successors_iter(node):
+    for n in g.successors(node):
         if 1 == g.in_degree(n):
             ready.add(n)
     g.remove_node(node)
