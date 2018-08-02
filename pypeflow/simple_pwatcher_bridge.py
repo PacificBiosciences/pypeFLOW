@@ -305,6 +305,9 @@ class Workflow(object):
         while ready or submitted:
             # Nodes cannot be in ready or submitted unless they are also in unsatg.
             to_submit = set()
+            if self.max_jobs <= 0:
+                msg = 'self.max_jobs={}'.format(self.max_jobs)
+                raise Exception(msg)
             while ready and (self.max_jobs > len(submitted) + len(to_submit)):
                 node = ready.pop()
                 to_submit.add(node)
@@ -477,13 +480,7 @@ class PypeNode(NodeBase):
                     'bash_template_fn' : 'template.sh',
             }
         else:
-            # TODO: Stop supporting python_function
-            task_desc = {
-                    'inputs': inputs,
-                    'outputs': outputs,
-                    'parameters': pt.parameters,
-                    'python_function': pt.__name__,
-            }
+            raise Exception('We no longer support python functions as PypeTasks.')
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': ')) + '\n'
         task_json_fn = os.path.join(wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
