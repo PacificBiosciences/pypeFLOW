@@ -480,13 +480,7 @@ class PypeNode(NodeBase):
                     'bash_template_fn' : 'template.sh',
             }
         else:
-            # TODO: Stop supporting python_function
-            task_desc = {
-                    'inputs': inputs,
-                    'outputs': outputs,
-                    'parameters': pt.parameters,
-                    'python_function': pt.__name__,
-            }
+            raise Exception('We no longer support python functions as PypeTasks.')
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': ')) + '\n'
         task_json_fn = os.path.join(wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
