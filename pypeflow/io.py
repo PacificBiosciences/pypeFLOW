@@ -64,6 +64,28 @@ def symlink(src, name, force=True):
     os.symlink(src, name)
 
 
+def fix_relative_symlinks(currdir, origdir, recursive=True):
+    """
+    Fix relative symlinks after cp/rsync, assuming they had
+    been defined relative to 'origdir'.
+    If 'recursive', then perform this in all (non-symlinked) sub-dirs also.
+    """
+    if recursive:
+        for dn in os.listdir(currdir):
+            if not os.path.islink(dn) and os.path.isdir(dn):
+                fix_relative_symlinks(os.path.join(currdir, dn), os.path.join(origdir, dn), recursive)
+    for fn in os.listdir(currdir):
+        fn = os.path.join(currdir, fn)
+        if not os.path.islink(fn):
+            continue
+        oldlink = os.readlink(fn)
+        if os.path.isabs(oldlink):
+            continue
+        newlink = os.path.relpath(os.path.join(origdir, oldlink), currdir)
+        LOG.debug('Fix symlink to {!r} from {!r}'.format(newlink, oldlink))
+        symlink(newlink, fn)
+
+
 def rm(*f):
     syscall('rm -f {}'.format(' '.join(f)))
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python2.7
 from . import do_support, util
+from .io import fix_relative_symlinks
 import argparse
 import copy
 import importlib
@@ -204,7 +205,7 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
     else:
         myrundir = finaloutdir
     with util.cd(myrundir):
-        # TODO(CD): Write a script in wdir even when running in tmpdir.
+        # TODO(CD): Write a script in wdir even when running in tmpdir (so we can see it on error).
         run_bash(bash_template, myinputs, myoutputs, parameters)
     if tmpdir:
         """
@@ -216,6 +217,7 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
         """
         cmd = 'rsync -av {}/ {}; rm -rf {}'.format(myrundir, finaloutdir, myrundir)
         util.system(cmd)
+        fix_relative_symlinks(finaloutdir, myrundir, recursive=True)
     for fn in cfg['outputs'].values():
         wait_for(fn)
 
