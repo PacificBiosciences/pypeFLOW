@@ -15,7 +15,7 @@ WHEELHOUSE="/mnt/software/p/python/wheelhouse/develop/"
 
 which pip
 pip --version
-pip -v install --user --find-links=${WHEELHOUSE} --edit .
+pip -v install --user --no-index --find-links=${WHEELHOUSE} --edit .
 
 export MY_TEST_FLAGS="-v -s --durations=0 --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml --cov-branch"
 make pytest

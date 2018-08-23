@@ -372,7 +372,7 @@ class MetaJobSge(MetaJobSubmit):
         self.JOB_OPTS = '-q ${JOB_QUEUE} -pe smp ${NPROC}' # -l h_vmem=${MB}M does not work within PacBio
         self.kill_template = 'qdel ${JOB_NAME}'
         super(MetaJobSge, self).__init__(mjob)
-class MetaJobPbs(object):
+class MetaJobPbs(MetaJobSubmit):
     """
 usage: qsub [-a date_time] [-A account_string] [-c interval]
         [-C directive_prefix] [-e path] [-h ] [-I [-X]] [-j oe|eo] [-J X-Y[:Z]]
@@ -386,20 +386,20 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
         self.JOB_OPTS = '-q ${JOB_QUEUE} --cpus-per-task=${NPROC} --mem-per-cpu=${MB}M'
         self.kill_template = 'qdel ${JOB_NAME}'
-class MetaJobTorque(object):
+class MetaJobTorque(MetaJobSubmit):
     # http://docs.adaptivecomputing.com/torque/4-0-2/help.htm#topics/commands/qsub.htm
     def __init__(self, mjob):
         super(MetaJobTorque, self).__init__(mjob)
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -d ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
         self.JOB_OPTS = '-q ${JOB_QUEUE} -l procs=${NPROC}'
         self.kill_template = 'qdel ${JOB_NUM}'
-class MetaJobSlurm(object):
+class MetaJobSlurm(MetaJobSubmit):
     def __init__(self, mjob):
         super(MetaJobSlurm, self).__init__(mjob)
         self.submit_template = 'sbatch -J ${JOB_NAME} ${JOB_OPTS} -D ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} --wrap="/bin/bash ${JOB_SCRIPT}"'
         self.JOB_OPTS = '-p ${JOB_QUEUE} --mincpus=${NPROC} --mem-per-cpu=${MB}'
         self.kill_template = 'scancel -n ${JOB_NUM}'
-class MetaJobLsf(object):
+class MetaJobLsf(MetaJobSubmit):
     def __init__(self, mjob):
         super(MetaJobLsf, self).__init__(mjob)
         self.submit_template = 'bsub -J ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} "/bin/bash ${JOB_SCRIPT}"'
