@@ -60,9 +60,17 @@ def get_parser():
         help='JSON file, as per epilog.')
     return parser
 
-def wait_for(fn):
-    global TIMEOUT
-    timeout = copy.copy(TIMEOUT) # just to be clear
+def wait_for(fn, timeout=None):
+    if timeout is None:
+        global TIMEOUT
+        timeout = copy.copy(TIMEOUT) # just to be clear
+    try:
+        _wait_for(fn, timeout)
+    except BaseException:
+        LOG.exception('Was waiting for {!r}'.format(fn))
+        raise
+
+def _wait_for(fn, timeout):
     LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, timeout))
     dirname = os.path.dirname(fn)
     if os.path.exists(dirname):
