@@ -178,17 +178,24 @@ Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your 
     cmd = '/bin/bash {}'.format(bash_fn)
     util.system(cmd)
 
-def run_cfg_in_tmpdir(cfg, tmpdir):
+def run_cfg_in_tmpdir(cfg, tmpdir, relpath):
     """
-    Except 'inputs', 'outputs', 'parameters' in cfg.
+    Accept 'inputs', 'outputs', 'parameters' in cfg.
+    Relativize 'inputs' relative to relpath, unless running in tmpdir.
+    ('outputs' are always relative to rundir.)
     If 'bash_template_fn' in cfg, then substitute and use it.
     """
-    for fn in cfg['inputs'].values():
-        wait_for(fn)
     inputs = cfg['inputs']
     outputs = cfg['outputs']
     parameters = cfg['parameters']
     bash_template_fn = cfg['bash_template_fn']
+    for k,v in inputs.items():
+        if not os.path.isabs(v):
+            inputs[k] = os.path.normpath(os.path.join(relpath, v))
+            if tmpdir:
+                inputs[k] = os.path.abspath(inputs[k])
+    for fn in inputs.values():
+        wait_for(fn)
     wait_for(bash_template_fn)
     bash_template = open(bash_template_fn).read()
     myinputs = dict(inputs)
@@ -205,6 +212,10 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
     else:
         myrundir = finaloutdir
     with util.cd(myrundir):
+        if tmpdir:
+            # Check again, in case we have the paths wrong.
+            for fn in inputs.values():
+                wait_for(fn, 0)
         # TODO(CD): Write a script in wdir even when running in tmpdir (so we can see it on error).
         run_bash(bash_template, myinputs, myoutputs, parameters)
     if tmpdir:
@@ -231,7 +242,7 @@ def run(json_fn, timeout, tmpdir):
     LOG.debug(pprint.pformat(cfg))
     rundir = os.path.normpath(os.path.dirname(json_fn))
     with util.cd(rundir):
-        run_cfg_in_tmpdir(cfg, tmpdir)
+        run_cfg_in_tmpdir(cfg, tmpdir, '.')
 
 def main():
     parser = get_parser()

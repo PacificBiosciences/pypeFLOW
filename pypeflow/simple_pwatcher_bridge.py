@@ -458,11 +458,11 @@ class PypeNode(NodeBase):
     We will clean this up later. For now, it is pretty tightly coupled to PypeTask.
     """
     def generate_script(self):
-        wdir = self.wdir
+        wdir = os.path.normpath(self.wdir)
         mkdirs(wdir)
         pt = self.pypetask
         assert pt.wdir == self.wdir
-        inputs = {k:v.path for k,v in pt.inputs.items()}
+        inputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.inputs.items()}
         outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
         for v in outputs.values():
             assert not os.path.isabs(v), '{!r} is not relative'.format(v)
