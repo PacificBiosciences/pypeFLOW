@@ -462,8 +462,7 @@ class PypeNode(NodeBase):
         mkdirs(wdir)
         pt = self.pypetask
         assert pt.wdir == self.wdir
-        #inputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.inputs.items()}
-        inputs = {k:v.path for k,v in pt.inputs.items()}
+        inputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.inputs.items()}
         outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
         for v in outputs.values():
             assert not os.path.isabs(v), '{!r} is not relative'.format(v)
