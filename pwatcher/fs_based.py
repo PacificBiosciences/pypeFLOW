@@ -382,30 +382,30 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         [-v variable_list] [-V ] [-z] [script | -- command [arg1 ...]]
     """
     def __init__(self, mjob):
-        super(MetaJobPbs, self).__init__(mjob)
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
         self.JOB_OPTS = '-q ${JOB_QUEUE} --cpus-per-task=${NPROC} --mem-per-cpu=${MB}M'
         self.kill_template = 'qdel ${JOB_NAME}'
+        super(MetaJobPbs, self).__init__(mjob)
 class MetaJobTorque(MetaJobSubmit):
     # http://docs.adaptivecomputing.com/torque/4-0-2/help.htm#topics/commands/qsub.htm
     def __init__(self, mjob):
-        super(MetaJobTorque, self).__init__(mjob)
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -d ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
         self.JOB_OPTS = '-q ${JOB_QUEUE} -l procs=${NPROC}'
         self.kill_template = 'qdel ${JOB_NUM}'
+        super(MetaJobTorque, self).__init__(mjob)
 class MetaJobSlurm(MetaJobSubmit):
     def __init__(self, mjob):
-        super(MetaJobSlurm, self).__init__(mjob)
         self.submit_template = 'sbatch -J ${JOB_NAME} ${JOB_OPTS} -D ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} --wrap="/bin/bash ${JOB_SCRIPT}"'
         self.JOB_OPTS = '-p ${JOB_QUEUE} --mincpus=${NPROC} --mem-per-cpu=${MB}'
         self.kill_template = 'scancel -n ${JOB_NUM}'
+        super(MetaJobSlurm, self).__init__(mjob)
 class MetaJobLsf(MetaJobSubmit):
     def __init__(self, mjob):
-        super(MetaJobLsf, self).__init__(mjob)
         self.submit_template = 'bsub -J ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} "/bin/bash ${JOB_SCRIPT}"'
         # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
         self.JOB_OPTS = '-q ${JOB_QUEUE} -n ${NPROC}'
         self.kill_template = 'bkill -J ${JOB_NUM}'
+        super(MetaJobLsf, self).__init__(mjob)
 
 def link_rundir(state_rundir, user_rundir):
     if user_rundir:
