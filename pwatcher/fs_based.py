@@ -44,6 +44,8 @@ import sys
 import time
 import traceback
 
+from pypeflow.io import capture, syscall
+
 log = logging.getLogger(__name__)
 
 HEARTBEAT_RATE_S = 10.0
@@ -306,7 +308,7 @@ class MetaJobSubmit(object):
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
         mapping = dict(
                 JOB_EXE='/bin/bash',
-                JOB_NAME=job_name, JOB_ID=job_name,
+                JOB_NAME=job_name,
                 #JOB_OPTS=JOB_OPTS,
                 #JOB_QUEUE=job_queue,
                 JOB_SCRIPT=script_fn, CMD=script_fn,
@@ -321,7 +323,7 @@ class MetaJobSubmit(object):
             # a special two-level mapping: ${JOB_OPTS} is substituted first
             mapping['JOB_OPTS'] = self.sub(mapping['JOB_OPTS'], mapping)
         sge_cmd = self.sub(self.submit_template, mapping)
-        system(sge_cmd, checked=True) # TODO: Capture job-num
+        self.submit_capture = capture(sge_cmd)
     def kill(self, state, heartbeat=None):
         """Can raise.
         """
@@ -329,6 +331,7 @@ class MetaJobSubmit(object):
         #heartbeat_fn = os.path.join(hdir, heartbeat)
         #jobid = self.mjob.job.jobid
         job_name = self.get_job_name()
+        job_num = self.get_job_num()
         mapping = dict(
                 JOB_NAME=job_name,
                 JOB_NUM=job_name,
@@ -381,6 +384,18 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         [-S path] [-u user_list] [-W otherattributes=value...]
         [-v variable_list] [-V ] [-z] [script | -- command [arg1 ...]]
     """
+    def get_job_num(self):
+        """Really an Id, not a number, but JOB_ID was used for something else.
+        See: https://github.com/PacificBiosciences/pypeFLOW/issues/54
+        """
+        cap = self.submit_capture
+        try:
+            re_cap = re.compile(r'\S+')
+            mo = re_cap.search(cap)
+            return mo.group(0)
+        except Exception:
+            log.exception('For PBS, failed to parse submit_capture={!r}\n Using job_name instead.'.format(cap))
+            return self.mjob.job.jobid
     def __init__(self, mjob):
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
         self.JOB_OPTS = '-q ${JOB_QUEUE} --cpus-per-task=${NPROC} --mem-per-cpu=${MB}M'
