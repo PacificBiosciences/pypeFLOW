@@ -64,6 +64,37 @@ def symlink(src, name, force=True):
     os.symlink(src, name)
 
 
+def fix_relative_symlinks(currdir, origdir, recursive=True, relparent='..'):
+    """
+    Fix relative symlinks after cp/rsync, assuming they had
+    been defined relative to 'origdir'.
+    If 'recursive', then perform this in all (non-symlinked) sub-dirs also.
+    Skip relative links that point upward shallower than relparent, and warn.
+    (Always skip absolute symlinks; we assume those already point to persistent space.)
+    """
+    if recursive:
+        for dn in os.listdir(currdir):
+            if not os.path.islink(dn) and os.path.isdir(dn):
+                fix_relative_symlinks(os.path.join(currdir, dn), os.path.join(origdir, dn), recursive,
+                        os.path.join('..', relparent))
+    for fn in os.listdir(currdir):
+        fn = os.path.join(currdir, fn)
+        if not os.path.islink(fn):
+            continue
+        oldlink = os.readlink(fn)
+        if os.path.isabs(oldlink):
+            continue
+        if not os.path.normpath(oldlink).startswith(relparent):
+            msg = 'Symlink {}->{} seems to point within the origdir tree. This is unexpected. relparent={}'.format(
+                fn, oldlink, relparent)
+            raise Exception(msg)
+            #LOG.warning(msg)
+            #continue
+        newlink = os.path.relpath(os.path.join(origdir, oldlink), currdir)
+        LOG.debug('Fix symlink to {!r} from {!r}'.format(newlink, oldlink))
+        symlink(newlink, fn)
+
+
 def rm(*f):
     syscall('rm -f {}'.format(' '.join(f)))
 

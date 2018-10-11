@@ -223,7 +223,7 @@ def find_next_ready_and_remove(g, node):
     Then remove node from g immediately.
     """
     ready = set()
-    for n in g.successors_iter(node):
+    for n in g.successors(node):
         if 1 == g.in_degree(n):
             ready.add(n)
     g.remove_node(node)
@@ -245,9 +245,10 @@ class Workflow(object):
         """
         needs = set()
         use_tmpdir = self.use_tmpdir
+        pre_script = self.pre_script
         if pypetask.dist.use_tmpdir is not None:
             use_tmpdir = pypetask.dist.use_tmpdir
-        node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs, use_tmpdir) #, pypetask.generated_script_fn)
+        node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs, use_tmpdir, pre_script)
         self.pypetask2node[pypetask] = node
         for key, plf in pypetask.inputs.iteritems():
             if plf.producer is None:
@@ -305,6 +306,9 @@ class Workflow(object):
         while ready or submitted:
             # Nodes cannot be in ready or submitted unless they are also in unsatg.
             to_submit = set()
+            if self.max_jobs <= 0:
+                msg = 'self.max_jobs={}'.format(self.max_jobs)
+                raise Exception(msg)
             while ready and (self.max_jobs > len(submitted) + len(to_submit)):
                 node = ready.pop()
                 to_submit.add(node)
@@ -372,6 +376,7 @@ class Workflow(object):
             self.__max_njobs = int(val)
             LOG.info('Setting max_jobs to {}; was {}'.format(self.__max_njobs, pre))
     def __init__(self, watcher, job_type, job_defaults_dict, max_jobs, use_tmpdir, squash, jobid_generator,
+            pre_script=None,
         ):
         self.graph = networkx.DiGraph()
         # TODO: Inject PwatcherTaskQueue
@@ -385,6 +390,13 @@ class Workflow(object):
         self.sentinels = dict() # sentinel_done_fn -> Node
         self.pypetask2node = dict()
         self.use_tmpdir = use_tmpdir
+        if not pre_script:
+            pre_script = os.environ.get('PYPEFLOW_PRE', None)
+            if pre_script:
+                LOG.warning('Found PYPEFLOW_PRE in env; using that for pre_script.')
+        self.pre_script = pre_script # command(s) to run at top of bash scripts
+        if self.pre_script:
+            LOG.info('At top of bash scripts, we will run:\n{}'.format(self.pre_script))
         self.squash = squash # This really should depend on each Task, but for now a global is fine.
         # For small genomes, serial tasks should always be squashed.
 
@@ -455,11 +467,11 @@ class PypeNode(NodeBase):
     We will clean this up later. For now, it is pretty tightly coupled to PypeTask.
     """
     def generate_script(self):
-        wdir = self.wdir
+        wdir = os.path.normpath(self.wdir)
         mkdirs(wdir)
         pt = self.pypetask
         assert pt.wdir == self.wdir
-        inputs = {k:v.path for k,v in pt.inputs.items()}
+        inputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.inputs.items()}
         outputs = {k:os.path.relpath(v.path, wdir) for k,v in pt.outputs.items()}
         for v in outputs.values():
             assert not os.path.isabs(v), '{!r} is not relative'.format(v)
@@ -469,6 +481,8 @@ class PypeNode(NodeBase):
             bash_script_fn = os.path.join(wdir, 'template.sh')
             with open(bash_script_fn, 'w') as ofs:
                 message = '# Substitution will be similar to snakemake "shell".\n'
+                if self.pre_script:
+                    message += self.pre_script + '\n'
                 ofs.write(message + bash_template)
             task_desc = {
                     'inputs': inputs,
@@ -477,19 +491,16 @@ class PypeNode(NodeBase):
                     'bash_template_fn' : 'template.sh',
             }
         else:
-            # TODO: Stop supporting python_function
-            task_desc = {
-                    'inputs': inputs,
-                    'outputs': outputs,
-                    'parameters': pt.parameters,
-                    'python_function': pt.__name__,
-            }
+            raise Exception('We no longer support python functions as PypeTasks.')
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': ')) + '\n'
         task_json_fn = os.path.join(wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
         python = 'python2.7' # sys.executable fails sometimes because of binwrapper: SE-152
         tmpdir_flag = '--tmpdir {}'.format(self.use_tmpdir) if self.use_tmpdir else ''
         cmd = '{} -m pypeflow.do_task {} {}'.format(python, tmpdir_flag, task_json_fn)
+        env_setup = 'env | sort'
+        if self.pre_script:
+            env_setup = self.pre_script + '\n' + env_setup
         script_content = """#!/bin/bash
 onerror () {{
   set -vx
@@ -502,7 +513,7 @@ onerror () {{
   pstree -apl
 }}
 trap onerror ERR
-env | sort
+{env_setup}
 
 echo "HOSTNAME=$(hostname)"
 echo "PWD=$(pwd)"
@@ -524,10 +535,11 @@ time {cmd}
             LOG.exception('name={!r} URL={!r}'.format(pt.name, pt.URL))
             raise
         return generated_script_fn
-    def __init__(self, name, wdir, pypetask, needs, use_tmpdir): #, script_fn):
+    def __init__(self, name, wdir, pypetask, needs, use_tmpdir, pre_script):
         super(PypeNode, self).__init__(name, wdir, needs)
         self.pypetask = pypetask
         self.use_tmpdir = use_tmpdir
+        self.pre_script = pre_script
 
 # This global exists only because we continue to support the old PypeTask style,
 # where a PypeLocalFile does not know the PypeTask which produces it.

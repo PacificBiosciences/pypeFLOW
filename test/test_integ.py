@@ -47,10 +47,6 @@ def try_workflow(text, create_task):
     assert os.path.exists(o1)
     assert text == open(o1).read()
 
-def test_old(tmpdir):
-    with tmpdir.as_cwd():
-        try_workflow('OLD', sample_tasks.create_task_old)
-
 def test_new(tmpdir):
     with tmpdir.as_cwd():
-        try_workflow('NEW', sample_tasks.create_task_new)
+        try_workflow('bash-based', sample_tasks.create_task)
