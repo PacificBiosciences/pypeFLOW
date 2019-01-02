@@ -44,6 +44,8 @@ import sys
 import time
 import traceback
 
+from pypeflow.io import capture, syscall
+
 log = logging.getLogger(__name__)
 
 HEARTBEAT_RATE_S = 10.0
@@ -306,7 +308,7 @@ class MetaJobSubmit(object):
         with open(script_fn, 'w') as modified: modified.write("#!/bin/bash" + "\n" + data)
         mapping = dict(
                 JOB_EXE='/bin/bash',
-                JOB_NAME=job_name, JOB_ID=job_name,
+                JOB_NAME=job_name,
                 #JOB_OPTS=JOB_OPTS,
                 #JOB_QUEUE=job_queue,
                 JOB_SCRIPT=script_fn, CMD=script_fn,
@@ -321,7 +323,7 @@ class MetaJobSubmit(object):
             # a special two-level mapping: ${JOB_OPTS} is substituted first
             mapping['JOB_OPTS'] = self.sub(mapping['JOB_OPTS'], mapping)
         sge_cmd = self.sub(self.submit_template, mapping)
-        system(sge_cmd, checked=True) # TODO: Capture job-num
+        self.submit_capture = capture(sge_cmd)
     def kill(self, state, heartbeat=None):
         """Can raise.
         """
@@ -329,6 +331,7 @@ class MetaJobSubmit(object):
         #heartbeat_fn = os.path.join(hdir, heartbeat)
         #jobid = self.mjob.job.jobid
         job_name = self.get_job_name()
+        job_num = self.get_job_num()
         mapping = dict(
                 JOB_NAME=job_name,
                 JOB_NUM=job_name,
@@ -380,7 +383,8 @@ class MetaJobHermit(MetaJobSubmit):
         self.JOB_OPTS = '-l nprocs=${NPROC}:mem=${MB}'  # -l h_vmem=${MB}M does not work within PacBio
         self.kill_template = 'hermit qdel -N ${JOB_NAME}'
         super(MetaJobHermit, self).__init__(mjob)
-class MetaJobPbs(object):
+
+class MetaJobPbs(MetaJobSubmit):
     """
 usage: qsub [-a date_time] [-A account_string] [-c interval]
         [-C directive_prefix] [-e path] [-h ] [-I [-X]] [-j oe|eo] [-J X-Y[:Z]]
@@ -389,31 +393,43 @@ usage: qsub [-a date_time] [-A account_string] [-c interval]
         [-S path] [-u user_list] [-W otherattributes=value...]
         [-v variable_list] [-V ] [-z] [script | -- command [arg1 ...]]
     """
+    def get_job_num(self):
+        """Really an Id, not a number, but JOB_ID was used for something else.
+        See: https://github.com/PacificBiosciences/pypeFLOW/issues/54
+        """
+        cap = self.submit_capture
+        try:
+            re_cap = re.compile(r'\S+')
+            mo = re_cap.search(cap)
+            return mo.group(0)
+        except Exception:
+            log.exception('For PBS, failed to parse submit_capture={!r}\n Using job_name instead.'.format(cap))
+            return self.mjob.job.jobid
     def __init__(self, mjob):
-        super(MetaJobPbs, self).__init__(mjob)
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
         self.JOB_OPTS = '-q ${JOB_QUEUE} --cpus-per-task=${NPROC} --mem-per-cpu=${MB}M'
         self.kill_template = 'qdel ${JOB_NAME}'
-class MetaJobTorque(object):
+        super(MetaJobPbs, self).__init__(mjob)
+class MetaJobTorque(MetaJobSubmit):
     # http://docs.adaptivecomputing.com/torque/4-0-2/help.htm#topics/commands/qsub.htm
     def __init__(self, mjob):
-        super(MetaJobTorque, self).__init__(mjob)
         self.submit_template = 'qsub -V -N ${JOB_NAME} ${JOB_OPTS} -d ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} -S /bin/bash ${JOB_SCRIPT}'
         self.JOB_OPTS = '-q ${JOB_QUEUE} -l procs=${NPROC}'
         self.kill_template = 'qdel ${JOB_NUM}'
-class MetaJobSlurm(object):
+        super(MetaJobTorque, self).__init__(mjob)
+class MetaJobSlurm(MetaJobSubmit):
     def __init__(self, mjob):
-        super(MetaJobSlurm, self).__init__(mjob)
         self.submit_template = 'sbatch -J ${JOB_NAME} ${JOB_OPTS} -D ${JOB_DIR} -o ${JOB_STDOUT} -e ${JOB_STDERR} --wrap="/bin/bash ${JOB_SCRIPT}"'
         self.JOB_OPTS = '-p ${JOB_QUEUE} --mincpus=${NPROC} --mem-per-cpu=${MB}'
         self.kill_template = 'scancel -n ${JOB_NUM}'
-class MetaJobLsf(object):
+        super(MetaJobSlurm, self).__init__(mjob)
+class MetaJobLsf(MetaJobSubmit):
     def __init__(self, mjob):
-        super(MetaJobLsf, self).__init__(mjob)
         self.submit_template = 'bsub -J ${JOB_NAME} ${JOB_OPTS} -o ${JOB_STDOUT} -e ${JOB_STDERR} "/bin/bash ${JOB_SCRIPT}"'
         # "Sets the user's execution environment for the job, including the current working directory, file creation mask, and all environment variables, and sets LSF environment variables before starting the job."
         self.JOB_OPTS = '-q ${JOB_QUEUE} -n ${NPROC}'
         self.kill_template = 'bkill -J ${JOB_NUM}'
+        super(MetaJobLsf, self).__init__(mjob)
 
 def link_rundir(state_rundir, user_rundir):
     if user_rundir:

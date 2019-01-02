@@ -9,7 +9,7 @@ except Exception:
 
 setup(
     name = 'pypeflow',
-    version='2.0.2' + local_version,
+    version='2.1.1' + local_version,
     author='J. Chin',
     author_email='cschin@infoecho.net',
     license='LICENSE.txt',
@@ -17,7 +17,7 @@ setup(
     package_dir = {'':'.'},
     zip_safe = False,
     install_requires=[
-        'networkx >=1.7, <=1.11',
+        'networkx >=1.9.1',
         'future >= 0.16.0',
     ],
     entry_points = {'console_scripts': [

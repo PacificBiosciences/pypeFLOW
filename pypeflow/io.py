@@ -32,15 +32,26 @@ def syscall(call, nocheck=False):
     return rc
 
 
-def capture(cmd):
-    """Return stdout, fully captured.
+def capture(cmd, nocheck=False):
+    """Capture output, maybe checking return-code.
+    Return stdout, fully captured.
     Wait for subproc to finish.
-    Raise if empty.
-    Raise on non-zero exit-code.
+    Warn if empty.
+    Raise on non-zero exit-code, unless nocheck.
     """
     import subprocess
     LOG.info('$ {} >'.format(cmd))
-    output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdout, stderr = proc.communicate()
+    rc = proc.returncode
+    if rc:
+        msg = '{} <- {!r}:\n{}'.format(rc, cmd, stdout)
+        if nocheck:
+            LOG.debug(msg)
+        else:
+            raise Exception(msg)
+    assert stderr is None, '{!r} != None'.format(stderr)
+    output = stdout
     if not output:
         msg = '{!r} failed to produce any output.'.format(cmd)
         LOG.warning(msg)
@@ -51,6 +62,37 @@ def symlink(src, name, force=True):
     if os.path.lexists(name):
         os.unlink(name)
     os.symlink(src, name)
+
+
+def fix_relative_symlinks(currdir, origdir, recursive=True, relparent='..'):
+    """
+    Fix relative symlinks after cp/rsync, assuming they had
+    been defined relative to 'origdir'.
+    If 'recursive', then perform this in all (non-symlinked) sub-dirs also.
+    Skip relative links that point upward shallower than relparent, and warn.
+    (Always skip absolute symlinks; we assume those already point to persistent space.)
+    """
+    if recursive:
+        for dn in os.listdir(currdir):
+            if not os.path.islink(dn) and os.path.isdir(dn):
+                fix_relative_symlinks(os.path.join(currdir, dn), os.path.join(origdir, dn), recursive,
+                        os.path.join('..', relparent))
+    for fn in os.listdir(currdir):
+        fn = os.path.join(currdir, fn)
+        if not os.path.islink(fn):
+            continue
+        oldlink = os.readlink(fn)
+        if os.path.isabs(oldlink):
+            continue
+        if not os.path.normpath(oldlink).startswith(relparent):
+            msg = 'Symlink {}->{} seems to point within the origdir tree. This is unexpected. relparent={}'.format(
+                fn, oldlink, relparent)
+            raise Exception(msg)
+            #LOG.warning(msg)
+            #continue
+        newlink = os.path.relpath(os.path.join(origdir, oldlink), currdir)
+        LOG.debug('Fix symlink to {!r} from {!r}'.format(newlink, oldlink))
+        symlink(newlink, fn)
 
 
 def rm(*f):

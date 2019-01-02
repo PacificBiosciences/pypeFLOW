@@ -1,6 +1,8 @@
 #!/usr/bin/env python2.7
 from . import do_support, util
+from .io import fix_relative_symlinks
 import argparse
+import copy
 import importlib
 import inspect
 import json
@@ -21,7 +23,7 @@ The JSON looks like this:
 {
     "inputs": {"input-name": "filename"},
     "outputs": {"output-name": "output-filename (relative)"},
-    "python_function": "falcon_kit.mains.foo",
+    "bash_template_fn": "template.sh",
     "parameters": {}
 }
 
@@ -58,17 +60,26 @@ def get_parser():
         help='JSON file, as per epilog.')
     return parser
 
-def wait_for(fn):
-    global TIMEOUT
-    LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, TIMEOUT))
+def wait_for(fn, timeout=None):
+    if timeout is None:
+        global TIMEOUT
+        timeout = copy.copy(TIMEOUT) # just to be clear
+    try:
+        _wait_for(fn, timeout)
+    except BaseException:
+        LOG.exception('Was waiting for {!r}'.format(fn))
+        raise
+
+def _wait_for(fn, timeout):
+    LOG.debug('Checking existence of {!r} with timeout={}'.format(fn, timeout))
     dirname = os.path.dirname(fn)
     if os.path.exists(dirname):
         if not os.access(dirname, os.X_OK):
             raise Exception('Cannot x into dir {!r}'.format(dirname))
     while not os.path.exists(fn):
-        if TIMEOUT > 0:
+        if timeout > 0:
             time.sleep(1)
-            TIMEOUT -= 1
+            timeout -= 1
         else:
             raise Exception('Timed out waiting for {!r}'.format(fn))
     assert os.access(fn, os.R_OK), '{!r} not readable'.format(fn)
@@ -159,10 +170,13 @@ date
     try:
         bash_content = prefix + bash_template.format(**var_dict) + postfix
     except Exception:
-        msg = """Failed to substitute var_dict into bash script:
+        msg = """\
+Failed to substitute var_dict
+{}
+into bash script:
 {}
 Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your script?
-""".format(bash_template)
+""".format(var_dict, bash_template)
         LOG.error(msg)
         raise
     # Write user_script.sh
@@ -172,25 +186,26 @@ Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your 
     cmd = '/bin/bash {}'.format(bash_fn)
     util.system(cmd)
 
-def run_cfg_in_tmpdir(cfg, tmpdir):
+def run_cfg_in_tmpdir(cfg, tmpdir, relpath):
     """
-    Except 'inputs', 'outputs', 'parameters' in cfg.
-    If 'python_function' in cfg, then use it. (Deprecated.)
+    Accept 'inputs', 'outputs', 'parameters' in cfg.
+    Relativize 'inputs' relative to relpath, unless running in tmpdir.
+    ('outputs' are always relative to rundir.)
     If 'bash_template_fn' in cfg, then substitute and use it.
     """
-    for fn in cfg['inputs'].values():
-        wait_for(fn)
     inputs = cfg['inputs']
     outputs = cfg['outputs']
     parameters = cfg['parameters']
-    python_function_name = cfg.get('python_function')
-    bash_template_fn = cfg.get('bash_template_fn')
-    if bash_template_fn:
-        wait_for(bash_template_fn)
-        bash_template = open(bash_template_fn).read()
-    else:
-        bash_template = None
-    assert python_function_name or bash_template_fn
+    bash_template_fn = cfg['bash_template_fn']
+    for k,v in inputs.items():
+        if not os.path.isabs(v):
+            inputs[k] = os.path.normpath(os.path.join(relpath, v))
+            if tmpdir:
+                inputs[k] = os.path.abspath(inputs[k])
+    for fn in inputs.values():
+        wait_for(fn)
+    wait_for(bash_template_fn)
+    bash_template = open(bash_template_fn).read()
     myinputs = dict(inputs)
     myoutputs = dict(outputs)
     finaloutdir = os.getcwd()
@@ -205,11 +220,12 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
     else:
         myrundir = finaloutdir
     with util.cd(myrundir):
-        if python_function_name:
-            run_python(python_function_name, myinputs, myoutputs, parameters)
-        elif bash_template:
-            # TODO(CD): Write a script in wdir even when running in tmpdir.
-            run_bash(bash_template, myinputs, myoutputs, parameters)
+        if tmpdir:
+            # Check again, in case we have the paths wrong.
+            for fn in inputs.values():
+                wait_for(fn, 0)
+        # TODO(CD): Write a script in wdir even when running in tmpdir (so we can see it on error).
+        run_bash(bash_template, myinputs, myoutputs, parameters)
     if tmpdir:
         """
         for k,v in outputs.iteritems():
@@ -220,6 +236,7 @@ def run_cfg_in_tmpdir(cfg, tmpdir):
         """
         cmd = 'rsync -av {}/ {}; rm -rf {}'.format(myrundir, finaloutdir, myrundir)
         util.system(cmd)
+        fix_relative_symlinks(finaloutdir, myrundir, recursive=True)
     for fn in cfg['outputs'].values():
         wait_for(fn)
 
@@ -231,9 +248,9 @@ def run(json_fn, timeout, tmpdir):
     LOG.debug('Loading JSON from {!r}'.format(json_fn))
     cfg = json.loads(open(json_fn).read())
     LOG.debug(pprint.pformat(cfg))
-    rundir = os.path.dirname(json_fn)
+    rundir = os.path.normpath(os.path.dirname(json_fn))
     with util.cd(rundir):
-        run_cfg_in_tmpdir(cfg, tmpdir)
+        run_cfg_in_tmpdir(cfg, tmpdir, '.')
 
 def main():
     parser = get_parser()
