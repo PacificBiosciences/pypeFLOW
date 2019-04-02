@@ -3,7 +3,7 @@ import subprocess
 
 try:
     local_version = '+git.{}'.format(
-        subprocess.check_output('git rev-parse HEAD', shell=True))
+        subprocess.check_output('git rev-parse HEAD', shell=True, encoding='utf8'))
 except Exception:
     local_version = ''
 
