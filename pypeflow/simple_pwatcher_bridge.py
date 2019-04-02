@@ -23,7 +23,7 @@ LOG = logging.getLogger(__name__)
 def generate_jobid(node, script_fn):
     # For now, we keep it simple. Just the task.json.
     # We truncate the job_name to 15 chars for the sake of some job systems.
-    script_content = open(script_fn).read()
+    script_content = open(script_fn, 'rb').read()
     checksum = hashlib.md5(script_content).hexdigest()
     return 'P' + checksum[0:14]
 
@@ -44,7 +44,7 @@ def generate_jobid_alt_given_checksum(script_fn, checksum):
 
 def generate_jobid_alt(node, script_fn):
     # dgordon suggests this as a preferable alternative.
-    script_content = open(script_fn).read()
+    script_content = open(script_fn, 'rb').read()
     checksum = hashlib.md5(script_content).hexdigest()
     return generate_jobid_alt_given_checksum(script_fn, checksum)
 
