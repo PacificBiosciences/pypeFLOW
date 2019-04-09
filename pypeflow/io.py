@@ -142,10 +142,10 @@ def substitute(yourdict):
 def cd(newdir):
     # https://stackoverflow.com/a/24176022
     prevdir = os.getcwd()
-    LOG.warning('CD: %r <- %r' % (newdir, prevdir))
+    LOG.info('CD: %r <- %r' % (newdir, prevdir))
     os.chdir(os.path.expanduser(newdir))
     try:
         yield
     finally:
-        LOG.warning('CD: %r -> %r' % (newdir, prevdir))
+        LOG.info('CD: %r -> %r' % (newdir, prevdir))
         os.chdir(prevdir)

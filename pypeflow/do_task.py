@@ -133,12 +133,14 @@ class Attrs(object):
         return ' '.join(f for f in self.kwds.values())
     def __getattr__(self, name):
         # For this, values can be string, int, float, etc.
+        if 'ALL' == name:
+            return ' '.join(self.kwds.itervalues())
         return str(self.kwds[name])
     def __init__(self, **kwds):
         self.kwds = kwds
 
 def value_quoted(kvs):
-    return {k:quote(v) for k,v in kvs.items()}
+    return {k:quote(v) if '*' not in v else v for k,v in kvs.items()}
 
 def run_bash(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
