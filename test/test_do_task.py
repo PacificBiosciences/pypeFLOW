@@ -36,7 +36,8 @@ echo PP
 """),
 ]
 
-@pytest.mark.parametrize("myi,myo,myp,t,expected", testdata)
-def test_sub(myi, myo, myp, t, expected):
+@pytest.mark.parametrize("args", testdata)
+def test_sub(args):
+    myi, myo, myp, t, expected = args
     got = M.sub(t, myi, myo, myp)
     assert expected == got
