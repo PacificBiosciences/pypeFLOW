@@ -142,7 +142,7 @@ class Attrs(object):
 def value_quoted(kvs):
     return {k:quote(v) if '*' not in v else v for k,v in kvs.items()}
 
-def run_bash(bash_template, myinputs, myoutputs, parameters):
+def sub(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
     var_dict = dict()
     #var_dict.update(parameters)
@@ -156,6 +156,9 @@ def run_bash(bash_template, myinputs, myoutputs, parameters):
     var_dict['input'] = Attrs(**value_quoted(myinputs))
     var_dict['output'] = Attrs(**value_quoted(myoutputs))
     var_dict['params'] = Attrs(**valid_parameters)
+    return bash_template.format(**var_dict)
+
+def run_bash(bash_template, myinputs, myoutputs, parameters):
     # Like snakemake, we use bash "strict mode", but we add -vx.
     # http://redsymbol.net/articles/unofficial-bash-strict-mode/
     prefix = """
@@ -165,22 +168,28 @@ hostname
 pwd
 date
 """
-    postfix = """
-date
-"""
     # Substitute
     try:
-        bash_content = prefix + bash_template.format(**var_dict) + postfix
+        task_lines = sub(bash_template, myinputs, myoutputs, parameters)
     except Exception:
         msg = """\
 Failed to substitute var_dict
-{}
+  inputs: {}
+  outputs: {}
+  parameters: {}
 into bash script:
 {}
 Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your script?
-""".format(var_dict, bash_template)
+""".format(myinputs, myoutputs, parameters, bash_template)
         LOG.error(msg)
         raise
+
+    postfix = """
+date
+"""
+    # Combine
+    bash_content = prefix + task_lines  + postfix
+
     # Write user_script.sh
     bash_fn = 'user_script.sh'
     with open(bash_fn, 'w') as ofs:
