@@ -9,6 +9,8 @@ import json
 import logging
 import os
 import pprint
+import re
+import string
 import sys
 import time
 from pipes import quote # shlex in python3.3+
@@ -133,29 +135,32 @@ class Attrs(object):
         return ' '.join(f for f in self.kwds.values())
     def __getattr__(self, name):
         # For this, values can be string, int, float, etc.
-        if 'ALL' == name:
-            return ' '.join(self.kwds.itervalues())
-        return str(self.kwds[name])
-    def __init__(self, **kwds):
+        if '*' in name:
+            re_star = re.compile('^' + name.replace('*', '.*') + '$')
+            result = (v for (k,v) in self.kwds.iteritems() if re_star.search(k))
+        elif 'ALL' == name:
+            result = self.kwds.itervalues()
+        else:
+            result = [str(self.kwds[name])]
+        return ' '.join(quote(v) for v in result)
+    def __init__(self, kwds):
         self.kwds = kwds
 
-def value_quoted(kvs):
-    return {k:quote(v) if '*' not in v else v for k,v in kvs.items()}
-
-def run_bash(bash_template, myinputs, myoutputs, parameters):
+def sub(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
     var_dict = dict()
-    #var_dict.update(parameters)
-    #var_dict.update(myinputs) # for now
-    #var_dict.update(myoutputs) # for now
     valid_parameters = {k:v for k,v in parameters.iteritems() if not k.startswith('_')}
     assert 'input' not in parameters
     assert 'output' not in parameters
     # input/output/params are the main values substituted in the subset of
     # snakemake which we support.
-    var_dict['input'] = Attrs(**value_quoted(myinputs))
-    var_dict['output'] = Attrs(**value_quoted(myoutputs))
-    var_dict['params'] = Attrs(**valid_parameters)
+    var_dict['input'] = Attrs(myinputs) #Attrs(**value_quoted(myinputs))
+    var_dict['output'] = Attrs(myoutputs) #Attrs(**value_quoted(myoutputs))
+    var_dict['params'] = Attrs(valid_parameters) #Attrs(**valid_parameters)
+    fmtr = string.Formatter()
+    return fmtr.vformat(bash_template, [], var_dict)
+
+def run_bash(bash_template, myinputs, myoutputs, parameters):
     # Like snakemake, we use bash "strict mode", but we add -vx.
     # http://redsymbol.net/articles/unofficial-bash-strict-mode/
     prefix = """
@@ -165,22 +170,28 @@ hostname
 pwd
 date
 """
-    postfix = """
-date
-"""
     # Substitute
     try:
-        bash_content = prefix + bash_template.format(**var_dict) + postfix
+        task_lines = sub(bash_template, myinputs, myoutputs, parameters)
     except Exception:
         msg = """\
 Failed to substitute var_dict
-{}
+  inputs: {}
+  outputs: {}
+  parameters: {}
 into bash script:
 {}
 Possibly you forgot to use "input.foo" "output.bar" "params.fubar" etc. in your script?
-""".format(var_dict, bash_template)
+""".format(myinputs, myoutputs, parameters, bash_template)
         LOG.error(msg)
         raise
+
+    postfix = """
+date
+"""
+    # Combine
+    bash_content = prefix + task_lines  + postfix
+
     # Write user_script.sh
     bash_fn = 'user_script.sh'
     with open(bash_fn, 'w') as ofs:
