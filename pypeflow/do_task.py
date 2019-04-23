@@ -142,9 +142,10 @@ class Attrs(object):
             result = self.kwds.itervalues()
         else:
             result = [str(self.kwds[name])]
-        return ' '.join(quote(v) for v in result)
-    def __init__(self, kwds):
+        return ' '.join(self.quote(v) for v in result)
+    def __init__(self, kwds, quote=quote):
         self.kwds = kwds
+        self.quote = quote
 
 def sub(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
@@ -154,9 +155,9 @@ def sub(bash_template, myinputs, myoutputs, parameters):
     assert 'output' not in parameters
     # input/output/params are the main values substituted in the subset of
     # snakemake which we support.
-    var_dict['input'] = Attrs(myinputs) #Attrs(**value_quoted(myinputs))
-    var_dict['output'] = Attrs(myoutputs) #Attrs(**value_quoted(myoutputs))
-    var_dict['params'] = Attrs(valid_parameters) #Attrs(**valid_parameters)
+    var_dict['input'] = Attrs(myinputs)
+    var_dict['output'] = Attrs(myoutputs)
+    var_dict['params'] = Attrs(valid_parameters, quote=lambda x:x)
     fmtr = string.Formatter()
     return fmtr.vformat(bash_template, [], var_dict)
 
