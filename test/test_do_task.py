@@ -11,7 +11,7 @@ echo hello
 echo hello
 """),
         # simple subs (with quoting)
-        ({'ii': 'II'}, {'oo': 'O O'}, {'pp': 'PP'},
+        ({'ii': 'II'}, {'oo': 'O O'}, {'pp': 'PP DO NOT QUOTE'},
 """\
 echo {input.ii}
 echo {output.oo}
@@ -20,7 +20,7 @@ echo {params.pp}
 """\
 echo II
 echo 'O O'
-echo PP
+echo PP DO NOT QUOTE
 """),
         # input.ALL
         ({'ii': 'II', 'ij': 'IJ'}, {'oo': 'OO'}, {'pp': 'PP'},
