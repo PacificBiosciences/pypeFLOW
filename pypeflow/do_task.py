@@ -142,7 +142,7 @@ class Attrs(object):
             result = self.kwds.itervalues()
         else:
             result = [str(self.kwds[name])]
-        return ' '.join(self.quote(v) for v in result)
+        return ' '.join(self.quote(v) for v in sorted(result))
     def __init__(self, kwds, quote=quote):
         self.kwds = kwds
         self.quote = quote
