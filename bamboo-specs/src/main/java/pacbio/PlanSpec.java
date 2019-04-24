@@ -24,10 +24,10 @@ import com.atlassian.bamboo.specs.util.BambooServer;
 
 @BambooSpec
 public class PlanSpec {
-    
+
     public Plan plan() {
         final Plan plan = new Plan(new Project()
-             
+
                 .key(new BambooKey("SAT"))
                 .name("SMRT Analysis Tools (SAT)"),
             "pypeflow3",
@@ -51,15 +51,18 @@ public class PlanSpec {
                                     .matchValue("linux")
                                     .matchType(Requirement.MatchType.EQUALS))))
             .linkedRepositories("pypeflow3")
-            
+
             .triggers(new BitbucketServerTrigger())
             .planBranchManagement(new PlanBranchManagement()
-                    .delete(new BranchCleanup())
-                    .notificationForCommitters())
+                .createForPullRequest()
+                .delete(new BranchCleanup()
+                    .whenRemovedFromRepositoryAfterDays(7)
+                    .whenInactiveInRepositoryAfterDays(30))
+                .notificationForCommitters())
             .forceStopHungBuilds();
         return plan;
     }
-    
+
     public PlanPermissions planPermission() {
         final PlanPermissions planPermission = new PlanPermissions(new PlanIdentifier("SAT", "PYPBS"))
             .permissions(new Permissions()
@@ -67,15 +70,15 @@ public class PlanSpec {
                     .userPermissions("bli", PermissionType.BUILD, PermissionType.CLONE, PermissionType.ADMIN, PermissionType.VIEW, PermissionType.EDIT));
         return planPermission;
     }
-    
+
     public static void main(String... argv) {
         //By default credentials are read from the '.credentials' file.
         BambooServer bambooServer = new BambooServer("http://bamboo.pacificbiosciences.com:8085");
         final PlanSpec planSpec = new PlanSpec();
-        
+
         final Plan plan = planSpec.plan();
         bambooServer.publish(plan);
-        
+
         final PlanPermissions planPermission = planSpec.planPermission();
         bambooServer.publish(planPermission);
     }
