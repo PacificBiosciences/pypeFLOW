@@ -16,7 +16,7 @@ mkdir -p ${PYTHONUSERBASE}
 
 pip3 --version
 pip3 install --user pylint
-pip3 install --user --find-links=${WHEELHOUSE} pytest pytest-cov
+pip3 install --user --find-links=${WHEELHOUSE} wheel pytest pytest-cov
 pip3 install --user --find-links=${WHEELHOUSE} --edit .
 # cannot use --no-index b/c so many py3 pkgs are not wheelable
 

@@ -1,5 +1,5 @@
 WHEELHOUSE?=wheelhouse
-PIP=pip wheel --wheel-dir ${WHEELHOUSE} --find-links ${WHEELHOUSE}
+PIP=pip3 wheel --wheel-dir ${WHEELHOUSE} --find-links ${WHEELHOUSE}
 MY_TEST_FLAGS?=-v -s --durations=0
 
 default:
@@ -11,6 +11,6 @@ pytest:
 autopep8:
 	autopep8 --max-line-length=120 -ir -j0 pypeflow/ pwatcher/
 wheel:
-	which pip
+	which pip3
 	${PIP} --no-deps .
 	ls -larth ${WHEELHOUSE}
