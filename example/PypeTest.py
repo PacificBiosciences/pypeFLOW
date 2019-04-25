@@ -1,4 +1,4 @@
-from __future__ import print_function
+
 
 # @author Jason Chin
 #
@@ -66,7 +66,7 @@ def simpleTest():
     def testTask(*argv, **kwargv):
         print("testTask is running")
         print("fasta input filename is %s" %  testTask.fasta.localFileName)
-        for ft, f in testTask.outputDataObjs.iteritems():
+        for ft, f in testTask.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
             runShellCmd(["sleep", "5" ])
@@ -78,7 +78,7 @@ def simpleTest():
               parameters={"a":10}, **{"b":12})
     def testTask2(*argv, **kwargv):
         print("testTask2 is running")
-        for ft, f in testTask2.outputDataObjs.iteritems():
+        for ft, f in testTask2.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
     
@@ -123,7 +123,7 @@ def simpleTest2():
               parameters={"a":10}, **{"b":12})
     def testTask(*argv, **kwargv):
         print("testTask is running")
-        for ft, f in testTask.outputDataObjs.iteritems():
+        for ft, f in testTask.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
             runShellCmd(["sleep", "5" ])
@@ -133,7 +133,7 @@ def simpleTest2():
               parameters={"a":10}, **{"b":12})
     def testTask2(*argv, **kwargv):
         print("testTask2 is running")
-        for ft, f in testTask2.outputDataObjs.iteritems():
+        for ft, f in testTask2.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
         

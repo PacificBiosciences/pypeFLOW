@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 from .util import (mkdirs, system, touch, run, cd)
 import pwatcher.blocking
 import pwatcher.fs_based
@@ -165,7 +165,7 @@ class PwatcherTaskQueue(object):
         }
         q = self.watcher.query(**watcher_args)
         #LOG.debug('In check_done(), result of query:%s' %repr(q))
-        for jobid, status in q['jobids'].iteritems():
+        for jobid, status in q['jobids'].items():
             if status.startswith('EXIT') or status.startswith('DEAD'):
                 self.__running.remove(jobid)
                 node = self.__known[jobid]
@@ -250,7 +250,7 @@ class Workflow(object):
             use_tmpdir = pypetask.dist.use_tmpdir
         node = PypeNode(pypetask.name, pypetask.wdir, pypetask, needs, use_tmpdir, pre_script)
         self.pypetask2node[pypetask] = node
-        for key, plf in pypetask.inputs.iteritems():
+        for key, plf in pypetask.inputs.items():
             if plf.producer is None:
                 continue
             if plf.producer not in self.pypetask2node:
@@ -636,10 +636,10 @@ def PypeTask(inputs, outputs, parameters=None, wdir=None, bash_template=None, di
         #wdir = parameters.get('wdir', name) # One of these must be a string!
         wdir = find_work_dir([only_path(v) for v in outputs.values()])
         # Since we derived wdir from outputs, any relative paths should become absolute.
-        for k,v in outputs.items():
+        for k,v in list(outputs.items()):
             if not isinstance(v, PypeLocalFile) and not os.path.isabs(v):
                 outputs[k] = os.path.abspath(v)
-        for k,v in inputs.items():
+        for k,v in list(inputs.items()):
             if not isinstance(v, PypeLocalFile) and not os.path.isabs(v):
                 inputs[k] = os.path.abspath(v)
     else:
@@ -663,7 +663,7 @@ class _PypeTask(object):
     """Adaptor from old PypeTask API.
     """
     def canonicalize(self):
-        for key, val in self.outputs.items():
+        for key, val in list(self.outputs.items()):
             if not isinstance(val, PypeLocalFile):
                 # If relative, then it is relative to our wdir.
                 #LOG.warning('Making PLF: {!r} {!r}'.format(val, self))
@@ -674,15 +674,15 @@ class _PypeTask(object):
                 self.outputs[key] = val
             else:
                 val.producer = self
-        for key, val in self.inputs.items():
+        for key, val in list(self.inputs.items()):
             if not isinstance(val, PypeLocalFile):
                 assert os.path.isabs(val), 'Inputs cannot be relative at self point: {!r} in {!r}'.format(val, self)
                 self.inputs[key] = findPypeLocalFile(val)
     def assert_canonical(self):
         # Output values will be updated after PypeTask init, so refer back to self as producer.
-        for k,v in self.inputs.iteritems():
+        for k,v in self.inputs.items():
             assert os.path.isabs(v.path), 'For {!r}, input {!r} is not absolute'.format(self.wdir, v)
-        for k,v in self.outputs.iteritems():
+        for k,v in self.outputs.items():
             assert os.path.isabs(v.path), 'For {!r}, output {!r} is not absolute'.format(self.wdir, v)
         common = set(self.inputs.keys()) & set(self.outputs.keys())
         assert (not common), 'A key is used for both inputs and outputs of PypeTask({}), which could be ok, but only if we refer to them as input.foo and output.foo in the bash script: {!r}'.format(self.wdir, common)

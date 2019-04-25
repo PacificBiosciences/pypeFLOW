@@ -96,7 +96,7 @@ class State(object):
             status = 'RUNNING'
             # but actually it might not have started yet, or it could be dead, since we have blocking qsub calls
             jobid2status[jobid] = status
-        for jobid, rc in self.jobid2exit.iteritems():
+        for jobid, rc in self.jobid2exit.items():
             status = 'EXIT {}'.format(rc)
             jobid2status[jobid] = status
     def get_running_jobids(self):
@@ -212,7 +212,7 @@ eval "$cmd"
     log.debug('Writing wrapper "%s"' %wrapper_fn)
     open(wrapper_fn, 'w').write(wrapped)
     st = os.stat(wrapper_fn)
-    os.chmod(wrapper_fn, st.st_mode | 0111)
+    os.chmod(wrapper_fn, st.st_mode | 0o111)
 
 class JobThread(threading.Thread):
     def run(self):
@@ -346,7 +346,7 @@ def cmd_run(state, jobids, job_type, job_dict):
     result = {'submitted': submitted}
     if job_type != 'string':
         log.debug("NOTE: In blocking pwatcher, job_type={!r}, should be 'string'".format(job_type))
-    for jobid, desc in jobids.iteritems():
+    for jobid, desc in jobids.items():
         assert 'cmd' in desc
         cmd = desc['cmd']
         if 'rundir' in desc:
@@ -365,7 +365,7 @@ def cmd_run(state, jobids, job_type, job_dict):
     basic_submitter = StringJobSubmitter(submission_string)
     local_submitter = StringJobSubmitter(LOCAL_SUBMISSION_STRING)
     log.debug('Basic submitter: {!r}'.format(basic_submitter))
-    for jobid, job in jobs.iteritems():
+    for jobid, job in jobs.items():
         #desc = jobids[jobid]
         log.debug(' starting job %s' %pprint.pformat(job))
         mjob = Job_get_MetaJob(job)
@@ -443,7 +443,7 @@ def readjson(ifs):
     def striptildes(subd):
         if not isinstance(subd, dict):
             return
-        for k,v in subd.items():
+        for k,v in list(subd.items()):
             if k.startswith('~'):
                 del subd[k]
             else:

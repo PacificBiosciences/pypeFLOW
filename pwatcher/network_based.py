@@ -35,12 +35,12 @@ Eventually, the Watcher could be in a different programming language. Maybe
 perl. (In bash, a background heartbeat gets is own process group, so it can be
 hard to clean up.)
 """
-from __future__ import print_function
+
 try:
     from shlex import quote
 except ImportError:
     from pipes import quote
-import SocketServer
+import socketserver
 import collections
 import contextlib
 import glob
@@ -102,7 +102,7 @@ def socket_read(socket):
 
 # TODO: have state be persistent in some fashion, so we can be killed
 # and restarted
-class StatusServer(SocketServer.BaseRequestHandler):
+class StatusServer(socketserver.BaseRequestHandler):
     """input format is "command [jobid [arg1 [arg2]]]"
     job status update commands are:
         i <jobid> <pid> <pgid>	- initialize job
@@ -200,7 +200,7 @@ def get_localhost_ipaddress(hostname, port):
 
 # if we end up restarting a partially killed process, we'll try
 # to pick up the ongoing heartbeats
-class ReuseAddrServer(SocketServer.TCPServer):
+class ReuseAddrServer(socketserver.TCPServer):
     def restore_from_directories(self):
         """
         as our heartbeat server has been down, there's no accurate way
@@ -231,7 +231,7 @@ class ReuseAddrServer(SocketServer.TCPServer):
         # {jobid} = [pid, pgid, heartbeat timestamp, exit rc]
         self.server_job_list = dict()
         self.restore_from_directories()
-        SocketServer.TCPServer.__init__(self, server_address, RequestHandlerClass)
+        socketserver.TCPServer.__init__(self, server_address, RequestHandlerClass)
 
 def start_server(server_directories, hostname='', port=0):
     server = ReuseAddrServer((hostname, port), StatusServer, server_directories)
@@ -299,7 +299,7 @@ class State(object):
     def get_bjobs(self):
         return self.top['jobs']
     def get_mjobs(self):
-        return {jobid: bjob.mjob for jobid, bjob in self.top['jobs'].iteritems()}
+        return {jobid: bjob.mjob for jobid, bjob in self.top['jobs'].items()}
     def add_deleted_jobid(self, jobid):
         self.top['jobids_deleted'].append(jobid)
         self.__changed = True
@@ -683,7 +683,7 @@ def cmd_run(state, jobids, job_type, job_queue):
     jobs = dict()
     submitted = list()
     result = {'submitted': submitted}
-    for jobid, desc in jobids.iteritems():
+    for jobid, desc in jobids.items():
         assert 'cmd' in desc
         options = {}
         if 'job_queue' not in desc:
@@ -701,7 +701,7 @@ def cmd_run(state, jobids, job_type, job_queue):
             options['job_type'] = job_type
         jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
     log.debug('jobs:\n%s' %pprint.pformat(jobs))
-    for jobid, job in jobs.iteritems():
+    for jobid, job in jobs.items():
         desc = jobids[jobid]
         log.info('starting job %s' %pprint.pformat(job))
         mjob = Job_get_MetaJob(job)
@@ -791,7 +791,7 @@ def cmd_query(state, which, jobids):
     return result
 def get_jobid2pid(pid2mjob):
     result = dict()
-    for pid, mjob in pid2mjob.iteritems():
+    for pid, mjob in pid2mjob.items():
         jobid = mjob.job.jobid
         result[jobid] = pid
     return result
@@ -817,7 +817,7 @@ def find_jobids(state, which, jobids):
             yield jobid
     elif which == 'known':
         jobid2mjob = state.get_mjobs()
-        for jobid, mjob in jobid2mjob.iteritems():
+        for jobid, mjob in jobid2mjob.items():
             yield jobid
     elif which == 'list':
         #jobid2mjob = state.get_mjobs()
@@ -882,7 +882,7 @@ def readjson(ifs):
     def striptildes(subd):
         if not isinstance(subd, dict):
             return
-        for k,v in subd.items():
+        for k,v in list(subd.items()):
             if k.startswith('~'):
                 del subd[k]
             else:

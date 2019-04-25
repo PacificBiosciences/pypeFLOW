@@ -23,7 +23,7 @@ Caching/timestamp-checking would be done in the Definer, flexibly specific to ea
 
 Eventually, the Watcher could be in a different programming language. Maybe perl. (In bash, a background heartbeat gets is own process group, so it can be hard to clean up.)
 """
-from __future__ import print_function
+
 try:
     from shlex import quote
 except ImportError:
@@ -130,7 +130,7 @@ class State(object):
     def get_bjobs(self):
         return self.top['jobs']
     def get_mjobs(self):
-        return {jobid: bjob.mjob for jobid, bjob in self.top['jobs'].iteritems()}
+        return {jobid: bjob.mjob for jobid, bjob in self.top['jobs'].items()}
     def add_deleted_jobid(self, jobid):
         self.top['jobids_deleted'].append(jobid)
     def serialize(self):
@@ -438,7 +438,7 @@ def cmd_run(state, jobids, job_type, job_defaults_dict):
     jobs = dict()
     submitted = list()
     result = {'submitted': submitted}
-    for jobid, desc in jobids.iteritems():
+    for jobid, desc in jobids.items():
         options = copy.deepcopy(desc['job_dict']) # defaults were already applied here
         if not options.get('job_type'):
             options['job_type'] = job_type
@@ -446,7 +446,7 @@ def cmd_run(state, jobids, job_type, job_defaults_dict):
             options['job_type'] = 'local'
         jobs[jobid] = Job(jobid, desc['cmd'], desc['rundir'], options)
     log.debug('jobs:\n{}'.format(pprint.pformat(jobs)))
-    for jobid, job in jobs.iteritems():
+    for jobid, job in jobs.items():
         desc = jobids[jobid]
         mjob = Job_get_MetaJob(job)
         MetaJob_wrap(mjob, state)
@@ -551,7 +551,7 @@ def cmd_query(state, which, jobids):
     result = dict()
     jobstats = dict()
     result['jobids'] = jobstats
-    for jobid, pair in found.iteritems():
+    for jobid, pair in found.items():
         sentinel, heartbeat = pair
         status = get_status(state, elistdir, current_time_s, sentinel, heartbeat)
         log.debug('Status %s for heartbeat:%s' %(status, heartbeat))
@@ -559,7 +559,7 @@ def cmd_query(state, which, jobids):
     return result
 def get_jobid2pid(pid2mjob):
     result = dict()
-    for pid, mjob in pid2mjob.iteritems():
+    for pid, mjob in pid2mjob.items():
         jobid = mjob.job.jobid
         result[jobid] = pid
     return result
@@ -576,7 +576,7 @@ def find_heartbeats(state, which, jobids):
             yield fn
     elif which == 'known':
         jobid2mjob = state.get_mjobs()
-        for jobid, mjob in jobid2mjob.iteritems():
+        for jobid, mjob in jobid2mjob.items():
             mji = MetaJobClass(mjob)
             yield mji.get_heartbeat()
     elif which == 'list':
@@ -648,7 +648,7 @@ def readjson(ifs):
     def striptildes(subd):
         if not isinstance(subd, dict):
             return
-        for k,v in subd.items():
+        for k,v in list(subd.items()):
             if k.startswith('~'):
                 del subd[k]
             else:

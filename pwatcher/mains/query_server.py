@@ -5,7 +5,7 @@ Query the heartbeat server from the command line.
 As an argument, takes either server:port or the falcon run directory
 (if not argument is given, uses the current directory).
 """
-from __future__ import print_function
+
 
 import argparse
 import collections
@@ -110,7 +110,7 @@ def main():
         server_state = socket_read(s)
         s.close()
         state = eval(server_state)
-        for jobid, val in state.iteritems():
+        for jobid, val in state.items():
             print('{}: {} {} {} {}'.format(jobid, val[0], val[1], val[2], val[3]))
     else:
         socket_send(s, 'L')
