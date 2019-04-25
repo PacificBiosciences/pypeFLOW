@@ -1,4 +1,3 @@
-from __future__ import print_function
 from nose import SkipTest
 from nose.tools import assert_equal
 import pypeflow.task

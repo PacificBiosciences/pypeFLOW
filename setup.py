@@ -18,7 +18,6 @@ setup(
     zip_safe = False,
     install_requires=[
         'networkx >=1.9.1',
-        'future >= 0.16.0',
     ],
     entry_points = {'console_scripts': [
             'pwatcher-main=pwatcher.mains.pwatcher:main',

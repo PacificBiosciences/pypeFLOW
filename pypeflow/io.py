@@ -1,5 +1,3 @@
-
-
 import contextlib
 import logging
 import os
@@ -124,19 +122,6 @@ def exists_and_not_empty(fn):
         return False
     return True
 
-'''
-def substitute(yourdict):
-    """
-    >>> list(sorted(substitute({'a': '_{b}_', 'b': 'X'}).items()))
-    [('a', '_X_'), ('b', 'X')]
-    """
-    from future.utils import viewitems
-    mydict = dict(yourdict)
-    for (k, v) in viewitems(yourdict):
-        if '{' in v:
-            mydict[k] = v.format(**mydict)
-    return mydict
-'''
 
 @contextlib.contextmanager
 def cd(newdir):
