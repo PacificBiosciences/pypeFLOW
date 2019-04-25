@@ -495,7 +495,7 @@ class PypeNode(NodeBase):
         task_content = json.dumps(task_desc, sort_keys=True, indent=4, separators=(',', ': ')) + '\n'
         task_json_fn = os.path.join(wdir, 'task.json')
         open(task_json_fn, 'w').write(task_content)
-        python = 'python2.7' # sys.executable fails sometimes because of binwrapper: SE-152
+        python = 'python3' # sys.executable fails sometimes because of binwrapper: SE-152
         tmpdir_flag = '--tmpdir {}'.format(self.use_tmpdir) if self.use_tmpdir else ''
         cmd = '{} -m pypeflow.do_task {} {}'.format(python, tmpdir_flag, task_json_fn)
         env_setup = 'env | sort'

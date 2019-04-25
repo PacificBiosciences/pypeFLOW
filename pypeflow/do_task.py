@@ -1,4 +1,3 @@
-#!/usr/bin/env python2.7
 from . import do_support, util
 from .io import fix_relative_symlinks
 import argparse
@@ -13,7 +12,7 @@ import re
 import string
 import sys
 import time
-from pipes import quote # shlex in python3.3+
+from shlex import quote
 DONE = 'done'
 STATUS = 'status'
 TIMEOUT = 30

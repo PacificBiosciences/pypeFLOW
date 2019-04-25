@@ -165,7 +165,7 @@ The dependecy graph is shown below:
    :width: 400 px
 
 In the ``example/`` directory, you can generate a more complicated mock example and excute it
-by running the ``PypeTest.py`` script with ``python PypeTest.py localshell 1``.
+by running the ``PypeTest.py`` script with ``python3 PypeTest.py localshell 1``.
 
 The dependency graph of the mock workflow looks like:
 

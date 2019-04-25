@@ -1,4 +1,3 @@
-#!/usr/bin/env python2.7
 """Network-based process-watcher.
 
 This is meant to be part of a 2-process system. For now, let's call these
@@ -429,7 +428,7 @@ def MetaJob_wrap(mjob, state):
     jobid = mjob.job.jobid
     exit_sentinel_fn = os.path.join(edir, jobid)
 
-    prog = 'python2.7 -m pwatcher.mains.network_heartbeat'
+    prog = 'python3 -m pwatcher.mains.network_heartbeat'
     heartbeat_wrapper_template = "{prog} --directory={metajob_rundir} --heartbeat-server={heartbeat_server} --heartbeat-port={heartbeat_port} --exit-dir={edir} --rate={rate} --jobid={jobid} {command} || echo 99 >| {exit_sentinel_fn}"
     # We write 99 into exit-sentinel if the wrapper fails.
     wrapped = heartbeat_wrapper_template.format(**locals())
