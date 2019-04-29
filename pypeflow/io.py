@@ -39,7 +39,7 @@ def capture(cmd, nocheck=False):
     """
     import subprocess
     LOG.info('$ {} >'.format(cmd))
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='ascii')
     stdout, stderr = proc.communicate()
     rc = proc.returncode
     if rc:
