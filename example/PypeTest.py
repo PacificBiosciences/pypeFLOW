@@ -1,27 +1,4 @@
-from __future__ import print_function
-
 # @author Jason Chin
-#
-# Copyright (C) 2010 by Jason Chin 
-# Copyright (C) 2011 by Jason Chin
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
 
 import sys
 import os 
@@ -66,7 +43,7 @@ def simpleTest():
     def testTask(*argv, **kwargv):
         print("testTask is running")
         print("fasta input filename is %s" %  testTask.fasta.localFileName)
-        for ft, f in testTask.outputDataObjs.iteritems():
+        for ft, f in testTask.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
             runShellCmd(["sleep", "5" ])
@@ -78,7 +55,7 @@ def simpleTest():
               parameters={"a":10}, **{"b":12})
     def testTask2(*argv, **kwargv):
         print("testTask2 is running")
-        for ft, f in testTask2.outputDataObjs.iteritems():
+        for ft, f in testTask2.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
     
@@ -123,7 +100,7 @@ def simpleTest2():
               parameters={"a":10}, **{"b":12})
     def testTask(*argv, **kwargv):
         print("testTask is running")
-        for ft, f in testTask.outputDataObjs.iteritems():
+        for ft, f in testTask.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
             runShellCmd(["sleep", "5" ])
@@ -133,7 +110,7 @@ def simpleTest2():
               parameters={"a":10}, **{"b":12})
     def testTask2(*argv, **kwargv):
         print("testTask2 is running")
-        for ft, f in testTask2.outputDataObjs.iteritems():
+        for ft, f in testTask2.outputDataObjs.items():
             #os.system("touch %s" % f.localFileName)
             runShellCmd(["touch", "%s" % f.localFileName])
         
@@ -263,7 +240,7 @@ if __name__ == "__main__":
     try:
         testDistributed(sys.argv[1], sys.argv[2])
     except IndexError:
-        print("try: python PypeTest.py localshell 1")
+        print("try: python3 PypeTest.py localshell 1")
         print("running simpleTest()")
         simpleTest()
 

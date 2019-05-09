@@ -2,7 +2,7 @@ import logging
 import logging.config
 import os
 import string
-import StringIO
+import io
 LOG = logging.getLogger(__name__)
 BASH = '/bin/bash'
 
@@ -35,7 +35,7 @@ format=[%(levelname)s]%(message)s
 """
 def setup_simple_logging(FALCON_LOG_LEVEL='DEBUG', **ignored):
     cfg = string.Template(simple_logging_config).substitute(FALCON_LOG_LEVEL=FALCON_LOG_LEVEL)
-    logger_fileobj = StringIO.StringIO(cfg)
+    logger_fileobj = io.StringIO(cfg)
     defaults = {}
     logging.config.fileConfig(logger_fileobj, defaults=defaults, disable_existing_loggers=False)
 

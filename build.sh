@@ -1,21 +1,24 @@
 #!/bin/bash -e
 
 type module >& /dev/null || . /mnt/software/Modules/current/init/bash
-module load python/2-UCS4
+module load python/3.7.3
 
 set -vex
-which python
-which pip
+which python3
+which pip3
 
-rm -rf LOCAL
-mkdir -p LOCAL
-export PYTHONUSERBASE=$(pwd)/LOCAL
+export PYTHONUSERBASE=$(pwd)/.git/LOCAL
 export PATH=${PYTHONUSERBASE}/bin:${PATH}
 WHEELHOUSE="/mnt/software/p/python/wheelhouse/develop/"
 
-which pip
-pip --version
-pip -v install --user --no-index --find-links=${WHEELHOUSE} --edit .
+rm -rf ${PYTHONUSERBASE}
+mkdir -p ${PYTHONUSERBASE}
+
+pip3 --version
+pip3 install --user pylint
+pip3 install --user --find-links=${WHEELHOUSE} wheel pytest pytest-cov
+pip3 install --user --find-links=${WHEELHOUSE} --edit .
+# cannot use --no-index b/c so many py3 pkgs are not wheelable
 
 export MY_TEST_FLAGS="-v -s --durations=0 --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml --cov-branch"
 make pytest

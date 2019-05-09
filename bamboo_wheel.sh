@@ -15,16 +15,8 @@ mkdir -p ${WHEELHOUSE}
 umask 0000
 
 
-module load python/2-UCS2
+module load python/3.7.3
 make wheel
-
-# For now, we have only "any" wheels, so we do not need to build again.
-
-module unload python
-
-module load python/2-UCS4
-make wheel
-
 
 # http://bamboo.pacificbiosciences.com:8085/build/admin/edit/defaultBuildArtifact.action?buildKey=SAT-TAGDEPS-JOB1
 # For old artifact config:
@@ -41,4 +33,3 @@ case "${bamboo_planRepository_branchName}" in
   *)
     ;;
 esac
-

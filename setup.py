@@ -3,13 +3,13 @@ import subprocess
 
 try:
     local_version = '+git.{}'.format(
-        subprocess.check_output('git rev-parse HEAD', shell=True))
+        subprocess.check_output('git rev-parse HEAD', shell=True, encoding='utf8'))
 except Exception:
     local_version = ''
 
 setup(
     name = 'pypeflow',
-    version='2.2.0' + local_version, # should match __init__.py
+    version='2.3.0' + local_version, # should match __init__.py
     author='J. Chin',
     author_email='cschin@infoecho.net',
     license='LICENSE.txt',
@@ -18,7 +18,6 @@ setup(
     zip_safe = False,
     install_requires=[
         'networkx >=1.9.1',
-        'future >= 0.16.0',
     ],
     entry_points = {'console_scripts': [
             'pwatcher-main=pwatcher.mains.pwatcher:main',

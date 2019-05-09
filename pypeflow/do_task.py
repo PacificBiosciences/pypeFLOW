@@ -1,4 +1,3 @@
-#!/usr/bin/env python2.7
 from . import do_support, util
 from .io import fix_relative_symlinks
 import argparse
@@ -13,7 +12,7 @@ import re
 import string
 import sys
 import time
-from pipes import quote # shlex in python3.3+
+from shlex import quote
 DONE = 'done'
 STATUS = 'status'
 TIMEOUT = 30
@@ -95,7 +94,7 @@ def get_func(python_function):
 
 class OldTaskRunner(object):
     def __init__(self, inputs, outputs, parameters):
-        for k,v in (inputs.items() + outputs.items()):
+        for k,v in (list(inputs.items()) + list(outputs.items())):
             setattr(self, k, v)
         self.parameters = parameters
         self.inputs = inputs
@@ -137,9 +136,9 @@ class Attrs(object):
         # For this, values can be string, int, float, etc.
         if '*' in name:
             re_star = re.compile('^' + name.replace('*', '.*') + '$')
-            result = (v for (k,v) in self.kwds.iteritems() if re_star.search(k))
+            result = (v for (k,v) in self.kwds.items() if re_star.search(k))
         elif 'ALL' == name:
-            result = self.kwds.itervalues()
+            result = iter(self.kwds.values())
         else:
             result = [str(self.kwds[name])]
         return ' '.join(self.quote(v) for v in sorted(result))
@@ -150,7 +149,7 @@ class Attrs(object):
 def sub(bash_template, myinputs, myoutputs, parameters):
     # Set substitution dict
     var_dict = dict()
-    valid_parameters = {k:v for k,v in parameters.iteritems() if not k.startswith('_')}
+    valid_parameters = {k:v for k,v in parameters.items() if not k.startswith('_')}
     assert 'input' not in parameters
     assert 'output' not in parameters
     # input/output/params are the main values substituted in the subset of
@@ -211,7 +210,7 @@ def run_cfg_in_tmpdir(cfg, tmpdir, relpath):
     outputs = cfg['outputs']
     parameters = cfg['parameters']
     bash_template_fn = cfg['bash_template_fn']
-    for k,v in inputs.items():
+    for k,v in list(inputs.items()):
         if not os.path.isabs(v):
             inputs[k] = os.path.normpath(os.path.join(relpath, v))
             if tmpdir:

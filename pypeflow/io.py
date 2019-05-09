@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-
 import contextlib
 import logging
 import os
@@ -41,7 +39,7 @@ def capture(cmd, nocheck=False):
     """
     import subprocess
     LOG.info('$ {} >'.format(cmd))
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='ascii')
     stdout, stderr = proc.communicate()
     rc = proc.returncode
     if rc:
@@ -124,19 +122,6 @@ def exists_and_not_empty(fn):
         return False
     return True
 
-'''
-def substitute(yourdict):
-    """
-    >>> list(sorted(substitute({'a': '_{b}_', 'b': 'X'}).items()))
-    [('a', '_X_'), ('b', 'X')]
-    """
-    from future.utils import viewitems
-    mydict = dict(yourdict)
-    for (k, v) in viewitems(yourdict):
-        if '{' in v:
-            mydict[k] = v.format(**mydict)
-    return mydict
-'''
 
 @contextlib.contextmanager
 def cd(newdir):

@@ -1,4 +1,4 @@
-__version__ = '2.2.0' # should match setup.py
+__version__ = '2.3.0' # should match setup.py
 
 try:
     import sys, pkg_resources

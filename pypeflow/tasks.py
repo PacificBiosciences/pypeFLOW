@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+
 
 import collections
 import logging
@@ -53,7 +53,7 @@ def gen_task(script, inputs, outputs, parameters=None, dist=None):
     def validate_dict(mydict):
         "Python identifiers are illegal as keys."
         try:
-            collections.namedtuple('validate', mydict.keys())
+            collections.namedtuple('validate', list(mydict.keys()))
         except ValueError as exc:
             LOG.exception('Bad key name in task definition dict {!r}'.format(mydict))
             raise
@@ -61,8 +61,8 @@ def gen_task(script, inputs, outputs, parameters=None, dist=None):
     validate_dict(outputs)
     validate_dict(parameters)
     make_task = PypeTask(
-            inputs={k: v for k,v in inputs.iteritems()},
-            outputs={k: v for k,v in outputs.iteritems()},
+            inputs={k: v for k,v in inputs.items()},
+            outputs={k: v for k,v in outputs.items()},
             parameters=parameters,
             bash_template=script,
             dist=dist,

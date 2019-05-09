@@ -3,7 +3,7 @@ Prefer io.py now.
 """
 import logging
 import os
-from io import (cd, touch, mkdirs, syscall as system)
+from .io import (cd, touch, mkdirs, syscall as system)
 
 LOG = logging.getLogger()
 
